@@ -88,6 +88,8 @@ def get_err_response(code):
             (HTTP_BAD_REQUEST, 'The specified bucket is not valid'),
         'InvalidURI':
             (HTTP_BAD_REQUEST, 'Could not parse the specified URI'),
+        'InvalidDigest':
+            (HTTP_BAD_REQUEST, 'The Content-MD5 you specified was invalid'),
         'NoSuchBucket':
             (HTTP_NOT_FOUND, 'The specified bucket does not exist'),
         'SignatureDoesNotMatch':
@@ -374,7 +376,10 @@ class ObjectController(WSGIContext):
                 del env[key]
                 env['HTTP_X_OBJECT_META_' + key[16:]] = value
             elif key == 'HTTP_CONTENT_MD5':
-                env['HTTP_ETAG'] = value.decode('base64').encode('hex')
+                try:
+                    env['HTTP_ETAG'] = value.decode('base64').encode('hex')
+                except:
+                    return get_err_response('InvalidDigest')
             elif key == 'HTTP_X_AMZ_COPY_SOURCE':
                 env['HTTP_X_COPY_FROM'] = value
 
