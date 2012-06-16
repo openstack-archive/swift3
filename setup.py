@@ -18,10 +18,13 @@ from setuptools import setup
 import swift3
 
 
-setup(name='swift3', version=swift3.version,
-      description='Swift StaticWeb Middleware', author='OpenStack, LLC.',
+setup(name='swift3',
+      version=swift3.version,
+      description='Swift AmazonS3 API emulation Middleware',
+      author='OpenStack, LLC.',
       author_email='openstack@lists.launchpad.net',
       url='https://github.com/fujita/swift3',
-      packages=['swift3'], requires=['swift(>=1.4)'],
+      packages=['swift3'],
+      requires=['swift(>=1.4)'],
       entry_points={'paste.filter_factory':
-        ['middleware=swift3.middleware:filter_factory']})
+                        ['swift3=swift3.middleware:filter_factory']})
