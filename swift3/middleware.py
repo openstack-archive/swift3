@@ -463,9 +463,16 @@ class Swift3Middleware(object):
             return self.app(env, start_response)
 
         try:
-            account, signature = \
-                req.headers['Authorization'].split(' ')[-1].rsplit(':', 1)
-        except Exception:
+            keyword, info = req.headers['Authorization'].split(' ')
+        except:
+            return get_err_response('AccessDenied')(env, start_response)
+
+        if keyword != 'AWS':
+            return get_err_response('AccessDenied')(env, start_response)
+
+        try:
+            account, signature = info.rsplit(':', 1)
+        except:
             return get_err_response('InvalidArgument')(env, start_response)
 
         try:
