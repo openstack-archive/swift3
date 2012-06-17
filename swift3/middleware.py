@@ -62,7 +62,7 @@ from swift.common.utils import split_path
 from swift.common.wsgi import WSGIContext
 from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_NO_CONTENT, HTTP_BAD_REQUEST, HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, \
-    HTTP_NOT_FOUND, HTTP_CONFLICT, is_success
+    HTTP_NOT_FOUND, HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, is_success
 
 
 MAX_BUCKET_LISTING = 1000
@@ -376,10 +376,14 @@ class ObjectController(WSGIContext):
                 del env[key]
                 env['HTTP_X_OBJECT_META_' + key[16:]] = value
             elif key == 'HTTP_CONTENT_MD5':
+                if value == '':
+                    return get_err_response('InvalidDigest')
                 try:
                     env['HTTP_ETAG'] = value.decode('base64').encode('hex')
                 except:
                     return get_err_response('InvalidDigest')
+                if env['HTTP_ETAG'] == '':
+                    return get_err_response('SignatureDoesNotMatch')
             elif key == 'HTTP_X_AMZ_COPY_SOURCE':
                 env['HTTP_X_COPY_FROM'] = value
 
@@ -391,6 +395,8 @@ class ObjectController(WSGIContext):
                 return get_err_response('AccessDenied')
             elif status == HTTP_NOT_FOUND:
                 return get_err_response('NoSuchBucket')
+            elif status == HTTP_UNPROCESSABLE_ENTITY:
+                return get_err_response('InvalidDigest')
             else:
                 return get_err_response('InvalidURI')
 
