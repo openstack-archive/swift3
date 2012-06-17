@@ -57,6 +57,8 @@ import urlparse
 
 from webob import Request, Response
 from simplejson import loads
+import email.utils
+import datetime
 
 from swift.common.utils import split_path
 from swift.common.wsgi import WSGIContext
@@ -95,6 +97,9 @@ def get_err_response(code):
         'SignatureDoesNotMatch':
             (HTTP_FORBIDDEN, 'The calculated request signature does not '\
             'match your provided one'),
+        'RequestTimeTooSkewed':
+            (HTTP_FORBIDDEN, 'The difference between the request time and '\
+                 ' the current time is too large'),
         'NoSuchKey':
             (HTTP_NOT_FOUND, 'The resource you requested does not exist')}
 
@@ -467,6 +472,22 @@ class Swift3Middleware(object):
             controller, path_parts = self.get_controller(req.path)
         except ValueError:
             return get_err_response('InvalidURI')(env, start_response)
+
+        if 'Date' in req.headers:
+            date = email.utils.parsedate(req.headers['Date'])
+            if date == None:
+                return get_err_response('AccessDenied')(env, start_response)
+
+            d1 = datetime.datetime(*date[0:6])
+            d2 = datetime.datetime.utcnow()
+            epoch = datetime.datetime(1970, 1, 1, 0, 0, 0, 0)
+
+            if d1 < epoch:
+                return get_err_response('AccessDenied')(env, start_response)
+
+            delta = datetime.timedelta(seconds=60 * 10)
+            if d1 - d2 > delta or d2 - d1 > delta:
+                return get_err_response('RequestTimeTooSkewed')(env, start_response)
 
         token = base64.urlsafe_b64encode(canonical_string(req))
 
