@@ -331,7 +331,17 @@ class ObjectController(WSGIContext):
                                              object_name)
 
     def GETorHEAD(self, env, start_response):
+        if env['REQUEST_METHOD'] == 'HEAD':
+            head = True
+            env['REQUEST_METHOD'] = 'GET'
+        else:
+            head = False
+
         app_iter = self._app_call(env)
+
+        if head:
+            app_iter = None
+
         status = self._get_status_int()
         headers = dict(self._response_headers)
 
