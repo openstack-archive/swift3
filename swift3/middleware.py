@@ -66,7 +66,7 @@ from swift.common.wsgi import WSGIContext
 from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_NO_CONTENT, HTTP_BAD_REQUEST, HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, \
     HTTP_NOT_FOUND, HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, is_success, \
-    HTTP_NOT_IMPLEMENTED
+    HTTP_NOT_IMPLEMENTED, HTTP_LENGTH_REQUIRED
 
 
 MAX_BUCKET_LISTING = 1000
@@ -94,6 +94,8 @@ def get_err_response(code):
             (HTTP_BAD_REQUEST, 'Could not parse the specified URI'),
         'InvalidDigest':
             (HTTP_BAD_REQUEST, 'The Content-MD5 you specified was invalid'),
+        'BadDigest':
+            (HTTP_BAD_REQUEST, 'The Content-Length you specified was invalid'),
         'NoSuchBucket':
             (HTTP_NOT_FOUND, 'The specified bucket does not exist'),
         'SignatureDoesNotMatch':
@@ -106,7 +108,9 @@ def get_err_response(code):
             (HTTP_NOT_FOUND, 'The resource you requested does not exist'),
         'Unsupported':
             (HTTP_NOT_IMPLEMENTED, 'The feature you requested is not yet'\
-                  ' implemented')}
+                  ' implemented'),
+        'MissingContentLength':
+            (HTTP_LENGTH_REQUIRED, 'Length Required')}
 
     resp = Response(content_type='text/xml')
     resp.status = error_table[code][0]
@@ -117,22 +121,119 @@ def get_err_response(code):
     return resp
 
 
-def get_acl(account_name):
-    body = ('<AccessControlPolicy>'
+def get_acl(account_name, headers):
+    """
+    Attempts to construct an S3 ACL based on what is found in the swift headers
+    """
+
+    acl = 'private' # default to private
+
+    if 'x-container-read' in headers:
+       if headers['x-container-read'] == ".r:*" or\
+        ".r:*," in headers['x-container-read'] or \
+        ",*," in headers['x-container-read']:
+          acl = 'public-read'
+    if 'x-container-write' in headers:
+       if headers['x-container-write'] == ".r:*" or\
+        ".r:*," in headers['x-container-write'] or \
+        ",*," in headers['x-container-write']:
+          if acl == 'public-read':
+             acl = 'public-read-write'
+          else:
+             acl = 'public-write'
+
+    if acl =='private':
+        body = ('<AccessControlPolicy>'
             '<Owner>'
             '<ID>%s</ID>'
+            '<DisplayName>%s</DisplayName>'
             '</Owner>'
             '<AccessControlList>'
             '<Grant>'
             '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
             'XMLSchema-instance" xsi:type="CanonicalUser">'
             '<ID>%s</ID>'
+            '<DisplayName>%s</DisplayName>'
             '</Grantee>'
             '<Permission>FULL_CONTROL</Permission>'
             '</Grant>'
             '</AccessControlList>'
             '</AccessControlPolicy>' %
-            (account_name, account_name))
+            (account_name, account_name, account_name, account_name))
+    elif acl == 'public-read':
+        body = ('<AccessControlPolicy>'
+            '<Owner>'
+            '<ID>%s</ID>'
+            '<DisplayName>%s</DisplayName>'
+            '</Owner>'
+            '<AccessControlList>'
+            '<Grant>'
+            '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
+            'XMLSchema-instance" xsi:type="CanonicalUser">'
+            '<ID>%s</ID>'
+            '<DisplayName>%s</DisplayName>'
+            '</Grantee>'
+            '<Permission>FULL_CONTROL</Permission>'
+            '</Grant>'
+            '<Grant>'
+            '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
+            'XMLSchema-instance" xsi:type="Group">'
+            '</Grantee>'
+            '<Permission>READ</Permission>'
+            '</Grant>'
+            '</AccessControlList>'
+            '</AccessControlPolicy>' %
+            (account_name, account_name, account_name, account_name))
+    elif acl == 'public-read-write':
+        body = ('<AccessControlPolicy>'
+            '<Owner>'
+            '<ID>%s</ID>'
+            '<DisplayName>%s</DisplayName>'
+            '</Owner>'
+            '<AccessControlList>'
+            '<Grant>'
+            '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
+            'XMLSchema-instance" xsi:type="CanonicalUser">'
+            '<ID>%s</ID>'
+            '<DisplayName>%s</DisplayName>'
+            '</Grantee>'
+            '<Permission>FULL_CONTROL</Permission>'
+            '</Grant>'
+            '<Grant>'
+            '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
+            'XMLSchema-instance" xsi:type="Group">'
+            '</Grantee>'
+            '<Permission>READ</Permission>'
+            '</Grant>'
+            '</AccessControlList>'
+            '<AccessControlList>'
+            '<Grant>'
+            '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
+            'XMLSchema-instance" xsi:type="Group">'
+            '</Grantee>'
+            '<Permission>WRITE</Permission>'
+            '</Grant>'
+            '</AccessControlList>'
+            '</AccessControlPolicy>' %
+            (account_name, account_name, account_name, account_name))
+    else:
+        body = ('<AccessControlPolicy>'
+            '<Owner>'
+            '<ID>%s</ID>'
+            '<DisplayName>%s</DisplayName>'
+            '</Owner>'
+            '<AccessControlList>'
+            '<Grant>'
+            '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
+            'XMLSchema-instance" xsi:type="CanonicalUser">'
+            '<ID>%s</ID>'
+            '<DisplayName>%s</DisplayName>'
+            '</Grantee>'
+            '<Permission>FULL_CONTROL</Permission>'
+            '</Grant>'
+            '</AccessControlList>'
+            '</AccessControlPolicy>' %
+            (account_name, account_name, account_name, account_name))
     return Response(body=body, content_type="text/plain")
 
 
@@ -174,15 +275,20 @@ def swift_acl_translate(acl, group='', user=''):
     """
     swift_acl = {}
     swift_acl['public-read'] = [['HTTP_X_CONTAINER_READ', '.r:*,.rlistings']]
+    # Swift does not support public write: https://answers.launchpad.net/swift/+question/169541
     swift_acl['public-read-write'] = [['HTTP_X_CONTAINER_WRITE', '.r:*'],\
 				['HTTP_X_CONTAINER_READ', '.r:*,.rlistings']]
 
     #TODO: if there's a way to get group and user, this should work for private:
-    swift_acl['private'] = [['HTTP_X_CONTAINER_WRITE'], [ group + ':' + user], \
-                      ['HTTP_X_CONTAINER_READ', group + ':' + user]]
+    #swift_acl['private'] = [['HTTP_X_CONTAINER_WRITE',  group + ':' + user], \
+    #                  ['HTTP_X_CONTAINER_READ', group + ':' + user]]
+    swift_acl['private'] = [['HTTP_X_CONTAINER_WRITE', '.'], \
+                      ['HTTP_X_CONTAINER_READ', '.']]
 
-    if acl == 'private' or 'authenticated-read':
+    if acl == 'authenticated-read':
         return "Unsupported"
+    elif acl not in swift_acl:
+        return "InvalidArgument"
 
     return swift_acl[acl]
 
@@ -254,10 +360,8 @@ class BucketController(WSGIContext):
         max_keys = min(int(args.get('max-keys', MAX_BUCKET_LISTING)),
                         MAX_BUCKET_LISTING)
 
-        if 'acl' in args:
+        if 'acl' not in args:
             """acl request sent with format=json etc confuses swift"""
-            return get_acl(self.account_name)
-        else:
             env['QUERY_STRING'] = 'format=json&limit=%s' % (max_keys + 1)
         if 'marker' in args:
             env['QUERY_STRING'] += '&marker=%s' % quote(args['marker'])
@@ -267,7 +371,11 @@ class BucketController(WSGIContext):
             env['QUERY_STRING'] += '&delimiter=%s' % quote(args['delimiter'])
         body_iter = self._app_call(env)
         status = self._get_status_int()
+        headers = dict(self._response_headers)
 
+        if 'acl' in args:
+            return get_acl(self.account_name, headers)
+ 
         if status != HTTP_OK:
             if status == HTTP_UNAUTHORIZED:
                 return get_err_response('AccessDenied')
@@ -299,9 +407,10 @@ class BucketController(WSGIContext):
                 xml_escape(self.container_name),
                 "".join(['<Contents><Key>%s</Key><LastModified>%sZ</LastModif'\
                         'ied><ETag>%s</ETag><Size>%s</Size><StorageClass>STA'\
-                        'NDARD</StorageClass></Contents>' %
+                        'NDARD</StorageClass><Owner><ID>%s</ID><DisplayName>'\
+                        '%s</DisplayName></Owner></Contents>' %
                         (xml_escape(i['name']), i['last_modified'], i['hash'],
-                           i['bytes'])
+                           i['bytes'], self.account_name, self.account_name)
                            for i in objects[:max_keys] if 'subdir' not in i]),
                 "".join(['<CommonPrefixes><Prefix>%s</Prefix></CommonPrefixes>'
                          % xml_escape(i['subdir'])
@@ -321,6 +430,8 @@ class BucketController(WSGIContext):
                 translated_acl = swift_acl_translate(value)
                 if translated_acl == 'Unsupported':
                     return get_err_response('Unsupported')
+                elif translated_acl == 'InvalidArgument':
+                    return get_err_response('InvalidArgument')
 
                 for header,acl in swift_acl_translate(value):
                     env[header] = acl
@@ -365,6 +476,13 @@ class BucketController(WSGIContext):
         resp.status = HTTP_NO_CONTENT
         return resp
 
+    def POST(self, env, start_response):
+        """
+        Handle POST Bucket request
+        """
+
+        return get_err_response('Unsupported')
+
 
 class ObjectController(WSGIContext):
     """
@@ -400,7 +518,7 @@ class ObjectController(WSGIContext):
             else:
                 args = {}
             if 'acl' in args:
-                return get_acl(self.account_name)
+                return get_acl(self.account_name, headers)
 
             new_hdrs = {}
             for key, val in headers.iteritems():
