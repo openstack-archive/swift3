@@ -61,10 +61,12 @@ import email.utils
 import datetime
 
 from swift.common.utils import split_path
+from swift.common.utils import get_logger
 from swift.common.wsgi import WSGIContext
 from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_NO_CONTENT, HTTP_BAD_REQUEST, HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, \
-    HTTP_NOT_FOUND, HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, is_success
+    HTTP_NOT_FOUND, HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, is_success, \
+    HTTP_NOT_IMPLEMENTED
 
 
 MAX_BUCKET_LISTING = 1000
@@ -101,7 +103,10 @@ def get_err_response(code):
             (HTTP_FORBIDDEN, 'The difference between the request time and '\
                  ' the current time is too large'),
         'NoSuchKey':
-            (HTTP_NOT_FOUND, 'The resource you requested does not exist')}
+            (HTTP_NOT_FOUND, 'The resource you requested does not exist'),
+        'Unsupported':
+            (HTTP_NOT_IMPLEMENTED, 'The feature you requested is not yet'\
+                  ' implemented')}
 
     resp = Response(content_type='text/xml')
     resp.status = error_table[code][0]
@@ -160,6 +165,26 @@ def canonical_string(req):
                        'requestPayment'):
                 return "%s%s?%s" % (buf, path, key)
     return buf + path
+
+def swift_acl_translate(acl, group='', user=''):
+    """
+    Takes an S3 style ACL and returns a list of header/value pairs that
+    implement that ACL in Swift, or "Unsupported" if there isn't a way to do
+    that yet.
+    """
+    swift_acl = {}
+    swift_acl['public-read'] = [['HTTP_X_CONTAINER_READ', '.r:*,.rlistings']]
+    swift_acl['public-read-write'] = [['HTTP_X_CONTAINER_WRITE', '.r:*'],\
+				['HTTP_X_CONTAINER_READ', '.r:*,.rlistings']]
+
+    #TODO: if there's a way to get group and user, this should work for private:
+    swift_acl['private'] = [['HTTP_X_CONTAINER_WRITE'], [ group + ':' + user], \
+                      ['HTTP_X_CONTAINER_READ', group + ':' + user]]
+
+    if acl == 'private' or 'authenticated-read':
+        return "Unsupported"
+
+    return swift_acl[acl]
 
 
 class ServiceController(WSGIContext):
@@ -228,7 +253,12 @@ class BucketController(WSGIContext):
 
         max_keys = min(int(args.get('max-keys', MAX_BUCKET_LISTING)),
                         MAX_BUCKET_LISTING)
-        env['QUERY_STRING'] = 'format=json&limit=%s' % (max_keys + 1)
+
+        if 'acl' in args:
+            """acl request sent with format=json etc confuses swift"""
+            return get_acl(self.account_name)
+        else:
+            env['QUERY_STRING'] = 'format=json&limit=%s' % (max_keys + 1)
         if 'marker' in args:
             env['QUERY_STRING'] += '&marker=%s' % quote(args['marker'])
         if 'prefix' in args:
@@ -246,8 +276,6 @@ class BucketController(WSGIContext):
             else:
                 return get_err_response('InvalidURI')
 
-        if 'acl' in args:
-            return get_acl(self.account_name)
 
         objects = loads(''.join(list(body_iter)))
         body = ('<?xml version="1.0" encoding="UTF-8"?>'
@@ -284,10 +312,26 @@ class BucketController(WSGIContext):
         """
         Handle PUT Bucket request
         """
+        for key, value in env.items():
+            if key == "HTTP_X_AMZ_ACL":
+                """ Translate the Amazon ACL to something that can be
+                implemented in Swift, 501 otherwise. Swift uses POST
+                for ACLs, whereas S3 uses PUT. """
+                del env[key]
+                translated_acl = swift_acl_translate(value)
+                if translated_acl == 'Unsupported':
+                    return get_err_response('Unsupported')
+
+                for header,acl in swift_acl_translate(value):
+                    env[header] = acl
+                env['REQUEST_METHOD'] = 'POST'
+            if key == "CONTENT_LENGTH" and (value.isdigit() == False or value < 0):
+                return get_err_response("InvalidArgument")
+
         body_iter = self._app_call(env)
         status = self._get_status_int()
 
-        if status != HTTP_CREATED:
+        if status != HTTP_CREATED and status != HTTP_NO_CONTENT:
             if status == HTTP_UNAUTHORIZED:
                 return get_err_response('AccessDenied')
             elif status == HTTP_ACCEPTED:
@@ -452,6 +496,8 @@ class Swift3Middleware(object):
     """Swift3 S3 compatibility midleware"""
     def __init__(self, app, conf, *args, **kwargs):
         self.app = app
+        self.conf = conf
+        self.logger = get_logger(self.conf, log_route='swift3')
 
     def get_controller(self, path):
         container, obj = split_path(path, 0, 2, True)
@@ -465,6 +511,8 @@ class Swift3Middleware(object):
 
     def __call__(self, env, start_response):
         req = Request(env)
+        self.logger.debug('Calling Swift3 Middleware')
+        self.logger.debug(req.__dict__)
 
         if 'AWSAccessKeyId' in req.GET:
             try:
