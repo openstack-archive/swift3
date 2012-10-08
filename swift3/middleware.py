@@ -221,6 +221,11 @@ class BucketController(WSGIContext):
             args = dict(urlparse.parse_qsl(env['QUERY_STRING'], 1))
         else:
             args = {}
+
+        if 'max-keys' in args:
+            if args.get('max-keys').isdigit() is False:
+                return get_err_response('InvalidArgument')
+
         max_keys = min(int(args.get('max-keys', MAX_BUCKET_LISTING)),
                         MAX_BUCKET_LISTING)
         env['QUERY_STRING'] = 'format=json&limit=%s' % (max_keys + 1)
@@ -261,7 +266,7 @@ class BucketController(WSGIContext):
                 xml_escape(args.get('prefix', '')),
                 xml_escape(args.get('marker', '')),
                 xml_escape(args.get('delimiter', '')),
-                'true' if len(objects) == (max_keys + 1) else 'false',
+                'true' if max_keys > 0 and len(objects) == (max_keys + 1) else 'false',
                 max_keys,
                 xml_escape(self.container_name),
                 "".join(['<Contents><Key>%s</Key><LastModified>%sZ</LastModif'\
