@@ -39,7 +39,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'Swift Static Web'
+project = u'Swift S3 Compatibility Middleware'
 copyright = u'2012 OpenStack, LLC.'
 
 # The version info for the project you're documenting, acts as replacement for
