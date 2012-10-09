@@ -54,6 +54,7 @@ from urllib import unquote, quote
 import base64
 from xml.sax.saxutils import escape as xml_escape
 import urlparse
+from xml.dom.minidom import parseString
 
 from webob import Request, Response
 from simplejson import loads
@@ -179,6 +180,7 @@ def get_acl(account_name, headers):
             '<Grant>'
             '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
             'XMLSchema-instance" xsi:type="Group">'
+            '<URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>'
             '</Grantee>'
             '<Permission>READ</Permission>'
             '</Grant>'
@@ -203,6 +205,7 @@ def get_acl(account_name, headers):
             '<Grant>'
             '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
             'XMLSchema-instance" xsi:type="Group">'
+            '<URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>'
             '</Grantee>'
             '<Permission>READ</Permission>'
             '</Grant>'
@@ -211,6 +214,7 @@ def get_acl(account_name, headers):
             '<Grant>'
             '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
             'XMLSchema-instance" xsi:type="Group">'
+            '<URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>'
             '</Grantee>'
             '<Permission>WRITE</Permission>'
             '</Grant>'
@@ -268,7 +272,7 @@ def canonical_string(req):
                 return "%s%s?%s" % (buf, path, key)
     return buf + path
 
-def swift_acl_translate(acl, group='', user=''):
+def swift_acl_translate(acl, group='', user='', xml=False):
     """
     Takes an S3 style ACL and returns a list of header/value pairs that
     implement that ACL in Swift, or "Unsupported" if there isn't a way to do
@@ -285,6 +289,26 @@ def swift_acl_translate(acl, group='', user=''):
     #                  ['HTTP_X_CONTAINER_READ', group + ':' + user]]
     swift_acl['private'] = [['HTTP_X_CONTAINER_WRITE', '.'], \
                       ['HTTP_X_CONTAINER_READ', '.']]
+    if xml:
+       """
+       We are working with XML and need to parse it
+       """
+       dom = parseString(acl)
+       acl = 'unknown'
+       for grant in dom.getElementsByTagName('Grant'):
+           permission = grant.getElementsByTagName('Permission')[0].firstChild.data
+           grantee = grant.getElementsByTagName('Grantee')[0].getAttributeNode('xsi:type').nodeValue
+           if permission == "FULL_CONTROL" and grantee == 'CanonicalUser'\
+              and acl != 'public-read' and acl != 'public-read-write':
+               acl = 'private'
+           elif permission == "READ" and grantee == 'Group'\
+              and acl != 'public-read-write':
+               acl = 'public-read'
+           elif permission == "WRITE" and grantee == 'Group':
+               acl = 'public-read-write'
+           else:
+               acl = 'unsupported'
+
 
     if acl == 'authenticated-read':
         return "Unsupported"
@@ -457,17 +481,37 @@ class BucketController(WSGIContext):
                 implemented in Swift, 501 otherwise. Swift uses POST
                 for ACLs, whereas S3 uses PUT. """
                 del env[key]
+                if 'QUERY_STRING' in env:
+                    del env['QUERY_STRING']
+
                 translated_acl = swift_acl_translate(value)
                 if translated_acl == 'Unsupported':
                     return get_err_response('Unsupported')
                 elif translated_acl == 'InvalidArgument':
                     return get_err_response('InvalidArgument')
 
-                for header,acl in swift_acl_translate(value):
+                for header,acl in translated_acl:
                     env[header] = acl
                 env['REQUEST_METHOD'] = 'POST'
             if key == "CONTENT_LENGTH" and (value.isdigit() == False or value < 0):
                 return get_err_response("InvalidArgument")
+            if key == "QUERY_STRING":
+                args = dict(urlparse.parse_qsl(value, 1))
+                if 'acl' in args and 'CONTENT_LENGTH' in env \
+                  and int(env['CONTENT_LENGTH']) > 0 and \
+                  'HTTP_X_AMZ_ACL' not in env:
+                    """
+                    We very likely have an XML-based ACL request
+                    """
+                    body = env['wsgi.input'].readline().decode()
+                    translated_acl = swift_acl_translate(body,xml=True)
+                    if translated_acl == 'Unsupported':
+                        return get_err_response('Unsupported')
+                    elif translated_acl == 'InvalidArgument':
+                        return get_err_response('InvalidArgument')
+                    for header,acl in translated_acl:
+                       env[header] = acl
+                    env['REQUEST_METHOD'] = 'POST'
 
         body_iter = self._app_call(env)
         status = self._get_status_int()
