@@ -1,5 +1,5 @@
-Swift Static Web
-****************
+Swift S3 Compatibility Middleware
+*********************************
 
     Copyright 2012 OpenStack, LLC.
 
