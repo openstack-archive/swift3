@@ -83,43 +83,43 @@ def get_err_response(code):
     """
     error_table = {
         'AccessDenied':
-            (HTTP_FORBIDDEN, 'Access denied'),
+        (HTTP_FORBIDDEN, 'Access denied'),
         'BucketAlreadyExists':
-            (HTTP_CONFLICT, 'The requested bucket name is not available'),
+        (HTTP_CONFLICT, 'The requested bucket name is not available'),
         'BucketNotEmpty':
-            (HTTP_CONFLICT, 'The bucket you tried to delete is not empty'),
+        (HTTP_CONFLICT, 'The bucket you tried to delete is not empty'),
         'InvalidArgument':
-            (HTTP_BAD_REQUEST, 'Invalid Argument'),
+        (HTTP_BAD_REQUEST, 'Invalid Argument'),
         'InvalidBucketName':
-            (HTTP_BAD_REQUEST, 'The specified bucket is not valid'),
+        (HTTP_BAD_REQUEST, 'The specified bucket is not valid'),
         'InvalidURI':
-            (HTTP_BAD_REQUEST, 'Could not parse the specified URI'),
+        (HTTP_BAD_REQUEST, 'Could not parse the specified URI'),
         'InvalidDigest':
-            (HTTP_BAD_REQUEST, 'The Content-MD5 you specified was invalid'),
+        (HTTP_BAD_REQUEST, 'The Content-MD5 you specified was invalid'),
         'BadDigest':
-            (HTTP_BAD_REQUEST, 'The Content-Length you specified was invalid'),
+        (HTTP_BAD_REQUEST, 'The Content-Length you specified was invalid'),
         'NoSuchBucket':
-            (HTTP_NOT_FOUND, 'The specified bucket does not exist'),
+        (HTTP_NOT_FOUND, 'The specified bucket does not exist'),
         'SignatureDoesNotMatch':
-            (HTTP_FORBIDDEN, 'The calculated request signature does not '\
+        (HTTP_FORBIDDEN, 'The calculated request signature does not '
             'match your provided one'),
         'RequestTimeTooSkewed':
-            (HTTP_FORBIDDEN, 'The difference between the request time and '\
-                 ' the current time is too large'),
+        (HTTP_FORBIDDEN, 'The difference between the request time and the'
+        ' current time is too large'),
         'NoSuchKey':
-            (HTTP_NOT_FOUND, 'The resource you requested does not exist'),
+        (HTTP_NOT_FOUND, 'The resource you requested does not exist'),
         'Unsupported':
-            (HTTP_NOT_IMPLEMENTED, 'The feature you requested is not yet'\
-                  ' implemented'),
+        (HTTP_NOT_IMPLEMENTED, 'The feature you requested is not yet'
+        ' implemented'),
         'MissingContentLength':
-            (HTTP_LENGTH_REQUIRED, 'Length Required')}
+        (HTTP_LENGTH_REQUIRED, 'Length Required')}
 
     resp = Response(content_type='text/xml')
     resp.status = error_table[code][0]
     resp.body = error_table[code][1]
     resp.body = '<?xml version="1.0" encoding="UTF-8"?>\r\n<Error>\r\n  ' \
                 '<Code>%s</Code>\r\n  <Message>%s</Message>\r\n</Error>\r\n' \
-                 % (code, error_table[code][1])
+                % (code, error_table[code][1])
     return resp
 
 
@@ -128,117 +128,117 @@ def get_acl(account_name, headers):
     Attempts to construct an S3 ACL based on what is found in the swift headers
     """
 
-    acl = 'private' # default to private
+    acl = 'private'  # default to private
 
     if 'x-container-read' in headers:
-       if headers['x-container-read'] == ".r:*" or\
-        ".r:*," in headers['x-container-read'] or \
-        ",*," in headers['x-container-read']:
-          acl = 'public-read'
+        if headers['x-container-read'] == ".r:*" or\
+            ".r:*," in headers['x-container-read'] or \
+                ",*," in headers['x-container-read']:
+            acl = 'public-read'
     if 'x-container-write' in headers:
-       if headers['x-container-write'] == ".r:*" or\
-        ".r:*," in headers['x-container-write'] or \
-        ",*," in headers['x-container-write']:
-          if acl == 'public-read':
-             acl = 'public-read-write'
-          else:
-             acl = 'public-write'
+        if headers['x-container-write'] == ".r:*" or\
+            ".r:*," in headers['x-container-write'] or \
+                ",*," in headers['x-container-write']:
+            if acl == 'public-read':
+                acl = 'public-read-write'
+            else:
+                acl = 'public-write'
 
-    if acl =='private':
+    if acl == 'private':
         body = ('<AccessControlPolicy>'
-            '<Owner>'
-            '<ID>%s</ID>'
-            '<DisplayName>%s</DisplayName>'
-            '</Owner>'
-            '<AccessControlList>'
-            '<Grant>'
-            '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
-            'XMLSchema-instance" xsi:type="CanonicalUser">'
-            '<ID>%s</ID>'
-            '<DisplayName>%s</DisplayName>'
-            '</Grantee>'
-            '<Permission>FULL_CONTROL</Permission>'
-            '</Grant>'
-            '</AccessControlList>'
-            '</AccessControlPolicy>' %
-            (account_name, account_name, account_name, account_name))
+                '<Owner>'
+                '<ID>%s</ID>'
+                '<DisplayName>%s</DisplayName>'
+                '</Owner>'
+                '<AccessControlList>'
+                '<Grant>'
+                '<Grantee xmlns:xsi="http://www.w3.org/2001/'
+                'XMLSchema-instance" xsi:type="CanonicalUser">'
+                '<ID>%s</ID>'
+                '<DisplayName>%s</DisplayName>'
+                '</Grantee>'
+                '<Permission>FULL_CONTROL</Permission>'
+                '</Grant>'
+                '</AccessControlList>'
+                '</AccessControlPolicy>' %
+                (account_name, account_name, account_name, account_name))
     elif acl == 'public-read':
         body = ('<AccessControlPolicy>'
-            '<Owner>'
-            '<ID>%s</ID>'
-            '<DisplayName>%s</DisplayName>'
-            '</Owner>'
-            '<AccessControlList>'
-            '<Grant>'
-            '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
-            'XMLSchema-instance" xsi:type="CanonicalUser">'
-            '<ID>%s</ID>'
-            '<DisplayName>%s</DisplayName>'
-            '</Grantee>'
-            '<Permission>FULL_CONTROL</Permission>'
-            '</Grant>'
-            '<Grant>'
-            '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
-            'XMLSchema-instance" xsi:type="Group">'
-            '<URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>'
-            '</Grantee>'
-            '<Permission>READ</Permission>'
-            '</Grant>'
-            '</AccessControlList>'
-            '</AccessControlPolicy>' %
-            (account_name, account_name, account_name, account_name))
+                '<Owner>'
+                '<ID>%s</ID>'
+                '<DisplayName>%s</DisplayName>'
+                '</Owner>'
+                '<AccessControlList>'
+                '<Grant>'
+                '<Grantee xmlns:xsi="http://www.w3.org/2001/'
+                'XMLSchema-instance" xsi:type="CanonicalUser">'
+                '<ID>%s</ID>'
+                '<DisplayName>%s</DisplayName>'
+                '</Grantee>'
+                '<Permission>FULL_CONTROL</Permission>'
+                '</Grant>'
+                '<Grant>'
+                '<Grantee xmlns:xsi="http://www.w3.org/2001/'
+                'XMLSchema-instance" xsi:type="Group">'
+                '<URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>'
+                '</Grantee>'
+                '<Permission>READ</Permission>'
+                '</Grant>'
+                '</AccessControlList>'
+                '</AccessControlPolicy>' %
+                (account_name, account_name, account_name, account_name))
     elif acl == 'public-read-write':
         body = ('<AccessControlPolicy>'
-            '<Owner>'
-            '<ID>%s</ID>'
-            '<DisplayName>%s</DisplayName>'
-            '</Owner>'
-            '<AccessControlList>'
-            '<Grant>'
-            '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
-            'XMLSchema-instance" xsi:type="CanonicalUser">'
-            '<ID>%s</ID>'
-            '<DisplayName>%s</DisplayName>'
-            '</Grantee>'
-            '<Permission>FULL_CONTROL</Permission>'
-            '</Grant>'
-            '<Grant>'
-            '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
-            'XMLSchema-instance" xsi:type="Group">'
-            '<URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>'
-            '</Grantee>'
-            '<Permission>READ</Permission>'
-            '</Grant>'
-            '</AccessControlList>'
-            '<AccessControlList>'
-            '<Grant>'
-            '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
-            'XMLSchema-instance" xsi:type="Group">'
-            '<URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>'
-            '</Grantee>'
-            '<Permission>WRITE</Permission>'
-            '</Grant>'
-            '</AccessControlList>'
-            '</AccessControlPolicy>' %
-            (account_name, account_name, account_name, account_name))
+                '<Owner>'
+                '<ID>%s</ID>'
+                '<DisplayName>%s</DisplayName>'
+                '</Owner>'
+                '<AccessControlList>'
+                '<Grant>'
+                '<Grantee xmlns:xsi="http://www.w3.org/2001/'
+                'XMLSchema-instance" xsi:type="CanonicalUser">'
+                '<ID>%s</ID>'
+                '<DisplayName>%s</DisplayName>'
+                '</Grantee>'
+                '<Permission>FULL_CONTROL</Permission>'
+                '</Grant>'
+                '<Grant>'
+                '<Grantee xmlns:xsi="http://www.w3.org/2001/'
+                'XMLSchema-instance" xsi:type="Group">'
+                '<URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>'
+                '</Grantee>'
+                '<Permission>READ</Permission>'
+                '</Grant>'
+                '</AccessControlList>'
+                '<AccessControlList>'
+                '<Grant>'
+                '<Grantee xmlns:xsi="http://www.w3.org/2001/'
+                'XMLSchema-instance" xsi:type="Group">'
+                '<URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>'
+                '</Grantee>'
+                '<Permission>WRITE</Permission>'
+                '</Grant>'
+                '</AccessControlList>'
+                '</AccessControlPolicy>' %
+                (account_name, account_name, account_name, account_name))
     else:
         body = ('<AccessControlPolicy>'
-            '<Owner>'
-            '<ID>%s</ID>'
-            '<DisplayName>%s</DisplayName>'
-            '</Owner>'
-            '<AccessControlList>'
-            '<Grant>'
-            '<Grantee xmlns:xsi="http://www.w3.org/2001/'\
-            'XMLSchema-instance" xsi:type="CanonicalUser">'
-            '<ID>%s</ID>'
-            '<DisplayName>%s</DisplayName>'
-            '</Grantee>'
-            '<Permission>FULL_CONTROL</Permission>'
-            '</Grant>'
-            '</AccessControlList>'
-            '</AccessControlPolicy>' %
-            (account_name, account_name, account_name, account_name))
+                '<Owner>'
+                '<ID>%s</ID>'
+                '<DisplayName>%s</DisplayName>'
+                '</Owner>'
+                '<AccessControlList>'
+                '<Grant>'
+                '<Grantee xmlns:xsi="http://www.w3.org/2001/'
+                'XMLSchema-instance" xsi:type="CanonicalUser">'
+                '<ID>%s</ID>'
+                '<DisplayName>%s</DisplayName>'
+                '</Grantee>'
+                '<Permission>FULL_CONTROL</Permission>'
+                '</Grant>'
+                '</AccessControlList>'
+                '</AccessControlPolicy>' %
+                (account_name, account_name, account_name, account_name))
     return Response(body=body, content_type="text/plain")
 
 
@@ -249,7 +249,7 @@ def canonical_string(req):
     amz_headers = {}
 
     buf = "%s\n%s\n%s\n" % (req.method, req.headers.get('Content-MD5', ''),
-            req.headers.get('Content-Type') or '')
+                            req.headers.get('Content-Type') or '')
 
     for amz_header in sorted((key.lower() for key in req.headers
                               if key.lower().startswith('x-amz-'))):
@@ -272,6 +272,7 @@ def canonical_string(req):
                 return "%s%s?%s" % (buf, path, key)
     return buf + path
 
+
 def swift_acl_translate(acl, group='', user='', xml=False):
     """
     Takes an S3 style ACL and returns a list of header/value pairs that
@@ -280,35 +281,37 @@ def swift_acl_translate(acl, group='', user='', xml=False):
     """
     swift_acl = {}
     swift_acl['public-read'] = [['HTTP_X_CONTAINER_READ', '.r:*,.rlistings']]
-    # Swift does not support public write: https://answers.launchpad.net/swift/+question/169541
-    swift_acl['public-read-write'] = [['HTTP_X_CONTAINER_WRITE', '.r:*'],\
-				['HTTP_X_CONTAINER_READ', '.r:*,.rlistings']]
+    # Swift does not support public write:
+    # https://answers.launchpad.net/swift/+question/169541
+    swift_acl['public-read-write'] = [['HTTP_X_CONTAINER_WRITE', '.r:*'],
+                                      ['HTTP_X_CONTAINER_READ',
+                                       '.r:*,.rlistings']]
 
-    #TODO: if there's a way to get group and user, this should work for private:
+    #TODO: if there's a way to get group and user, this should work for
+    # private:
     #swift_acl['private'] = [['HTTP_X_CONTAINER_WRITE',  group + ':' + user], \
     #                  ['HTTP_X_CONTAINER_READ', group + ':' + user]]
-    swift_acl['private'] = [['HTTP_X_CONTAINER_WRITE', '.'], \
-                      ['HTTP_X_CONTAINER_READ', '.']]
+    swift_acl['private'] = [['HTTP_X_CONTAINER_WRITE', '.'],
+                            ['HTTP_X_CONTAINER_READ', '.']]
     if xml:
-       """
-       We are working with XML and need to parse it
-       """
-       dom = parseString(acl)
-       acl = 'unknown'
-       for grant in dom.getElementsByTagName('Grant'):
-           permission = grant.getElementsByTagName('Permission')[0].firstChild.data
-           grantee = grant.getElementsByTagName('Grantee')[0].getAttributeNode('xsi:type').nodeValue
-           if permission == "FULL_CONTROL" and grantee == 'CanonicalUser'\
-              and acl != 'public-read' and acl != 'public-read-write':
-               acl = 'private'
-           elif permission == "READ" and grantee == 'Group'\
-              and acl != 'public-read-write':
-               acl = 'public-read'
-           elif permission == "WRITE" and grantee == 'Group':
-               acl = 'public-read-write'
-           else:
-               acl = 'unsupported'
-
+        # We are working with XML and need to parse it
+        dom = parseString(acl)
+        acl = 'unknown'
+        for grant in dom.getElementsByTagName('Grant'):
+            permission = grant.getElementsByTagName('Permission')[0]\
+                .firstChild.data
+            grantee = grant.getElementsByTagName('Grantee')[0]\
+                .getAttributeNode('xsi:type').nodeValue
+            if permission == "FULL_CONTROL" and grantee == 'CanonicalUser' and\
+                    acl != 'public-read' and acl != 'public-read-write':
+                acl = 'private'
+            elif permission == "READ" and grantee == 'Group' and\
+                    acl != 'public-read-write':
+                acl = 'public-read'
+            elif permission == "WRITE" and grantee == 'Group':
+                acl = 'public-read-write'
+            else:
+                acl = 'unsupported'
 
     if acl == 'authenticated-read':
         return "Unsupported"
@@ -317,35 +320,31 @@ def swift_acl_translate(acl, group='', user='', xml=False):
 
     return swift_acl[acl]
 
+
 def validate_bucket_name(name):
     """
-    Validates the name of the bucket against S3 criteria, 
+    Validates the name of the bucket against S3 criteria,
     http://docs.amazonwebservices.com/AmazonS3/latest/BucketRestrictions.html
     True if valid, False otherwise
     """
 
     if '_' in name or len(name) < 3 or len(name) > 63 or not name[-1].isalnum():
-       """
-       Bucket names should not contain underscores (_)
-       Bucket names must end with a lowercase letter or number
-       Bucket names should be between 3 and 63 characters long
-       """
-       return False
+        # Bucket names should not contain underscores (_)
+        # Bucket names must end with a lowercase letter or number
+        # Bucket names should be between 3 and 63 characters long
+        return False
     elif '.-' in name or '-.' in name or '..' in name or not name[0].isalnum():
-       """
-       Bucket names cannot contain dashes next to periods
-       Bucket names cannot contain two adjacent periods
-       Bucket names Must start with a lowercase letter or a number 
-       """
-       return False
-    elif re.match("^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}"\
+        # Bucket names cannot contain dashes next to periods
+        # Bucket names cannot contain two adjacent periods
+        # Bucket names Must start with a lowercase letter or a number
+        return False
+    elif re.match("^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}"
                   "([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$", name):
-       """
-       Bucket names cannot be formatted as an IP Address
-       """
-       return False
+        # Bucket names cannot be formatted as an IP Address
+        return False
     else:
-       return True
+        return True
+
 
 class ServiceController(WSGIContext):
     """
@@ -374,15 +373,15 @@ class ServiceController(WSGIContext):
         # we don't keep the creation time of a backet (s3cmd doesn't
         # work without that) so we use something bogus.
         body = '<?xml version="1.0" encoding="UTF-8"?>' \
-            '<ListAllMyBucketsResult ' \
-              'xmlns="http://doc.s3.amazonaws.com/2006-03-01">' \
-            '<Buckets>%s</Buckets>' \
-            '</ListAllMyBucketsResult>' \
-            % ("".join(['<Bucket><Name>%s</Name><CreationDate>' \
-                         '2009-02-03T16:45:09.000Z</CreationDate></Bucket>' %
-                         xml_escape(i['name']) for i in containers]))
+               '<ListAllMyBucketsResult ' \
+               'xmlns="http://doc.s3.amazonaws.com/2006-03-01">' \
+               '<Buckets>%s</Buckets>' \
+               '</ListAllMyBucketsResult>' \
+               % ("".join(['<Bucket><Name>%s</Name><CreationDate>'
+                           '2009-02-03T16:45:09.000Z</CreationDate></Bucket>'
+                           % xml_escape(i['name']) for i in containers]))
         resp = Response(status=HTTP_OK, content_type='application/xml',
-            body=body)
+                        body=body)
         return resp
 
 
@@ -391,7 +390,7 @@ class BucketController(WSGIContext):
     Handles bucket request.
     """
     def __init__(self, env, app, account_name, token, container_name,
-                    **kwargs):
+                 **kwargs):
         WSGIContext.__init__(self, app)
         self.container_name = unquote(container_name)
         self.account_name = unquote(account_name)
@@ -412,10 +411,10 @@ class BucketController(WSGIContext):
                 return get_err_response('InvalidArgument')
 
         max_keys = min(int(args.get('max-keys', MAX_BUCKET_LISTING)),
-                        MAX_BUCKET_LISTING)
+                       MAX_BUCKET_LISTING)
 
         if 'acl' not in args:
-            """acl request sent with format=json etc confuses swift"""
+            #acl request sent with format=json etc confuses swift
             env['QUERY_STRING'] = 'format=json&limit=%s' % (max_keys + 1)
         if 'marker' in args:
             env['QUERY_STRING'] += '&marker=%s' % quote(args['marker'])
@@ -429,7 +428,7 @@ class BucketController(WSGIContext):
 
         if 'acl' in args:
             return get_acl(self.account_name, headers)
- 
+
         if status != HTTP_OK:
             if status == HTTP_UNAUTHORIZED:
                 return get_err_response('AccessDenied')
@@ -438,34 +437,35 @@ class BucketController(WSGIContext):
             else:
                 return get_err_response('InvalidURI')
 
-
         objects = loads(''.join(list(body_iter)))
         body = ('<?xml version="1.0" encoding="UTF-8"?>'
-            '<ListBucketResult '
+                '<ListBucketResult '
                 'xmlns="http://s3.amazonaws.com/doc/2006-03-01">'
-            '<Prefix>%s</Prefix>'
-            '<Marker>%s</Marker>'
-            '<Delimiter>%s</Delimiter>'
-            '<IsTruncated>%s</IsTruncated>'
-            '<MaxKeys>%s</MaxKeys>'
-            '<Name>%s</Name>'
-            '%s'
-            '%s'
-            '</ListBucketResult>' %
-            (
+                '<Prefix>%s</Prefix>'
+                '<Marker>%s</Marker>'
+                '<Delimiter>%s</Delimiter>'
+                '<IsTruncated>%s</IsTruncated>'
+                '<MaxKeys>%s</MaxKeys>'
+                '<Name>%s</Name>'
+                '%s'
+                '%s'
+                '</ListBucketResult>' %
+                (
                 xml_escape(args.get('prefix', '')),
                 xml_escape(args.get('marker', '')),
                 xml_escape(args.get('delimiter', '')),
-                'true' if max_keys > 0 and len(objects) == (max_keys + 1) else 'false',
+                'true' if max_keys > 0 and len(objects) == (max_keys + 1) else
+                'false',
                 max_keys,
                 xml_escape(self.container_name),
-                "".join(['<Contents><Key>%s</Key><LastModified>%sZ</LastModif'\
-                        'ied><ETag>%s</ETag><Size>%s</Size><StorageClass>STA'\
-                        'NDARD</StorageClass><Owner><ID>%s</ID><DisplayName>'\
+                "".join(['<Contents><Key>%s</Key><LastModified>%sZ</LastModif'
+                        'ied><ETag>%s</ETag><Size>%s</Size><StorageClass>STA'
+                        'NDARD</StorageClass><Owner><ID>%s</ID><DisplayName>'
                         '%s</DisplayName></Owner></Contents>' %
-                        (xml_escape(unquote(i['name'])), i['last_modified'], i['hash'],
-                           i['bytes'], self.account_name, self.account_name)
-                           for i in objects[:max_keys] if 'subdir' not in i]),
+                        (xml_escape(unquote(i['name'])), i['last_modified'],
+                         i['hash'],
+                         i['bytes'], self.account_name, self.account_name)
+                         for i in objects[:max_keys] if 'subdir' not in i]),
                 "".join(['<CommonPrefixes><Prefix>%s</Prefix></CommonPrefixes>'
                          % xml_escape(i['subdir'])
                          for i in objects[:max_keys] if 'subdir' in i])))
@@ -477,9 +477,9 @@ class BucketController(WSGIContext):
         """
         for key, value in env.items():
             if key == "HTTP_X_AMZ_ACL":
-                """ Translate the Amazon ACL to something that can be
-                implemented in Swift, 501 otherwise. Swift uses POST
-                for ACLs, whereas S3 uses PUT. """
+                # Translate the Amazon ACL to something that can be
+                # implemented in Swift, 501 otherwise. Swift uses POST
+                # for ACLs, whereas S3 uses PUT.
                 del env[key]
                 if 'QUERY_STRING' in env:
                     del env['QUERY_STRING']
@@ -490,27 +490,26 @@ class BucketController(WSGIContext):
                 elif translated_acl == 'InvalidArgument':
                     return get_err_response('InvalidArgument')
 
-                for header,acl in translated_acl:
+                for header, acl in translated_acl:
                     env[header] = acl
                 env['REQUEST_METHOD'] = 'POST'
-            if key == "CONTENT_LENGTH" and (value.isdigit() == False or value < 0):
+            if key == "CONTENT_LENGTH" and (value.isdigit() is False or
+                                            value < 0):
                 return get_err_response("InvalidArgument")
             if key == "QUERY_STRING":
                 args = dict(urlparse.parse_qsl(value, 1))
                 if 'acl' in args and 'CONTENT_LENGTH' in env \
-                  and int(env['CONTENT_LENGTH']) > 0 and \
-                  'HTTP_X_AMZ_ACL' not in env:
-                    """
-                    We very likely have an XML-based ACL request
-                    """
+                    and int(env['CONTENT_LENGTH']) > 0 and \
+                        'HTTP_X_AMZ_ACL' not in env:
+                    # We very likely have an XML-based ACL request
                     body = env['wsgi.input'].readline().decode()
-                    translated_acl = swift_acl_translate(body,xml=True)
+                    translated_acl = swift_acl_translate(body, xml=True)
                     if translated_acl == 'Unsupported':
                         return get_err_response('Unsupported')
                     elif translated_acl == 'InvalidArgument':
                         return get_err_response('InvalidArgument')
-                    for header,acl in translated_acl:
-                       env[header] = acl
+                    for header, acl in translated_acl:
+                        env[header] = acl
                     env['REQUEST_METHOD'] = 'POST'
 
         body_iter = self._app_call(env)
@@ -563,7 +562,7 @@ class ObjectController(WSGIContext):
     Handles requests on objects
     """
     def __init__(self, env, app, account_name, token, container_name,
-                    object_name, **kwargs):
+                 object_name, **kwargs):
         WSGIContext.__init__(self, app)
         self.account_name = unquote(account_name)
         self.container_name = unquote(container_name)
@@ -737,7 +736,7 @@ class Swift3Middleware(object):
 
         if 'Date' in req.headers:
             date = email.utils.parsedate(req.headers['Date'])
-            if date == None:
+            if date is None:
                 return get_err_response('AccessDenied')(env, start_response)
 
             d1 = datetime.datetime(*date[0:6])
@@ -749,7 +748,8 @@ class Swift3Middleware(object):
 
             delta = datetime.timedelta(seconds=60 * 10)
             if d1 - d2 > delta or d2 - d1 > delta:
-                return get_err_response('RequestTimeTooSkewed')(env, start_response)
+                return get_err_response('RequestTimeTooSkewed')(env,
+                                                                start_response)
 
         token = base64.urlsafe_b64encode(canonical_string(req))
 

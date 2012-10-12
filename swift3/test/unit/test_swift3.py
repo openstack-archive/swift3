@@ -262,7 +262,6 @@ class TestSwift3(unittest.TestCase):
         self.assertEquals(name, bucket_name)
 
         objects = [n for n in dom.getElementsByTagName('Contents')]
-        listing = [n for n in objects[0].childNodes if n.nodeName != '#text']
 
         names = []
         for o in objects:
