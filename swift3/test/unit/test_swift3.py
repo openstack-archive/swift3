@@ -18,11 +18,12 @@ from datetime import datetime
 import cgi
 import hashlib
 
-from webob import Request, Response
-from webob.exc import HTTPUnauthorized, HTTPCreated, HTTPNoContent,\
-     HTTPAccepted, HTTPBadRequest, HTTPNotFound, HTTPConflict
 import xml.dom.minidom
 import simplejson
+
+from swift.common.swob import Request, Response, HTTPUnauthorized, \
+    HTTPCreated,HTTPNoContent, HTTPAccepted, HTTPBadRequest, HTTPNotFound, \
+    HTTPConflict
 
 from swift3 import middleware as swift3
 
@@ -129,41 +130,42 @@ class FakeAppObject(FakeApp):
                                  'last-modified': '2011-01-05T02:19:14.275290'}
 
     def __call__(self, env, start_response):
+        req = Request(env)
         if env['REQUEST_METHOD'] == 'GET' or env['REQUEST_METHOD'] == 'HEAD':
             if self.status == 200:
                 if 'HTTP_RANGE' in env:
-                    resp = Response(body=self.object_body,
+                    resp = Response(request=req, body=self.object_body,
                                     conditional_response=True)
                     return resp(env, start_response)
-                start_response(Response().status,
+                start_response(Response(request=req).status,
                                self.response_headers.items())
                 if env['REQUEST_METHOD'] == 'GET':
                     return self.object_body
             elif self.status == 401:
-                start_response(HTTPUnauthorized().status, [])
+                start_response(HTTPUnauthorized(request=req).status, [])
             elif self.status == 404:
-                start_response(HTTPNotFound().status, [])
+                start_response(HTTPNotFound(request=req).status, [])
             else:
-                start_response(HTTPBadRequest().status, [])
+                start_response(HTTPBadRequest(request=req).status, [])
         elif env['REQUEST_METHOD'] == 'PUT':
             if self.status == 201:
-                start_response(HTTPCreated().status,
+                start_response(HTTPCreated(request=req).status,
                                [('etag', self.response_headers['etag'])])
             elif self.status == 401:
-                start_response(HTTPUnauthorized().status, [])
+                start_response(HTTPUnauthorized(request=req).status, [])
             elif self.status == 404:
-                start_response(HTTPNotFound().status, [])
+                start_response(HTTPNotFound(request=req).status, [])
             else:
-                start_response(HTTPBadRequest().status, [])
+                start_response(HTTPBadRequest(request=req).status, [])
         elif env['REQUEST_METHOD'] == 'DELETE':
             if self.status == 204:
-                start_response(HTTPNoContent().status, [])
+                start_response(HTTPNoContent(request=req).status, [])
             elif self.status == 401:
-                start_response(HTTPUnauthorized().status, [])
+                start_response(HTTPUnauthorized(request=req).status, [])
             elif self.status == 404:
-                start_response(HTTPNotFound().status, [])
+                start_response(HTTPNotFound(request=req).status, [])
             else:
-                start_response(HTTPBadRequest().status, [])
+                start_response(HTTPBadRequest(request=req).status, [])
         return []
 
 
@@ -187,7 +189,7 @@ class TestSwift3(unittest.TestCase):
         dom = xml.dom.minidom.parseString("".join(resp))
         self.assertEquals(dom.firstChild.nodeName, 'Error')
         code = dom.getElementsByTagName('Code')[0].childNodes[0].nodeValue
-        self.assertEquals(code, 'InvalidArgument')
+        self.assertEquals(code, 'AccessDenied')
 
     def test_bad_method(self):
         req = Request.blank('/',
@@ -414,9 +416,10 @@ class TestSwift3(unittest.TestCase):
         resp = local_app(req.environ, local_app.app.do_start_response)
         self.assertEquals(local_app.app.response_args[0].split()[0], '200')
 
-        headers = dict(local_app.app.response_args[1])
+        headers = dict((k.lower(), v) for k, v in
+            local_app.app.response_args[1])
         for key, val in local_app.app.response_headers.iteritems():
-            if key in ('Content-Length', 'Content-Type', 'Content-Encoding',
+            if key in ('content-length', 'content-type', 'content-encoding',
                        'etag', 'last-modified'):
                 self.assertTrue(key in headers)
                 self.assertEquals(headers[key], val)
@@ -454,9 +457,10 @@ class TestSwift3(unittest.TestCase):
         resp = local_app(req.environ, local_app.app.do_start_response)
         self.assertEquals(local_app.app.response_args[0].split()[0], '206')
 
-        headers = dict(local_app.app.response_args[1])
-        self.assertTrue('Content-Range' in  headers)
-        self.assertTrue(headers['Content-Range'].startswith('bytes 0-3'))
+        headers = dict((k.lower(), v) for k, v in
+            local_app.app.response_args[1])
+        self.assertTrue('content-range' in  headers)
+        self.assertTrue(headers['content-range'].startswith('bytes=0-3'))
 
     def test_object_PUT_error(self):
         code = self._test_method_error(FakeAppObject, 'PUT',
@@ -481,8 +485,9 @@ class TestSwift3(unittest.TestCase):
         resp = local_app(req.environ, local_app.app.do_start_response)
         self.assertEquals(local_app.app.response_args[0].split()[0], '200')
 
-        headers = dict(local_app.app.response_args[1])
-        self.assertEquals(headers['ETag'],
+        headers = dict((k.lower(), v) for k, v in
+            local_app.app.response_args[1])
+        self.assertEquals(headers['etag'],
                           "\"%s\"" % local_app.app.response_headers['etag'])
 
     def test_object_PUT_headers(self):
@@ -600,11 +605,11 @@ class TestSwift3(unittest.TestCase):
         local_app = swift3.filter_factory({})(app)
         req = Request.blank('/bucket/object?Signature=X&Expires=Y&'
                 'AWSAccessKeyId=Z', environ={'REQUEST_METHOD': 'GET'})
-        req.date = datetime.now()
+        req.headers['Date'] = datetime.utcnow()
         req.content_type = 'text/plain'
         resp = local_app(req.environ, lambda *args: None)
-        self.assertEquals(app.req.headers['Authorization'], 'AWS Z:X')
-        self.assertEquals(app.req.headers['Date'], 'Y')
+        self.assertEquals(req.headers['Authorization'], 'AWS Z:X')
+        self.assertEquals(req.headers['Date'], 'Y')
 
 if __name__ == '__main__':
     unittest.main()
