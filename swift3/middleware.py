@@ -270,7 +270,7 @@ def canonical_string(req):
         path, args = path.split('?', 1)
         for key in urlparse.parse_qs(args, keep_blank_values=True):
             if key in ('acl', 'logging', 'torrent', 'location',
-                       'requestPayment'):
+                       'requestPayment', 'versioning'):
                 return "%s%s?%s" % (buf, path, key)
     return buf + path
 
@@ -430,6 +430,12 @@ class BucketController(WSGIContext):
 
         if 'acl' in args:
             return get_acl(self.account_name, headers)
+
+        if 'versioning' in args:
+            # Just report there is no versioning configured here.
+            body = ('<VersioningConfiguration '
+                'xmlns="http://s3.amazonaws.com/doc/2006-03-01/"/>')
+            return Response(body=body, content_type="text/plain")
 
         if status != HTTP_OK:
             if status == HTTP_UNAUTHORIZED:

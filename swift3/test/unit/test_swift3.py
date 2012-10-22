@@ -408,6 +408,16 @@ class TestSwift3(unittest.TestCase):
         resp = local_app(req.environ, local_app.app.do_start_response)
         self._check_acl('test:tester', resp)
 
+    def test_bucket_versioning_GET(self):
+        local_app = swift3.filter_factory({})(FakeAppBucket())
+        bucket_name = 'junk'
+        req = Request.blank('/%s?versioning' % bucket_name,
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        resp = local_app(req.environ, local_app.app.do_start_response)
+        dom = xml.dom.minidom.parseString("".join(resp))
+        self.assertEquals(dom.firstChild.nodeName, 'VersioningConfiguration')
+
     def _test_object_GETorHEAD(self, method):
         local_app = swift3.filter_factory({})(FakeAppObject())
         req = Request.blank('/bucket/object',
