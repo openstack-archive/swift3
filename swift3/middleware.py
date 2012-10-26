@@ -483,42 +483,46 @@ class BucketController(WSGIContext):
         """
         Handle PUT Bucket request
         """
-        for key, value in env.items():
-            if key == "HTTP_X_AMZ_ACL":
-                # Translate the Amazon ACL to something that can be
-                # implemented in Swift, 501 otherwise. Swift uses POST
-                # for ACLs, whereas S3 uses PUT.
-                del env[key]
-                if 'QUERY_STRING' in env:
-                    del env['QUERY_STRING']
+        if 'HTTP_X_AMZ_ACL' in env:
+            amz_acl = env['HTTP_X_AMZ_ACL']
+            # Translate the Amazon ACL to something that can be
+            # implemented in Swift, 501 otherwise. Swift uses POST
+            # for ACLs, whereas S3 uses PUT.
+            del env['HTTP_X_AMZ_ACL']
+            if 'QUERY_STRING' in env:
+                del env['QUERY_STRING']
 
-                translated_acl = swift_acl_translate(value)
+            translated_acl = swift_acl_translate(amz_acl)
+            if translated_acl == 'Unsupported':
+                return get_err_response('Unsupported')
+            elif translated_acl == 'InvalidArgument':
+                return get_err_response('InvalidArgument')
+
+            for header, acl in translated_acl:
+                env[header] = acl
+
+        if 'CONTENT_LENGTH' in env:
+            content_length = env['CONTENT_LENGTH']
+            try:
+                content_length = int(content_length)
+            except (ValueError, TypeError):
+                get_err_response('InvalidArgument')
+            if content_length < 0:
+                get_err_response('InvalidArgument')
+
+        if 'QUERY_STRING' in env:
+            args = dict(urlparse.parse_qsl(env['QUERY_STRING'], 1))
+            if 'acl' in args:
+                # We very likely have an XML-based ACL request.
+                body = env['wsgi.input'].readline().decode()
+                translated_acl = swift_acl_translate(body, xml=True)
                 if translated_acl == 'Unsupported':
                     return get_err_response('Unsupported')
                 elif translated_acl == 'InvalidArgument':
                     return get_err_response('InvalidArgument')
-
                 for header, acl in translated_acl:
                     env[header] = acl
                 env['REQUEST_METHOD'] = 'POST'
-            if key == "CONTENT_LENGTH" and (value.isdigit() is False or
-                                            value < 0):
-                return get_err_response("InvalidArgument")
-            if key == "QUERY_STRING":
-                args = dict(urlparse.parse_qsl(value, 1))
-                if 'acl' in args and 'CONTENT_LENGTH' in env \
-                    and int(env['CONTENT_LENGTH']) > 0 and \
-                        'HTTP_X_AMZ_ACL' not in env:
-                    # We very likely have an XML-based ACL request
-                    body = env['wsgi.input'].readline().decode()
-                    translated_acl = swift_acl_translate(body, xml=True)
-                    if translated_acl == 'Unsupported':
-                        return get_err_response('Unsupported')
-                    elif translated_acl == 'InvalidArgument':
-                        return get_err_response('InvalidArgument')
-                    for header, acl in translated_acl:
-                        env[header] = acl
-                    env['REQUEST_METHOD'] = 'POST'
 
         body_iter = self._app_call(env)
         status = self._get_status_int()
