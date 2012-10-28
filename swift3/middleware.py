@@ -506,9 +506,9 @@ class BucketController(WSGIContext):
             try:
                 content_length = int(content_length)
             except (ValueError, TypeError):
-                get_err_response('InvalidArgument')
+                return get_err_response('InvalidArgument')
             if content_length < 0:
-                get_err_response('InvalidArgument')
+                return get_err_response('InvalidArgument')
 
         if 'QUERY_STRING' in env:
             args = dict(urlparse.parse_qsl(env['QUERY_STRING'], 1))

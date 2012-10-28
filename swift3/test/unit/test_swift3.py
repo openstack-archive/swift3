@@ -201,11 +201,11 @@ class TestSwift3(unittest.TestCase):
         code = dom.getElementsByTagName('Code')[0].childNodes[0].nodeValue
         self.assertEquals(code, 'InvalidURI')
 
-    def _test_method_error(self, cl, method, path, status):
+    def _test_method_error(self, cl, method, path, status, headers={}):
         local_app = swift3.filter_factory({})(cl(status))
-        req = Request.blank(path,
-                            environ={'REQUEST_METHOD': method},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+        headers.update({'Authorization': 'AWS test:tester:hmac'})
+        req = Request.blank(path, environ={'REQUEST_METHOD': method},
+                            headers=headers)
         resp = local_app(req.environ, start_response)
         dom = xml.dom.minidom.parseString("".join(resp))
         self.assertEquals(dom.firstChild.nodeName, 'Error')
@@ -358,6 +358,12 @@ class TestSwift3(unittest.TestCase):
         self.assertEquals(args['prefix'], 'c')
 
     def test_bucket_PUT_error(self):
+        code = self._test_method_error(FakeAppBucket, 'PUT', '/bucket', 201,
+                                       headers={'Content-Length': 'a'})
+        self.assertEqual(code, 'InvalidArgument')
+        code = self._test_method_error(FakeAppBucket, 'PUT', '/bucket', 201,
+                                       headers={'Content-Length': '-1'})
+        self.assertEqual(code, 'InvalidArgument')
         code = self._test_method_error(FakeAppBucket, 'PUT', '/bucket', 401)
         self.assertEquals(code, 'AccessDenied')
         code = self._test_method_error(FakeAppBucket, 'PUT', '/bucket', 202)
