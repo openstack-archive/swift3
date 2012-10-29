@@ -68,7 +68,7 @@ from swift.common.swob import Request, Response
 from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_NO_CONTENT, HTTP_BAD_REQUEST, HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, \
     HTTP_NOT_FOUND, HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, is_success, \
-    HTTP_NOT_IMPLEMENTED, HTTP_LENGTH_REQUIRED
+    HTTP_NOT_IMPLEMENTED, HTTP_LENGTH_REQUIRED, HTTP_SERVICE_UNAVAILABLE
 
 
 MAX_BUCKET_LISTING = 1000
@@ -112,11 +112,12 @@ def get_err_response(code):
         (HTTP_NOT_IMPLEMENTED, 'The feature you requested is not yet'
         ' implemented'),
         'MissingContentLength':
-        (HTTP_LENGTH_REQUIRED, 'Length Required')}
+        (HTTP_LENGTH_REQUIRED, 'Length Required'),
+        'ServiceUnavailable':
+        (HTTP_SERVICE_UNAVAILABLE, 'Please reduce your request rate')}
 
     resp = Response(content_type='text/xml')
     resp.status = error_table[code][0]
-    resp.body = error_table[code][1]
     resp.body = '<?xml version="1.0" encoding="UTF-8"?>\r\n<Error>\r\n  ' \
                 '<Code>%s</Code>\r\n  <Message>%s</Message>\r\n</Error>\r\n' \
                 % (code, error_table[code][1])
@@ -713,6 +714,13 @@ class Swift3Middleware(object):
         return ServiceController, d
 
     def __call__(self, env, start_response):
+        try:
+            return self.handle_request(env, start_response)
+        except Exception, e:
+            self.logger.exception(e)
+        return get_err_response('ServiceUnavailable')(env, start_response)
+
+    def handle_request(self, env, start_response):
         req = Request(env)
         self.logger.debug('Calling Swift3 Middleware')
         self.logger.debug(req.__dict__)
