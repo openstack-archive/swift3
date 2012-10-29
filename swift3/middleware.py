@@ -458,6 +458,13 @@ class BucketController(WSGIContext):
                 body += ('>%s</LocationConstraint>' % self.location)
             return Response(body=body, content_type='application/xml')
 
+        if 'logging' in args:
+            # logging disabled
+            body = ('<?xml version="1.0" encoding="UTF-8"?>'
+                    '<BucketLoggingStatus '
+                    'xmlns="http://doc.s3.amazonaws.com/2006-03-01" />')
+            return Response(body=body, content_type='application/xml')
+
         objects = loads(''.join(list(body_iter)))
         body = ('<?xml version="1.0" encoding="UTF-8"?>'
                 '<ListBucketResult '
