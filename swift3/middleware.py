@@ -399,6 +399,8 @@ class BucketController(WSGIContext):
         self.account_name = unquote(account_name)
         env['HTTP_X_AUTH_TOKEN'] = token
         env['PATH_INFO'] = '/v1/%s/%s' % (account_name, container_name)
+        conf = kwargs.get('conf', {})
+        self.location = conf.get('location', 'US')
 
     def GET(self, env, start_response):
         """
@@ -445,6 +447,16 @@ class BucketController(WSGIContext):
                 return get_err_response('NoSuchBucket')
             else:
                 return get_err_response('InvalidURI')
+
+        if 'location' in args:
+            body = ('<?xml version="1.0" encoding="UTF-8"?>'
+                    '<LocationConstraint '
+                    'xmlns="http://s3.amazonaws.com/doc/2006-03-01/"')
+            if self.location == 'US':
+                body += '/>'
+            else:
+                body += ('>%s</LocationConstraint>' % self.location)
+            return Response(body=body, content_type='application/xml')
 
         objects = loads(''.join(list(body_iter)))
         body = ('<?xml version="1.0" encoding="UTF-8"?>'
@@ -773,7 +785,8 @@ class Swift3Middleware(object):
 
         token = base64.urlsafe_b64encode(canonical_string(req))
 
-        controller = controller(env, self.app, account, token, **path_parts)
+        controller = controller(env, self.app, account, token, conf=self.conf,
+                                **path_parts)
 
         if hasattr(controller, req.method):
             res = getattr(controller, req.method)(env, start_response)
