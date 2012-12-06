@@ -41,7 +41,8 @@ calling format, and not the hostname based container format.
 An example client using the python boto library might look like the
 following for an SAIO setup::
 
-    connection = boto.s3.Connection(
+    from boto.s3.connection import S3Connection
+    connection = S3Connection(
         aws_access_key_id='test:tester',
         aws_secret_access_key='testing',
         port=8080,
@@ -603,25 +604,22 @@ class ObjectController(WSGIContext):
                                              object_name)
 
     def GETorHEAD(self, env, start_response):
-        if env['REQUEST_METHOD'] == 'HEAD':
-            head = True
-            env['REQUEST_METHOD'] = 'GET'
+        if 'QUERY_STRING' in env:
+            args = dict(urlparse.parse_qsl(env['QUERY_STRING'], 1))
         else:
-            head = False
+            args = {}
+        if 'acl' in args:
+            # ACL requests need to make a HEAD call rather than GET
+            env['REQUEST_METHOD'] = 'HEAD'
 
         app_iter = self._app_call(env)
-
-        if head:
+        if env['REQUEST_METHOD'] == 'HEAD':
             app_iter = None
 
         status = self._get_status_int()
         headers = dict(self._response_headers)
 
         if is_success(status):
-            if 'QUERY_STRING' in env:
-                args = dict(urlparse.parse_qsl(env['QUERY_STRING'], 1))
-            else:
-                args = {}
             if 'acl' in args:
                 return get_acl(self.account_name, headers)
 
