@@ -23,6 +23,7 @@ The following opperations are currently supported:
     * GET Bucket (List Objects)
     * PUT Bucket
     * DELETE Object
+    * Delete Multiple Objects
     * GET Object
     * HEAD Object
     * PUT Object
@@ -272,7 +273,7 @@ def canonical_string(req):
         path, args = path.split('?', 1)
         for key in urlparse.parse_qs(args, keep_blank_values=True):
             if key in ('acl', 'logging', 'torrent', 'location',
-                       'requestPayment', 'versioning'):
+                       'requestPayment', 'versioning', 'delete'):
                 return "%s%s?%s" % (buf, path, key)
     return buf + path
 
@@ -582,10 +583,71 @@ class BucketController(WSGIContext):
         resp.status = HTTP_NO_CONTENT
         return resp
 
+    def _delete_multiple_objects(self, env):
+        def _object_key_iter(xml):
+            dom = parseString(xml)
+            delete = dom.getElementsByTagName('Delete')[0]
+            for obj in delete.getElementsByTagName('Object'):
+                key = obj.getElementsByTagName('Key')[0].firstChild.data
+                version = None
+                if obj.getElementsByTagName('VersionId').length > 0:
+                    version = obj.getElementsByTagName('VersionId')[0]\
+                        .firstChild.data
+                yield (key, version)
+
+        def _get_deleted_elem(key):
+            return '  <Deleted>\r\n' \
+                   '    <Key>%s</Key>\r\n' \
+                   '  </Deleted>\r\n' % (key)
+
+        def _get_err_elem(key, err_code, message):
+            return '  <Error>\r\n' \
+                   '    <Key>%s</Key>\r\n' \
+                   '    <Code>%s</Code>\r\n' \
+                   '    <Message>%s</Message>\r\n' \
+                   '  </Error>\r\n'  % (key, err_code, message)
+
+        body = '<?xml version="1.0" encoding="UTF-8"?>\r\n' \
+               '<DeleteResult ' \
+               'xmlns="http://doc.s3.amazonaws.com/2006-03-01">\r\n'
+        xml = ''.join(env['wsgi.input'].readlines())
+        for key, version in _object_key_iter(xml):
+            if version is not None:
+                # TODO: delete the specific version of the object
+                return get_err_response('Unsupported')
+
+            tmp_env = dict(env)
+            del tmp_env['QUERY_STRING']
+            tmp_env['CONTENT_LENGTH'] = '0'
+            tmp_env['REQUEST_METHOD'] = 'DELETE'
+            controller = ObjectController(tmp_env, self.app, self.account_name,
+                                          env['HTTP_X_AUTH_TOKEN'],
+                                          self.container_name, key)
+            body_iter = controller._app_call(tmp_env)
+            status = controller._get_status_int()
+
+            if status == HTTP_NO_CONTENT or status == HTTP_NOT_FOUND:
+                body += _get_deleted_elem(key)
+            else:
+                if status == HTTP_UNAUTHORIZED:
+                    body += _get_err_elem(key, 'AccessDenied', 'Access Denied')
+                else:
+                    body += _get_err_elem(key, 'InvalidURI', 'Invalid URI')
+
+        body += '</DeleteResult>\r\n'
+        return Response(status=HTTP_OK, body=body)
+
     def POST(self, env, start_response):
         """
-        Handle POST Bucket request
+        Handle POST Bucket (Delete Multiple Objects) request
         """
+        if 'QUERY_STRING' in env:
+            args = dict(urlparse.parse_qsl(env['QUERY_STRING'], 1))
+        else:
+            args = {}
+
+        if 'delete' in args:
+            return self._delete_multiple_objects(env)
 
         return get_err_response('Unsupported')
 

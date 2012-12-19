@@ -548,6 +548,26 @@ class TestSwift3(unittest.TestCase):
         resp = local_app(req.environ, local_app.app.do_start_response)
         self.assertEquals(local_app.app.response_args[0].split()[0], '204')
 
+    def test_object_multi_DELETE(self):
+        local_app = swift3.filter_factory({})(FakeAppBucket())
+        body = '<?xml version="1.0" encoding="UTF-8"?> \
+                <Delete>\
+                  <Object>\
+                    <Key>Key1</Key>\
+                  </Object>\
+                  <Object>\
+                    <Key>Key2</Key>\
+                  </Object>\
+                </Delete>'
+        req = Request.blank('/bucket?delete',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            body=body)
+        req.date = datetime.now()
+        req.content_type = 'text/plain'
+        resp = local_app(req.environ, local_app.app.do_start_response)
+        self.assertEquals(local_app.app.response_args[0].split()[0], '200')
+
     def test_object_acl_GET(self):
         local_app = swift3.filter_factory({})(FakeAppObject())
         req = Request.blank('/bucket/object?acl',
