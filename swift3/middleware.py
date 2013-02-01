@@ -610,7 +610,7 @@ class BucketController(WSGIContext):
         body = '<?xml version="1.0" encoding="UTF-8"?>\r\n' \
                '<DeleteResult ' \
                'xmlns="http://doc.s3.amazonaws.com/2006-03-01">\r\n'
-        xml = ''.join(env['wsgi.input'].readlines())
+        xml = env['wsgi.input'].read()
         for key, version in _object_key_iter(xml):
             if version is not None:
                 # TODO: delete the specific version of the object
