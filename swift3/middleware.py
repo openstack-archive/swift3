@@ -266,7 +266,10 @@ def canonical_string(req):
     for k in sorted(key.lower() for key in amz_headers):
         buf += "%s:%s\n" % (k, amz_headers[k])
 
-    path = req.path
+    # RAW_PATH_INFO is enabled in later version than eventlet 0.9.17.
+    # When using older version, swift3 uses req.path of swob instead
+    # of it.
+    path = req.environ.get('RAW_PATH_INFO', req.path)
     if req.query_string:
         path += '?' + req.query_string
     if '?' in path:
