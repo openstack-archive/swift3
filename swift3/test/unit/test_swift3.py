@@ -476,7 +476,7 @@ class TestSwift3(unittest.TestCase):
         headers = dict((k.lower(), v) for k, v in
             local_app.app.response_args[1])
         self.assertTrue('content-range' in  headers)
-        self.assertTrue(headers['content-range'].startswith('bytes=0-3'))
+        self.assertTrue(headers['content-range'].startswith('bytes 0-3'))
 
     def test_object_PUT_error(self):
         code = self._test_method_error(FakeAppObject, 'PUT',
