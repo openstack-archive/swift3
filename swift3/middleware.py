@@ -372,7 +372,7 @@ class ServiceController(WSGIContext):
         status = self._get_status_int()
 
         if status != HTTP_OK:
-            if status == HTTP_UNAUTHORIZED:
+            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 return get_err_response('AccessDenied')
             else:
                 return get_err_response('InvalidURI')
@@ -446,7 +446,7 @@ class BucketController(WSGIContext):
             return Response(body=body, content_type="text/plain")
 
         if status != HTTP_OK:
-            if status == HTTP_UNAUTHORIZED:
+            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 return get_err_response('AccessDenied')
             elif status == HTTP_NOT_FOUND:
                 return get_err_response('NoSuchBucket')
@@ -553,7 +553,7 @@ class BucketController(WSGIContext):
         status = self._get_status_int()
 
         if status != HTTP_CREATED and status != HTTP_NO_CONTENT:
-            if status == HTTP_UNAUTHORIZED:
+            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 return get_err_response('AccessDenied')
             elif status == HTTP_ACCEPTED:
                 return get_err_response('BucketAlreadyExists')
@@ -573,7 +573,7 @@ class BucketController(WSGIContext):
         status = self._get_status_int()
 
         if status != HTTP_NO_CONTENT:
-            if status == HTTP_UNAUTHORIZED:
+            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 return get_err_response('AccessDenied')
             elif status == HTTP_NOT_FOUND:
                 return get_err_response('NoSuchBucket')
@@ -698,7 +698,7 @@ class ObjectController(WSGIContext):
                               'etag', 'last-modified'):
                     new_hdrs[key] = val
             return Response(status=status, headers=new_hdrs, app_iter=app_iter)
-        elif status == HTTP_UNAUTHORIZED:
+        elif status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
             return get_err_response('AccessDenied')
         elif status == HTTP_NOT_FOUND:
             return get_err_response('NoSuchKey')
@@ -741,7 +741,7 @@ class ObjectController(WSGIContext):
         status = self._get_status_int()
 
         if status != HTTP_CREATED:
-            if status == HTTP_UNAUTHORIZED:
+            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 return get_err_response('AccessDenied')
             elif status == HTTP_NOT_FOUND:
                 return get_err_response('NoSuchBucket')
@@ -766,7 +766,7 @@ class ObjectController(WSGIContext):
         status = self._get_status_int()
 
         if status != HTTP_NO_CONTENT:
-            if status == HTTP_UNAUTHORIZED:
+            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 return get_err_response('AccessDenied')
             elif status == HTTP_NOT_FOUND:
                 return get_err_response('NoSuchKey')
