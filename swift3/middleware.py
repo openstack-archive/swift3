@@ -281,9 +281,9 @@ def canonical_string(req):
         # signature string.
         #
         keywords = sorted(['acl', 'delete', 'lifecycle', 'location', 'logging',
-            'notification', 'partNumber', 'policy', 'requestPayment',
-            'torrent', 'uploads', 'uploadId', 'versionId', 'versioning',
-            'versions ', 'website'])
+                           'notification', 'partNumber', 'policy',
+                           'requestPayment', 'torrent', 'uploads', 'uploadId',
+                           'versionId', 'versioning', 'versions ', 'website'])
         for key in qdict:
             if key in keywords:
                 newstr = key
@@ -299,6 +299,7 @@ def canonical_string(req):
             return "%s%s?%s" % (buf, path, qstr)
 
     return buf + path
+
 
 def swift_acl_translate(acl, group='', user='', xml=False):
     """
@@ -355,7 +356,8 @@ def validate_bucket_name(name):
     True if valid, False otherwise
     """
 
-    if '_' in name or len(name) < 3 or len(name) > 63 or not name[-1].isalnum():
+    if '_' in name or len(name) < 3 or len(name) > 63 or not \
+            name[-1].isalnum():
         # Bucket names should not contain underscores (_)
         # Bucket names must end with a lowercase letter or number
         # Bucket names should be between 3 and 63 characters long
@@ -423,8 +425,26 @@ class BucketController(WSGIContext):
         self.account_name = unquote(account_name)
         env['HTTP_X_AUTH_TOKEN'] = token
         env['PATH_INFO'] = '/v1/%s/%s' % (account_name, container_name)
-        conf = kwargs.get('conf', {})
-        self.location = conf.get('location', 'US')
+
+    def HEAD(self, env, start_response):
+        """
+        Handle HEAD Bucket (Get Metadata) request
+        """
+        if 'QUERY_STRING' in env:
+                del env['QUERY_STRING']
+
+        body_iter = self._app_call(env)
+        status = self._get_status_int()
+        headers = dict(self._response_headers)
+        if status == HTTP_NO_CONTENT:
+                status = HTTP_OK
+
+        if 'x-container-object-count' in headers:
+            headers['x-rgw-object-count'] = headers['x-container-object-count']
+        if 'x-container-bytes-used' in headers:
+            headers['x-rgw-bytes-used'] = headers['x-container-bytes-used']
+
+        return Response(status=status, headers=headers, app_iter=body_iter)
 
     def GET(self, env, start_response):
         """
@@ -438,6 +458,10 @@ class BucketController(WSGIContext):
         if 'max-keys' in args:
             if args.get('max-keys').isdigit() is False:
                 return get_err_response('InvalidArgument')
+
+        if 'uploads' in args:
+            # Pass it through, the s3multi upload helper will handle it.
+            return self.app(env, start_response)
 
         max_keys = min(int(args.get('max-keys', MAX_BUCKET_LISTING)),
                        MAX_BUCKET_LISTING)
@@ -568,14 +592,13 @@ class BucketController(WSGIContext):
                     env[header] = acl
                 env['REQUEST_METHOD'] = 'POST'
 
-        body_iter = self._app_call(env)
+        self._app_call(env)
         status = self._get_status_int()
 
-        if status != HTTP_CREATED and status != HTTP_NO_CONTENT:
+        if status != HTTP_CREATED and status != HTTP_NO_CONTENT and \
+           status != HTTP_ACCEPTED:
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 return get_err_response('AccessDenied')
-            elif status == HTTP_ACCEPTED:
-                return get_err_response('BucketAlreadyExists')
             else:
                 return get_err_response('InvalidURI')
 
@@ -588,7 +611,7 @@ class BucketController(WSGIContext):
         """
         Handle DELETE Bucket request
         """
-        body_iter = self._app_call(env)
+        self._app_call(env)
         status = self._get_status_int()
 
         if status != HTTP_NO_CONTENT:
@@ -627,7 +650,7 @@ class BucketController(WSGIContext):
                    '    <Key>%s</Key>\r\n' \
                    '    <Code>%s</Code>\r\n' \
                    '    <Message>%s</Message>\r\n' \
-                   '  </Error>\r\n'  % (key, err_code, message)
+                   '  </Error>\r\n' % (key, err_code, message)
 
         body = '<?xml version="1.0" encoding="UTF-8"?>\r\n' \
                '<DeleteResult ' \
@@ -645,7 +668,7 @@ class BucketController(WSGIContext):
             controller = ObjectController(tmp_env, self.app, self.account_name,
                                           env['HTTP_X_AUTH_TOKEN'],
                                           self.container_name, key)
-            body_iter = controller._app_call(tmp_env)
+            controller._app_call(tmp_env)
             status = controller._get_status_int()
 
             if status == HTTP_NO_CONTENT or status == HTTP_NOT_FOUND:
@@ -673,13 +696,14 @@ class BucketController(WSGIContext):
 
         if 'uploads' in args:
             # Pass it through, the s3multi upload helper will handle it.
-            return self.app(env,start_response)
+            return self.app(env, start_response)
 
         if 'uploadId' in args:
             # Pass it through, the s3multi upload helper will handle it.
             return self.app(env, start_response)
 
         return get_err_response('Unsupported')
+
 
 class ObjectController(WSGIContext):
     """
@@ -701,7 +725,7 @@ class ObjectController(WSGIContext):
             args = {}
 
         # Let s3multi handle it.
-        if 'uploadId' in args:
+        if 'uploadId' in args or 'uploads' in args:
             return self.app(env, start_response)
 
         if 'acl' in args:
@@ -772,7 +796,7 @@ class ObjectController(WSGIContext):
             elif key == 'HTTP_X_AMZ_COPY_SOURCE':
                 env['HTTP_X_COPY_FROM'] = value
 
-        body_iter = self._app_call(env)
+        self._app_call(env)
         status = self._get_status_int()
 
         if status != HTTP_CREATED:
@@ -800,7 +824,11 @@ class ObjectController(WSGIContext):
         """
         Handle DELETE Object request
         """
-        body_iter = self._app_call(env)
+        try:
+            self._app_call(env)
+        except:
+            return get_err_response('InvalidURI')
+
         status = self._get_status_int()
 
         if status != HTTP_NO_CONTENT:
@@ -852,7 +880,7 @@ class Swift3Middleware(object):
     def handle_request(self, env, start_response):
         req = Request(env)
         self.logger.debug('Calling Swift3 Middleware')
-	self.logger.debug(req.__dict__)
+        self.logger.debug(req.__dict__)
 
         if 'AWSAccessKeyId' in req.params:
             try:
@@ -885,24 +913,34 @@ class Swift3Middleware(object):
 
         if 'Date' in req.headers:
             date = email.utils.parsedate(req.headers['Date'])
+            expdate = None
             if date is None and 'Expires' in req.params:
                 d = email.utils.formatdate(float(req.params['Expires']))
-                date = email.utils.parsedate(d)
+                expdate = email.utils.parsedate(d)
 
-            if date is None:
+                date = datetime.datetime.utcnow().timetuple()
+            elif date is None:
                 return get_err_response('AccessDenied')(env, start_response)
 
-            d1 = datetime.datetime(*date[0:6])
-            d2 = datetime.datetime.utcnow()
             epoch = datetime.datetime(1970, 1, 1, 0, 0, 0, 0)
+            delta = datetime.timedelta(seconds=60 * 5)
 
+            d1 = datetime.datetime(*date[0:6])
+            now = datetime.datetime.utcnow()
             if d1 < epoch:
                 return get_err_response('AccessDenied')(env, start_response)
 
-            delta = datetime.timedelta(seconds=60 * 5)
-            if d1 - d2 > delta or d2 - d1 > delta:
+            # If the standard date is too far ahead or behind, it is an error
+            if abs(d1 - now) > delta:
                 return get_err_response('RequestTimeTooSkewed')(env,
                                                                 start_response)
+
+            # If there was an expiration date in the parameters, check it also
+            if expdate:
+                ex = datetime.datetime(*expdate[0:6])
+                if (now > ex and (now - ex) > delta):
+                    return get_err_response('RequestTimeTooSkewed')(
+                        env, start_response)
 
         token = base64.urlsafe_b64encode(canonical_string(req))
 
