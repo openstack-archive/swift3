@@ -16,7 +16,7 @@
 """
 The swift3 middleware will emulate the S3 REST api on top of swift.
 
-The following opperations are currently supported:
+The following operations are currently supported:
 
     * GET Service
     * DELETE Bucket
@@ -74,6 +74,14 @@ from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
 
 
 MAX_BUCKET_LISTING = 1000
+
+# List of  sub-resources that must be maintained as part of the HMAC
+# signature string.
+ALLOWED_SUB_RESOURCES = sorted([
+    'acl', 'delete', 'lifecycle', 'location', 'logging', 'notification',
+    'partNumber', 'policy', 'requestPayment', 'torrent', 'uploads', 'uploadId',
+    'versionId', 'versioning', 'versions ', 'website'
+])
 
 
 def get_err_response(code):
@@ -274,29 +282,12 @@ def canonical_string(req):
         path += '?' + req.query_string
     if '?' in path:
         path, args = path.split('?', 1)
-        qstr = ''
-        qdict = dict(urlparse.parse_qsl(args, keep_blank_values=True))
-        #
-        # List of  sub-resources that must be maintained as part of the HMAC
-        # signature string.
-        #
-        keywords = sorted(['acl', 'delete', 'lifecycle', 'location', 'logging',
-                           'notification', 'partNumber', 'policy',
-                           'requestPayment', 'torrent', 'uploads', 'uploadId',
-                           'versionId', 'versioning', 'versions ', 'website'])
-        for key in qdict:
-            if key in keywords:
-                newstr = key
-                if qdict[key]:
-                    newstr = newstr + '=%s' % qdict[key]
-
-                if qstr == '':
-                    qstr = newstr
-                else:
-                    qstr = qstr + '&%s' % newstr
-
-        if qstr != '':
-            return "%s%s?%s" % (buf, path, qstr)
+        params = []
+        for key, value in urlparse.parse_qsl(args, keep_blank_values=True):
+            if key in ALLOWED_SUB_RESOURCES:
+                params.append('%s=%s' % (key, value) if value else key)
+        if params:
+            return '%s%s?%s' % (buf, path, '&'.join(params))
 
     return buf + path
 
