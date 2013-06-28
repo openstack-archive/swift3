@@ -586,10 +586,11 @@ class BucketController(WSGIContext):
         self._app_call(env)
         status = self._get_status_int()
 
-        if status != HTTP_CREATED and status != HTTP_NO_CONTENT and \
-           status != HTTP_ACCEPTED:
+        if status != HTTP_CREATED and status != HTTP_NO_CONTENT:
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 return get_err_response('AccessDenied')
+            elif status == HTTP_ACCEPTED:
+                return get_err_response('BucketAlreadyExists')
             else:
                 return get_err_response('InvalidURI')
 
