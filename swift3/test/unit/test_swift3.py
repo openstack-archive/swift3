@@ -23,7 +23,7 @@ import simplejson
 
 from swift.common.swob import Request, Response, HTTPUnauthorized, \
     HTTPCreated,HTTPNoContent, HTTPAccepted, HTTPBadRequest, HTTPNotFound, \
-    HTTPConflict, HTTPForbidden
+    HTTPConflict, HTTPForbidden, HTTPRequestEntityTooLarge
 
 from swift3 import middleware as swift3
 
@@ -167,6 +167,9 @@ class FakeAppObject(FakeApp):
                 start_response(HTTPForbidden(request=req).status, [])
             elif self.status == 404:
                 start_response(HTTPNotFound(request=req).status, [])
+            elif self.status == 413:
+                start_response(HTTPRequestEntityTooLarge(request=req).status,
+                               [])
             else:
                 start_response(HTTPBadRequest(request=req).status, [])
         elif env['REQUEST_METHOD'] == 'DELETE':
@@ -513,6 +516,9 @@ class TestSwift3(unittest.TestCase):
         code = self._test_method_error(FakeAppObject, 'PUT',
                                        '/bucket/object', 404)
         self.assertEquals(code, 'NoSuchBucket')
+        code = self._test_method_error(FakeAppObject, 'PUT',
+                                       '/bucket/object', 413)
+        self.assertEquals(code, 'EntityTooLarge')
         code = self._test_method_error(FakeAppObject, 'PUT',
                                        '/bucket/object', 0)
         self.assertEquals(code, 'InvalidURI')

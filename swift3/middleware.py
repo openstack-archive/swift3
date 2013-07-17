@@ -70,7 +70,8 @@ from swift.common.swob import Request, Response
 from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_NO_CONTENT, HTTP_BAD_REQUEST, HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, \
     HTTP_NOT_FOUND, HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, is_success, \
-    HTTP_NOT_IMPLEMENTED, HTTP_LENGTH_REQUIRED, HTTP_SERVICE_UNAVAILABLE
+    HTTP_NOT_IMPLEMENTED, HTTP_LENGTH_REQUIRED, HTTP_SERVICE_UNAVAILABLE, \
+    HTTP_REQUEST_ENTITY_TOO_LARGE
 
 
 MAX_BUCKET_LISTING = 1000
@@ -108,6 +109,9 @@ def get_err_response(code):
         (HTTP_BAD_REQUEST, 'The Content-MD5 you specified was invalid'),
         'BadDigest':
         (HTTP_BAD_REQUEST, 'The Content-Length you specified was invalid'),
+        'EntityTooLarge':
+        (HTTP_BAD_REQUEST, 'Your proposed upload exceeds the maximum '
+            'allowed object size.'),
         'NoSuchBucket':
         (HTTP_NOT_FOUND, 'The specified bucket does not exist'),
         'SignatureDoesNotMatch':
@@ -798,6 +802,8 @@ class ObjectController(WSGIContext):
                 return get_err_response('NoSuchBucket')
             elif status == HTTP_UNPROCESSABLE_ENTITY:
                 return get_err_response('InvalidDigest')
+            elif status == HTTP_REQUEST_ENTITY_TOO_LARGE:
+                return get_err_response('EntityTooLarge')
             else:
                 return get_err_response('InvalidURI')
 
