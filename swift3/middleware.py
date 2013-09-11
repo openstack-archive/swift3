@@ -287,7 +287,8 @@ def canonical_string(req):
     if '?' in path:
         path, args = path.split('?', 1)
         params = []
-        for key, value in urlparse.parse_qsl(args, keep_blank_values=True):
+        for key, value in sorted(urlparse.parse_qsl(args,
+                                          keep_blank_values=True)):
             if key in ALLOWED_SUB_RESOURCES:
                 params.append('%s=%s' % (key, value) if value else key)
         if params:
