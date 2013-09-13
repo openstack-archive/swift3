@@ -17,6 +17,7 @@ import unittest
 from datetime import datetime
 import cgi
 import hashlib
+import base64
 
 import xml.dom.minidom
 import simplejson
@@ -683,6 +684,17 @@ class TestSwift3(unittest.TestCase):
         resp = local_app(req.environ, lambda *args: None)
         self.assertEquals(req.headers['Authorization'], 'AWS Z:X')
         self.assertEquals(req.headers['Date'], 'Y')
+
+    def test_token_generation(self):
+        req = Request.blank('/bucket/object?uploadId=123456789abcdef'
+                            '&partNumber=1',
+                            environ={'REQUEST_METHOD': 'PUT'})
+        req.headers['Authorization'] = 'AWS X:Y'
+        resp = self.app(req.environ, start_response)
+        self.assertEquals(base64.urlsafe_b64decode(
+                              req.headers['X-Auth-Token']),
+                              'PUT\n\n\n/bucket/object?partNumber=1'
+                              '&uploadId=123456789abcdef')
 
 if __name__ == '__main__':
     unittest.main()
