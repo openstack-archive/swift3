@@ -852,7 +852,7 @@ class Swift3Middleware(object):
 
     def get_controller(self, env, path):
         container, obj = split_path(path, 0, 2, True)
-        d = dict(container_name=container, object_name=unquote(obj))
+        d = dict(container_name=container, object_name=unquote(obj) if obj is not None else obj)
 
         if 'QUERY_STRING' in env:
             args = dict(urlparse.parse_qsl(env['QUERY_STRING'], 1))
