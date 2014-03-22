@@ -40,7 +40,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Swift S3 Compatibility Middleware'
-copyright = u'2012 OpenStack, LLC.'
+copyright = u'2012-2014 OpenStack Foundation.'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -176,7 +176,7 @@ htmlhelp_basename = 'Swift3webdoc'
 # (source start file, target name, title, author, documentclass [howto/manual])
 latex_documents = [
   ('index', 'Swift3web.tex', u'Swift3 Documentation',
-   u'OpenStack, LLC.', 'manual'),
+   u'OpenStack Foundation.', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
