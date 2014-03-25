@@ -288,7 +288,7 @@ def canonical_string(req):
         path, args = path.split('?', 1)
         params = []
         for key, value in sorted(urlparse.parse_qsl(args,
-                                          keep_blank_values=True)):
+                                                    keep_blank_values=True)):
             if key in ALLOWED_SUB_RESOURCES:
                 params.append('%s=%s' % (key, value) if value else key)
         if params:
@@ -786,7 +786,7 @@ class ObjectController(WSGIContext):
                     return get_err_response('InvalidDigest')
                 try:
                     env['HTTP_ETAG'] = value.decode('base64').encode('hex')
-                except:
+                except Exception:
                     return get_err_response('InvalidDigest')
                 if env['HTTP_ETAG'] == '':
                     return get_err_response('SignatureDoesNotMatch')
@@ -825,7 +825,7 @@ class ObjectController(WSGIContext):
         """
         try:
             self._app_call(env)
-        except:
+        except Exception:
             return get_err_response('InvalidURI')
 
         status = self._get_status_int()
@@ -852,7 +852,8 @@ class Swift3Middleware(object):
 
     def get_controller(self, env, path):
         container, obj = split_path(path, 0, 2, True)
-        d = dict(container_name=container, object_name=unquote(obj) if obj is not None else obj)
+        d = dict(container_name=container, object_name=unquote(obj)
+                 if obj is not None else obj)
 
         if 'QUERY_STRING' in env:
             args = dict(urlparse.parse_qsl(env['QUERY_STRING'], 1))
@@ -894,7 +895,7 @@ class Swift3Middleware(object):
 
         try:
             keyword, info = req.headers['Authorization'].split(' ')
-        except:
+        except Exception:
             return get_err_response('AccessDenied')(env, start_response)
 
         if keyword != 'AWS':
@@ -902,7 +903,7 @@ class Swift3Middleware(object):
 
         try:
             account, signature = info.rsplit(':', 1)
-        except:
+        except Exception:
             return get_err_response('InvalidArgument')(env, start_response)
 
         try:

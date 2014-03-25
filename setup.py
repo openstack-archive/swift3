@@ -27,4 +27,4 @@ setup(name='swift3',
       packages=['swift3'],
       requires=['swift(>=1.4)'],
       entry_points={'paste.filter_factory':
-                        ['swift3=swift3.middleware:filter_factory']})
+          ['swift3=swift3.middleware:filter_factory']})

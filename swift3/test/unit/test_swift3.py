@@ -23,7 +23,7 @@ import xml.dom.minidom
 import simplejson
 
 from swift.common.swob import Request, Response, HTTPUnauthorized, \
-    HTTPCreated,HTTPNoContent, HTTPAccepted, HTTPBadRequest, HTTPNotFound, \
+    HTTPCreated, HTTPNoContent, HTTPAccepted, HTTPBadRequest, HTTPNotFound, \
     HTTPConflict, HTTPForbidden, HTTPRequestEntityTooLarge
 
 from swift3 import middleware as swift3
@@ -304,22 +304,22 @@ class TestSwift3(unittest.TestCase):
         bucket_name = 'junk'
 
         req = Request.blank('/%s' % bucket_name,
-                environ={'REQUEST_METHOD': 'GET',
-                         'QUERY_STRING': 'max-keys=3'},
-                headers={'Authorization': 'AWS test:tester:hmac'})
+                            environ={'REQUEST_METHOD': 'GET',
+                                     'QUERY_STRING': 'max-keys=3'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
         resp = local_app(req.environ, local_app.app.do_start_response)
         dom = xml.dom.minidom.parseString("".join(resp))
         self.assertEquals(dom.getElementsByTagName('IsTruncated')[0].
-                childNodes[0].nodeValue, 'false')
+                          childNodes[0].nodeValue, 'false')
 
         req = Request.blank('/%s' % bucket_name,
-                environ={'REQUEST_METHOD': 'GET',
-                         'QUERY_STRING': 'max-keys=2'},
-                headers={'Authorization': 'AWS test:tester:hmac'})
+                            environ={'REQUEST_METHOD': 'GET',
+                                     'QUERY_STRING': 'max-keys=2'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
         resp = local_app(req.environ, local_app.app.do_start_response)
         dom = xml.dom.minidom.parseString("".join(resp))
         self.assertEquals(dom.getElementsByTagName('IsTruncated')[0].
-                childNodes[0].nodeValue, 'true')
+                          childNodes[0].nodeValue, 'true')
 
     def test_bucket_GET_max_keys(self):
         class FakeApp(object):
@@ -332,24 +332,24 @@ class TestSwift3(unittest.TestCase):
         bucket_name = 'junk'
 
         req = Request.blank('/%s' % bucket_name,
-                environ={'REQUEST_METHOD': 'GET',
-                         'QUERY_STRING': 'max-keys=5'},
-                headers={'Authorization': 'AWS test:tester:hmac'})
+                            environ={'REQUEST_METHOD': 'GET',
+                                     'QUERY_STRING': 'max-keys=5'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
         resp = local_app(req.environ, lambda *args: None)
         dom = xml.dom.minidom.parseString("".join(resp))
         self.assertEquals(dom.getElementsByTagName('MaxKeys')[0].
-                childNodes[0].nodeValue, '5')
+                          childNodes[0].nodeValue, '5')
         args = dict(cgi.parse_qsl(fake_app.query_string))
         self.assert_(args['limit'] == '6')
 
         req = Request.blank('/%s' % bucket_name,
-                environ={'REQUEST_METHOD': 'GET',
-                         'QUERY_STRING': 'max-keys=5000'},
-                headers={'Authorization': 'AWS test:tester:hmac'})
+                            environ={'REQUEST_METHOD': 'GET',
+                                     'QUERY_STRING': 'max-keys=5000'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
         resp = local_app(req.environ, lambda *args: None)
         dom = xml.dom.minidom.parseString("".join(resp))
         self.assertEquals(dom.getElementsByTagName('MaxKeys')[0].
-                childNodes[0].nodeValue, '1000')
+                          childNodes[0].nodeValue, '1000')
         args = dict(cgi.parse_qsl(fake_app.query_string))
         self.assertEquals(args['limit'], '1001')
 
@@ -363,17 +363,17 @@ class TestSwift3(unittest.TestCase):
         local_app = swift3.filter_factory({})(fake_app)
         bucket_name = 'junk'
         req = Request.blank('/%s' % bucket_name,
-                environ={'REQUEST_METHOD': 'GET', 'QUERY_STRING':
-                         'delimiter=a&marker=b&prefix=c'},
-                headers={'Authorization': 'AWS test:tester:hmac'})
+                            environ={'REQUEST_METHOD': 'GET', 'QUERY_STRING':
+                                     'delimiter=a&marker=b&prefix=c'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
         resp = local_app(req.environ, lambda *args: None)
         dom = xml.dom.minidom.parseString("".join(resp))
         self.assertEquals(dom.getElementsByTagName('Prefix')[0].
-                childNodes[0].nodeValue, 'c')
+                          childNodes[0].nodeValue, 'c')
         self.assertEquals(dom.getElementsByTagName('Marker')[0].
-                childNodes[0].nodeValue, 'b')
+                          childNodes[0].nodeValue, 'b')
         self.assertEquals(dom.getElementsByTagName('Delimiter')[0].
-                childNodes[0].nodeValue, 'a')
+                          childNodes[0].nodeValue, 'a')
         args = dict(cgi.parse_qsl(fake_app.query_string))
         self.assertEquals(args['delimiter'], 'a')
         self.assertEquals(args['marker'], 'b')
@@ -400,7 +400,7 @@ class TestSwift3(unittest.TestCase):
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        resp = local_app(req.environ, local_app.app.do_start_response)
+        local_app(req.environ, local_app.app.do_start_response)
         self.assertEquals(local_app.app.response_args[0].split()[0], '200')
 
     def test_bucket_DELETE_error(self):
@@ -420,13 +420,14 @@ class TestSwift3(unittest.TestCase):
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'DELETE'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        resp = local_app(req.environ, local_app.app.do_start_response)
+        local_app(req.environ, local_app.app.do_start_response)
         self.assertEquals(local_app.app.response_args[0].split()[0], '204')
 
     def _check_acl(self, owner, resp):
         dom = xml.dom.minidom.parseString("".join(resp))
         self.assertEquals(dom.firstChild.nodeName, 'AccessControlPolicy')
-        name = dom.getElementsByTagName('Permission')[0].childNodes[0].nodeValue
+        permission = dom.getElementsByTagName('Permission')[0]
+        name = permission.childNodes[0].nodeValue
         self.assertEquals(name, 'FULL_CONTROL')
         name = dom.getElementsByTagName('ID')[0].childNodes[0].nodeValue
         self.assertEquals(name, owner)
@@ -459,7 +460,7 @@ class TestSwift3(unittest.TestCase):
         self.assertEquals(local_app.app.response_args[0].split()[0], '200')
 
         headers = dict((k.lower(), v) for k, v in
-            local_app.app.response_args[1])
+                       local_app.app.response_args[1])
         for key, val in local_app.app.response_headers.iteritems():
             if key in ('content-length', 'content-type', 'content-encoding',
                        'etag', 'last-modified'):
@@ -499,12 +500,12 @@ class TestSwift3(unittest.TestCase):
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Range': 'bytes=0-3'})
-        resp = local_app(req.environ, local_app.app.do_start_response)
+        local_app(req.environ, local_app.app.do_start_response)
         self.assertEquals(local_app.app.response_args[0].split()[0], '206')
 
         headers = dict((k.lower(), v) for k, v in
-            local_app.app.response_args[1])
-        self.assertTrue('content-range' in  headers)
+                       local_app.app.response_args[1])
+        self.assertTrue('content-range' in headers)
         self.assertTrue(headers['content-range'].startswith('bytes 0-3'))
 
     def test_object_PUT_error(self):
@@ -526,18 +527,19 @@ class TestSwift3(unittest.TestCase):
 
     def test_object_PUT(self):
         local_app = swift3.filter_factory({})(FakeAppObject(201))
-        req = Request.blank('/bucket/object',
-                            environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac',
-                                     'x-amz-storage-class': 'REDUCED_REDUNDANCY',
-                                     'Content-MD5': 'Gyz1NfJ3Mcl0NDZFo5hTKA=='})
+        req = Request.blank(
+            '/bucket/object',
+            environ={'REQUEST_METHOD': 'PUT'},
+            headers={'Authorization': 'AWS test:tester:hmac',
+                     'x-amz-storage-class': 'REDUCED_REDUNDANCY',
+                     'Content-MD5': 'Gyz1NfJ3Mcl0NDZFo5hTKA=='})
         req.date = datetime.now()
         req.content_type = 'text/plain'
-        resp = local_app(req.environ, local_app.app.do_start_response)
+        local_app(req.environ, local_app.app.do_start_response)
         self.assertEquals(local_app.app.response_args[0].split()[0], '200')
 
         headers = dict((k.lower(), v) for k, v in
-            local_app.app.response_args[1])
+                       local_app.app.response_args[1])
         self.assertEquals(headers['etag'],
                           "\"%s\"" % local_app.app.response_headers['etag'])
 
@@ -549,18 +551,19 @@ class TestSwift3(unittest.TestCase):
                 return []
         app = FakeApp()
         local_app = swift3.filter_factory({})(app)
-        req = Request.blank('/bucket/object',
-                        environ={'REQUEST_METHOD': 'PUT'},
-                        headers={'Authorization': 'AWS test:tester:hmac',
-                                 'X-Amz-Storage-Class': 'REDUCED_REDUNDANCY',
-                                 'X-Amz-Meta-Something': 'oh hai',
-                                 'X-Amz-Copy-Source': '/some/source',
-                                 'Content-MD5': 'ffoHqOWd280dyE1MT4KuoQ=='})
+        req = Request.blank(
+            '/bucket/object',
+            environ={'REQUEST_METHOD': 'PUT'},
+            headers={'Authorization': 'AWS test:tester:hmac',
+                     'X-Amz-Storage-Class': 'REDUCED_REDUNDANCY',
+                     'X-Amz-Meta-Something': 'oh hai',
+                     'X-Amz-Copy-Source': '/some/source',
+                     'Content-MD5': 'ffoHqOWd280dyE1MT4KuoQ=='})
         req.date = datetime.now()
         req.content_type = 'text/plain'
-        resp = local_app(req.environ, lambda *args: None)
+        local_app(req.environ, lambda *args: None)
         self.assertEquals(app.req.headers['ETag'],
-                    '7dfa07a8e59ddbcd1dc84d4c4f82aea1')
+                          '7dfa07a8e59ddbcd1dc84d4c4f82aea1')
         self.assertEquals(app.req.headers['X-Object-Meta-Something'], 'oh hai')
         self.assertEquals(app.req.headers['X-Copy-From'], '/some/source')
 
@@ -583,7 +586,7 @@ class TestSwift3(unittest.TestCase):
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': 'DELETE'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        resp = local_app(req.environ, local_app.app.do_start_response)
+        local_app(req.environ, local_app.app.do_start_response)
         self.assertEquals(local_app.app.response_args[0].split()[0], '204')
 
     def test_object_multi_DELETE(self):
@@ -603,7 +606,7 @@ class TestSwift3(unittest.TestCase):
                             body=body)
         req.date = datetime.now()
         req.content_type = 'text/plain'
-        resp = local_app(req.environ, local_app.app.do_start_response)
+        local_app(req.environ, local_app.app.do_start_response)
         self.assertEquals(local_app.app.response_args[0].split()[0], '200')
 
     def test_object_acl_GET(self):
@@ -621,53 +624,53 @@ class TestSwift3(unittest.TestCase):
         """
         def verify(hash, path, headers):
             req = Request.blank(path, headers=headers)
-            self.assertEquals(hash,
-                    hashlib.md5(swift3.canonical_string(req)).hexdigest())
+            self.assertEquals(hash, hashlib.md5(
+                swift3.canonical_string(req)).hexdigest())
 
         verify('6dd08c75e42190a1ce9468d1fd2eb787', '/bucket/object',
-                {'Content-Type': 'text/plain', 'X-Amz-Something': 'test',
-                 'Date': 'whatever'})
+               {'Content-Type': 'text/plain', 'X-Amz-Something': 'test',
+                'Date': 'whatever'})
 
         verify('c8447135da232ae7517328f3429df481', '/bucket/object',
-                {'Content-Type': 'text/plain', 'X-Amz-Something': 'test'})
+               {'Content-Type': 'text/plain', 'X-Amz-Something': 'test'})
 
         verify('bf49304103a4de5c325dce6384f2a4a2', '/bucket/object',
-                {'content-type': 'text/plain'})
+               {'content-type': 'text/plain'})
 
         verify('be01bd15d8d47f9fe5e2d9248cc6f180', '/bucket/object', {})
 
         verify('8d28cc4b8322211f6cc003256cd9439e', 'bucket/object',
-                {'Content-MD5': 'somestuff'})
+               {'Content-MD5': 'somestuff'})
 
         verify('a822deb31213ad09af37b5a7fe59e55e', '/bucket/object?acl', {})
 
         verify('cce5dd1016595cb706c93f28d3eaa18f', '/bucket/object',
-                {'Content-Type': 'text/plain', 'X-Amz-A': 'test',
-                 'X-Amz-Z': 'whatever', 'X-Amz-B': 'lalala',
-                 'X-Amz-Y': 'lalalalalalala'})
+               {'Content-Type': 'text/plain', 'X-Amz-A': 'test',
+                'X-Amz-Z': 'whatever', 'X-Amz-B': 'lalala',
+                'X-Amz-Y': 'lalalalalalala'})
 
         verify('7506d97002c7d2de922cc0ec34af8846', '/bucket/object',
-                {'Content-Type': None, 'X-Amz-Something': 'test'})
+               {'Content-Type': None, 'X-Amz-Something': 'test'})
 
         verify('28f76d6162444a193b612cd6cb20e0be', '/bucket/object',
-                {'Content-Type': None,
-                 'X-Amz-Date': 'Mon, 11 Jul 2011 10:52:57 +0000',
-                 'Date': 'Tue, 12 Jul 2011 10:52:57 +0000'})
+               {'Content-Type': None,
+                'X-Amz-Date': 'Mon, 11 Jul 2011 10:52:57 +0000',
+                'Date': 'Tue, 12 Jul 2011 10:52:57 +0000'})
 
         verify('ed6971e3eca5af4ee361f05d7c272e49', '/bucket/object',
-                {'Content-Type': None,
-                 'Date': 'Tue, 12 Jul 2011 10:52:57 +0000'})
+               {'Content-Type': None,
+                'Date': 'Tue, 12 Jul 2011 10:52:57 +0000'})
 
         req1 = Request.blank('/', headers=
-                {'Content-Type': None, 'X-Amz-Something': 'test'})
+                             {'Content-Type': None, 'X-Amz-Something': 'test'})
         req2 = Request.blank('/', headers=
-                {'Content-Type': '', 'X-Amz-Something': 'test'})
+                             {'Content-Type': '', 'X-Amz-Something': 'test'})
         req3 = Request.blank('/', headers={'X-Amz-Something': 'test'})
 
         self.assertEquals(swift3.canonical_string(req1),
-                swift3.canonical_string(req2))
+                          swift3.canonical_string(req2))
         self.assertEquals(swift3.canonical_string(req2),
-                swift3.canonical_string(req3))
+                          swift3.canonical_string(req3))
 
     def test_signed_urls(self):
         class FakeApp(object):
@@ -678,10 +681,11 @@ class TestSwift3(unittest.TestCase):
         app = FakeApp()
         local_app = swift3.filter_factory({})(app)
         req = Request.blank('/bucket/object?Signature=X&Expires=Y&'
-                'AWSAccessKeyId=Z', environ={'REQUEST_METHOD': 'GET'})
+                            'AWSAccessKeyId=Z',
+                            environ={'REQUEST_METHOD': 'GET'})
         req.headers['Date'] = datetime.utcnow()
         req.content_type = 'text/plain'
-        resp = local_app(req.environ, lambda *args: None)
+        local_app(req.environ, lambda *args: None)
         self.assertEquals(req.headers['Authorization'], 'AWS Z:X')
         self.assertEquals(req.headers['Date'], 'Y')
 
@@ -690,11 +694,10 @@ class TestSwift3(unittest.TestCase):
                             '&partNumber=1',
                             environ={'REQUEST_METHOD': 'PUT'})
         req.headers['Authorization'] = 'AWS X:Y'
-        resp = self.app(req.environ, start_response)
+        self.app(req.environ, start_response)
         self.assertEquals(base64.urlsafe_b64decode(
-                              req.headers['X-Auth-Token']),
-                              'PUT\n\n\n/bucket/object?partNumber=1'
-                              '&uploadId=123456789abcdef')
+            req.headers['X-Auth-Token']),
+            'PUT\n\n\n/bucket/object?partNumber=1&uploadId=123456789abcdef')
 
 if __name__ == '__main__':
     unittest.main()
