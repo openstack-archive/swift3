@@ -1,0 +1,4 @@
+hacking
+sphinx
+nose
+coverage
