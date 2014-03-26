@@ -74,7 +74,9 @@ class FakeAppBucket(FakeApp):
         self.status = status
         self.objects = (('rose', '2011-01-05T02:19:14.275290', 0, 303),
                         ('viola', '2011-01-05T02:19:14.275290', 0, 3909),
-                        ('lily', '2011-01-05T02:19:14.275290', 0, 3909))
+                        ('lily', '2011-01-05T02:19:14.275290', 0, 3909),
+                        ('with space', '2011-01-05T02:19:14.275290', 0, 390),
+                        ('with%20space', '2011-01-05T02:19:14.275290', 0, 390))
 
     def __call__(self, env, start_response):
         if env['REQUEST_METHOD'] == 'GET':
@@ -305,7 +307,7 @@ class TestSwift3(unittest.TestCase):
 
         req = Request.blank('/%s' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET',
-                                     'QUERY_STRING': 'max-keys=3'},
+                                     'QUERY_STRING': 'max-keys=5'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         resp = local_app(req.environ, local_app.app.do_start_response)
         dom = xml.dom.minidom.parseString("".join(resp))
@@ -314,7 +316,7 @@ class TestSwift3(unittest.TestCase):
 
         req = Request.blank('/%s' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET',
-                                     'QUERY_STRING': 'max-keys=2'},
+                                     'QUERY_STRING': 'max-keys=4'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         resp = local_app(req.environ, local_app.app.do_start_response)
         dom = xml.dom.minidom.parseString("".join(resp))
