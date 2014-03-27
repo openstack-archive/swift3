@@ -1,0 +1,8 @@
+Verified+2: Jenkins
+Approved+1: FUJITA Tomonori <fujita.tomonori@gmail.com>
+Code-Review+2: FUJITA Tomonori <fujita.tomonori@gmail.com>
+Submitted-by: Jenkins
+Submitted-at: Thu, 27 Mar 2014 00:27:55 +0000
+Reviewed-on: https://review.openstack.org/83253
+Project: stackforge/swift3
+Branch: refs/heads/master
