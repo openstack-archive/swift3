@@ -457,7 +457,7 @@ class BucketController(WSGIContext):
 
         if 'uploads' in args:
             # Pass it through, the s3multi upload helper will handle it.
-            return self.app(env, start_response)
+            return self.app
 
         max_keys = min(int(args.get('max-keys', MAX_BUCKET_LISTING)),
                        MAX_BUCKET_LISTING)
@@ -693,11 +693,11 @@ class BucketController(WSGIContext):
 
         if 'uploads' in args:
             # Pass it through, the s3multi upload helper will handle it.
-            return self.app(env, start_response)
+            return self.app
 
         if 'uploadId' in args:
             # Pass it through, the s3multi upload helper will handle it.
-            return self.app(env, start_response)
+            return self.app
 
         return get_err_response('Unsupported')
 
@@ -723,7 +723,7 @@ class ObjectController(WSGIContext):
 
         # Let s3multi handle it.
         if 'uploadId' in args or 'uploads' in args:
-            return self.app(env, start_response)
+            return self.app
 
         if 'acl' in args:
             # ACL requests need to make a HEAD call rather than GET
