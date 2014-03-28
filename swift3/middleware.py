@@ -862,7 +862,7 @@ class Swift3Middleware(object):
 
         if container and obj:
             if env['REQUEST_METHOD'] == 'POST':
-                if 'uploads' or 'uploadId' in args:
+                if 'uploads' in args or 'uploadId' in args:
                     return BucketController, d
             return ObjectController, d
         elif container:
