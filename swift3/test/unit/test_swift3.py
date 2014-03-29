@@ -219,7 +219,7 @@ class TestSwift3(unittest.TestCase):
         dom = xml.dom.minidom.parseString("".join(resp))
         self.assertEquals(dom.firstChild.nodeName, 'Error')
         code = dom.getElementsByTagName('Code')[0].childNodes[0].nodeValue
-        self.assertEquals(code, 'InvalidURI')
+        self.assertEquals(code, 'MethodNotAllowed')
 
     def _test_method_error(self, cl, method, path, status, headers={}):
         local_app = swift3.filter_factory({})(cl(status))
