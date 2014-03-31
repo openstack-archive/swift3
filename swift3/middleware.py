@@ -71,7 +71,7 @@ from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_NO_CONTENT, HTTP_BAD_REQUEST, HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, \
     HTTP_NOT_FOUND, HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, is_success, \
     HTTP_NOT_IMPLEMENTED, HTTP_LENGTH_REQUIRED, HTTP_SERVICE_UNAVAILABLE, \
-    HTTP_REQUEST_ENTITY_TOO_LARGE
+    HTTP_REQUEST_ENTITY_TOO_LARGE, HTTP_METHOD_NOT_ALLOWED
 
 
 MAX_BUCKET_LISTING = 1000
@@ -112,6 +112,9 @@ def get_err_response(code):
         'EntityTooLarge':
         (HTTP_BAD_REQUEST, 'Your proposed upload exceeds the maximum '
             'allowed object size.'),
+        'MethodNotAllowed':
+        (HTTP_METHOD_NOT_ALLOWED, 'The specified method is not allowed '
+            'against this resource.'),
         'NoSuchBucket':
         (HTTP_NOT_FOUND, 'The specified bucket does not exist'),
         'SignatureDoesNotMatch':
@@ -950,7 +953,7 @@ class Swift3Middleware(object):
         if hasattr(controller, req.method):
             res = getattr(controller, req.method)(env, start_response)
         else:
-            return get_err_response('InvalidURI')(env, start_response)
+            return get_err_response('MethodNotAllowed')(env, start_response)
 
         return res(env, start_response)
 
