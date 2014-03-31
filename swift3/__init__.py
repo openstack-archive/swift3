@@ -15,10 +15,17 @@
 """
 Static Web Middleware for OpenStack Swift
 """
+import pbr.version
 
-__all__ = ['version_info', 'version']
+__all__ = ['version_info', '__version__']
+
+# get version info using pbr.version.
+# pbr version info is inferred from version in setup.cfg
+# and and vcs information.
+_version_info = pbr.version.VersionInfo('swift3')
+
+#: Version string ``'major.minor.revision'``.
+__version__ = _version_info.version_string()
 
 #: Version information ``(major, minor, revision)``.
-version_info = (1, 7, 0)
-#: Version string ``'major.minor.revision'``.
-version = '.'.join(map(str, version_info))
+version_info = __version__.split('.')
