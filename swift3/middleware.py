@@ -383,7 +383,7 @@ class ServiceController(WSGIContext):
         env['HTTP_X_AUTH_TOKEN'] = token
         env['PATH_INFO'] = '/v1/%s' % account_name
 
-    def GET(self, env, start_response):
+    def GET(self, env):
         """
         Handle GET Service request
         """
@@ -425,7 +425,7 @@ class BucketController(WSGIContext):
         env['HTTP_X_AUTH_TOKEN'] = token
         env['PATH_INFO'] = '/v1/%s/%s' % (account_name, container_name)
 
-    def HEAD(self, env, start_response):
+    def HEAD(self, env):
         """
         Handle HEAD Bucket (Get Metadata) request
         """
@@ -445,7 +445,7 @@ class BucketController(WSGIContext):
 
         return Response(status=status, headers=headers, app_iter=body_iter)
 
-    def GET(self, env, start_response):
+    def GET(self, env):
         """
         Handle GET Bucket (List Objects) request
         """
@@ -546,7 +546,7 @@ class BucketController(WSGIContext):
                          for i in objects[:max_keys] if 'subdir' in i])))
         return Response(body=body, content_type='application/xml')
 
-    def PUT(self, env, start_response):
+    def PUT(self, env):
         """
         Handle PUT Bucket request
         """
@@ -607,7 +607,7 @@ class BucketController(WSGIContext):
         resp.status = HTTP_OK
         return resp
 
-    def DELETE(self, env, start_response):
+    def DELETE(self, env):
         """
         Handle DELETE Bucket request
         """
@@ -682,7 +682,7 @@ class BucketController(WSGIContext):
         body += '</DeleteResult>\r\n'
         return Response(status=HTTP_OK, body=body)
 
-    def POST(self, env, start_response):
+    def POST(self, env):
         """
         Handle POST Bucket (Delete/Upload Multiple Objects) request
         """
@@ -718,7 +718,7 @@ class ObjectController(WSGIContext):
         env['PATH_INFO'] = '/v1/%s/%s/%s' % (account_name, container_name,
                                              object_name)
 
-    def GETorHEAD(self, env, start_response):
+    def GETorHEAD(self, env):
         if 'QUERY_STRING' in env:
             args = dict(urlparse.parse_qsl(env['QUERY_STRING'], 1))
         else:
@@ -764,19 +764,19 @@ class ObjectController(WSGIContext):
         else:
             return get_err_response('InvalidURI')
 
-    def HEAD(self, env, start_response):
+    def HEAD(self, env):
         """
         Handle HEAD Object request
         """
-        return self.GETorHEAD(env, start_response)
+        return self.GETorHEAD(env)
 
-    def GET(self, env, start_response):
+    def GET(self, env):
         """
         Handle GET Object request
         """
-        return self.GETorHEAD(env, start_response)
+        return self.GETorHEAD(env)
 
-    def PUT(self, env, start_response):
+    def PUT(self, env):
         """
         Handle PUT Object and PUT Object (Copy) request
         """
@@ -819,10 +819,10 @@ class ObjectController(WSGIContext):
 
         return Response(status=200, etag=self._response_header_value('etag'))
 
-    def POST(self, env, start_response):
+    def POST(self, env):
         return get_err_response('AccessDenied')
 
-    def DELETE(self, env, start_response):
+    def DELETE(self, env):
         """
         Handle DELETE Object request
         """
@@ -875,12 +875,13 @@ class Swift3Middleware(object):
 
     def __call__(self, env, start_response):
         try:
-            return self.handle_request(env, start_response)
+            resp = self.handle_request(env)
         except Exception, e:
             self.logger.exception(e)
-        return get_err_response('ServiceUnavailable')(env, start_response)
+            resp = get_err_response('ServiceUnavailable')
+        return resp(env, start_response)
 
-    def handle_request(self, env, start_response):
+    def handle_request(self, env):
         req = Request(env)
         self.logger.debug('Calling Swift3 Middleware')
         self.logger.debug(req.__dict__)
@@ -891,28 +892,28 @@ class Swift3Middleware(object):
                 req.headers['Authorization'] = \
                     'AWS %(AWSAccessKeyId)s:%(Signature)s' % req.params
             except KeyError:
-                return get_err_response('InvalidArgument')(env, start_response)
+                return get_err_response('InvalidArgument')
 
         if 'Authorization' not in req.headers:
-            return self.app(env, start_response)
+            return self.app
 
         try:
             keyword, info = req.headers['Authorization'].split(' ')
         except Exception:
-            return get_err_response('AccessDenied')(env, start_response)
+            return get_err_response('AccessDenied')
 
         if keyword != 'AWS':
-            return get_err_response('AccessDenied')(env, start_response)
+            return get_err_response('AccessDenied')
 
         try:
             account, signature = info.rsplit(':', 1)
         except Exception:
-            return get_err_response('InvalidArgument')(env, start_response)
+            return get_err_response('InvalidArgument')
 
         try:
             controller, path_parts = self.get_controller(env, req.path)
         except ValueError:
-            return get_err_response('InvalidURI')(env, start_response)
+            return get_err_response('InvalidURI')
 
         if 'Date' in req.headers:
             date = email.utils.parsedate(req.headers['Date'])
@@ -923,7 +924,7 @@ class Swift3Middleware(object):
 
                 date = datetime.datetime.utcnow().timetuple()
             elif date is None:
-                return get_err_response('AccessDenied')(env, start_response)
+                return get_err_response('AccessDenied')
 
             epoch = datetime.datetime(1970, 1, 1, 0, 0, 0, 0)
             delta = datetime.timedelta(seconds=60 * 5)
@@ -931,19 +932,17 @@ class Swift3Middleware(object):
             d1 = datetime.datetime(*date[0:6])
             now = datetime.datetime.utcnow()
             if d1 < epoch:
-                return get_err_response('AccessDenied')(env, start_response)
+                return get_err_response('AccessDenied')
 
             # If the standard date is too far ahead or behind, it is an error
             if abs(d1 - now) > delta:
-                return get_err_response('RequestTimeTooSkewed')(env,
-                                                                start_response)
+                return get_err_response('RequestTimeTooSkewed')
 
             # If there was an expiration date in the parameters, check it also
             if expdate:
                 ex = datetime.datetime(*expdate[0:6])
                 if (now > ex and (now - ex) > delta):
-                    return get_err_response('RequestTimeTooSkewed')(
-                        env, start_response)
+                    return get_err_response('RequestTimeTooSkewed')
 
         token = base64.urlsafe_b64encode(canonical_string(req))
 
@@ -951,11 +950,11 @@ class Swift3Middleware(object):
                                 **path_parts)
 
         if hasattr(controller, req.method):
-            res = getattr(controller, req.method)(env, start_response)
+            res = getattr(controller, req.method)(env)
         else:
-            return get_err_response('MethodNotAllowed')(env, start_response)
+            return get_err_response('MethodNotAllowed')
 
-        return res(env, start_response)
+        return res
 
 
 def filter_factory(global_conf, **local_conf):
