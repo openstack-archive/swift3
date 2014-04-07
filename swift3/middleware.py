@@ -52,7 +52,7 @@ following for an SAIO setup::
         calling_format=boto.s3.connection.OrdinaryCallingFormat())
 """
 
-from urllib import unquote, quote
+from urllib import quote
 import base64
 from xml.sax.saxutils import escape as xml_escape
 import urlparse
@@ -420,8 +420,8 @@ class BucketController(WSGIContext):
     def __init__(self, env, app, account_name, token, container_name,
                  **kwargs):
         WSGIContext.__init__(self, app)
-        self.container_name = unquote(container_name)
-        self.account_name = unquote(account_name)
+        self.container_name = container_name
+        self.account_name = account_name
         env['HTTP_X_AUTH_TOKEN'] = token
         env['PATH_INFO'] = '/v1/%s/%s' % (account_name, container_name)
 
@@ -712,8 +712,8 @@ class ObjectController(WSGIContext):
     def __init__(self, env, app, account_name, token, container_name,
                  object_name, **kwargs):
         WSGIContext.__init__(self, app)
-        self.account_name = unquote(account_name)
-        self.container_name = unquote(container_name)
+        self.account_name = account_name
+        self.container_name = container_name
         env['HTTP_X_AUTH_TOKEN'] = token
         env['PATH_INFO'] = '/v1/%s/%s/%s' % (account_name, container_name,
                                              object_name)
@@ -853,10 +853,9 @@ class Swift3Middleware(object):
         self.conf = conf
         self.logger = get_logger(self.conf, log_route='swift3')
 
-    def get_controller(self, env, path):
-        container, obj = split_path(path, 0, 2, True)
-        d = dict(container_name=container, object_name=unquote(obj)
-                 if obj is not None else obj)
+    def get_controller(self, env):
+        container, obj = split_path(env['PATH_INFO'], 0, 2, True)
+        d = dict(container_name=container, object_name=obj)
 
         if 'QUERY_STRING' in env:
             args = dict(urlparse.parse_qsl(env['QUERY_STRING'], 1))
@@ -911,7 +910,7 @@ class Swift3Middleware(object):
             return get_err_response('InvalidArgument')
 
         try:
-            controller, path_parts = self.get_controller(env, req.path)
+            controller, path_parts = self.get_controller(env)
         except ValueError:
             return get_err_response('InvalidURI')
 
