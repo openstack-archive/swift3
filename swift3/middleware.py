@@ -55,7 +55,6 @@ following for an SAIO setup::
 from urllib import quote
 import base64
 from xml.sax.saxutils import escape as xml_escape
-import urlparse
 from xml.dom.minidom import parseString
 
 from simplejson import loads
@@ -63,15 +62,14 @@ import email.utils
 import datetime
 import re
 
-from swift.common.utils import split_path
 from swift.common.utils import get_logger
-from swift.common.wsgi import WSGIContext
-from swift.common.swob import Request, Response
+from swift.common.swob import Request, Response, HTTPForbidden, HTTPConflict, \
+    HTTPBadRequest, HTTPMethodNotAllowed, HTTPNotFound, HTTPNotImplemented, \
+    HTTPLengthRequired, HTTPServiceUnavailable, HTTPNoContent, HTTPOk
 from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
-    HTTP_NO_CONTENT, HTTP_BAD_REQUEST, HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, \
-    HTTP_NOT_FOUND, HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, is_success, \
-    HTTP_NOT_IMPLEMENTED, HTTP_LENGTH_REQUIRED, HTTP_SERVICE_UNAVAILABLE, \
-    HTTP_REQUEST_ENTITY_TOO_LARGE, HTTP_METHOD_NOT_ALLOWED
+    HTTP_NO_CONTENT, HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, HTTP_NOT_FOUND, \
+    HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, is_success, \
+    HTTP_REQUEST_ENTITY_TOO_LARGE
 
 
 MAX_BUCKET_LISTING = 1000
@@ -90,55 +88,54 @@ def get_err_response(code):
     Given an HTTP response code, create a properly formatted xml error response
 
     :param code: error code
-    :returns: webob.response object
+    :returns: swob.response object
     """
     error_table = {
         'AccessDenied':
-        (HTTP_FORBIDDEN, 'Access denied'),
+        (HTTPForbidden, 'Access denied'),
         'BucketAlreadyExists':
-        (HTTP_CONFLICT, 'The requested bucket name is not available'),
+        (HTTPConflict, 'The requested bucket name is not available'),
         'BucketNotEmpty':
-        (HTTP_CONFLICT, 'The bucket you tried to delete is not empty'),
+        (HTTPConflict, 'The bucket you tried to delete is not empty'),
         'InvalidArgument':
-        (HTTP_BAD_REQUEST, 'Invalid Argument'),
+        (HTTPBadRequest, 'Invalid Argument'),
         'InvalidBucketName':
-        (HTTP_BAD_REQUEST, 'The specified bucket is not valid'),
+        (HTTPBadRequest, 'The specified bucket is not valid'),
         'InvalidURI':
-        (HTTP_BAD_REQUEST, 'Could not parse the specified URI'),
+        (HTTPBadRequest, 'Could not parse the specified URI'),
         'InvalidDigest':
-        (HTTP_BAD_REQUEST, 'The Content-MD5 you specified was invalid'),
+        (HTTPBadRequest, 'The Content-MD5 you specified was invalid'),
         'BadDigest':
-        (HTTP_BAD_REQUEST, 'The Content-Length you specified was invalid'),
+        (HTTPBadRequest, 'The Content-Length you specified was invalid'),
         'EntityTooLarge':
-        (HTTP_BAD_REQUEST, 'Your proposed upload exceeds the maximum '
+        (HTTPBadRequest, 'Your proposed upload exceeds the maximum '
             'allowed object size.'),
         'MethodNotAllowed':
-        (HTTP_METHOD_NOT_ALLOWED, 'The specified method is not allowed '
+        (HTTPMethodNotAllowed, 'The specified method is not allowed '
             'against this resource.'),
         'NoSuchBucket':
-        (HTTP_NOT_FOUND, 'The specified bucket does not exist'),
+        (HTTPNotFound, 'The specified bucket does not exist'),
         'SignatureDoesNotMatch':
-        (HTTP_FORBIDDEN, 'The calculated request signature does not '
+        (HTTPForbidden, 'The calculated request signature does not '
             'match your provided one'),
         'RequestTimeTooSkewed':
-        (HTTP_FORBIDDEN, 'The difference between the request time and the'
+        (HTTPForbidden, 'The difference between the request time and the'
         ' current time is too large'),
         'NoSuchKey':
-        (HTTP_NOT_FOUND, 'The resource you requested does not exist'),
+        (HTTPNotFound, 'The resource you requested does not exist'),
         'Unsupported':
-        (HTTP_NOT_IMPLEMENTED, 'The feature you requested is not yet'
+        (HTTPNotImplemented, 'The feature you requested is not yet'
         ' implemented'),
         'MissingContentLength':
-        (HTTP_LENGTH_REQUIRED, 'Length Required'),
+        (HTTPLengthRequired, 'Length Required'),
         'ServiceUnavailable':
-        (HTTP_SERVICE_UNAVAILABLE, 'Please reduce your request rate')}
+        (HTTPServiceUnavailable, 'Please reduce your request rate')}
 
-    resp = Response(content_type='text/xml')
-    resp.status = error_table[code][0]
-    resp.body = '<?xml version="1.0" encoding="UTF-8"?>\r\n<Error>\r\n  ' \
-                '<Code>%s</Code>\r\n  <Message>%s</Message>\r\n</Error>\r\n' \
-                % (code, error_table[code][1])
-    return resp
+    resp, message = error_table[code]
+    body = '<?xml version="1.0" encoding="UTF-8"?>\r\n<Error>\r\n  ' \
+        '<Code>%s</Code>\r\n  <Message>%s</Message>\r\n</Error>\r\n' \
+        % (code, message)
+    return resp(body=body, content_type='text/xml')
 
 
 def get_acl(account_name, headers):
@@ -257,7 +254,7 @@ def get_acl(account_name, headers):
                 '</AccessControlList>'
                 '</AccessControlPolicy>' %
                 (account_name, account_name, account_name, account_name))
-    return Response(body=body, content_type="text/plain")
+    return HTTPOk(body=body, content_type="text/plain")
 
 
 def canonical_string(req):
@@ -290,8 +287,7 @@ def canonical_string(req):
     if '?' in path:
         path, args = path.split('?', 1)
         params = []
-        for key, value in sorted(urlparse.parse_qsl(args,
-                                                    keep_blank_values=True)):
+        for key, value in sorted(req.params.items()):
             if key in ALLOWED_SUB_RESOURCES:
                 params.append('%s=%s' % (key, value) if value else key)
         if params:
@@ -374,22 +370,22 @@ def validate_bucket_name(name):
         return True
 
 
-class ServiceController(WSGIContext):
+class ServiceController(object):
     """
     Handles account level requests.
     """
-    def __init__(self, env, app, account_name, token, **kwargs):
-        WSGIContext.__init__(self, app)
-        env['HTTP_X_AUTH_TOKEN'] = token
-        env['PATH_INFO'] = '/v1/%s' % account_name
+    def __init__(self, req, app, account_name, token, **kwargs):
+        self.app = app
+        req.environ['HTTP_X_AUTH_TOKEN'] = token
+        req.path_info = '/v1/%s' % account_name
 
-    def GET(self, env):
+    def GET(self, req):
         """
         Handle GET Service request
         """
-        env['QUERY_STRING'] = 'format=json'
-        body_iter = self._app_call(env)
-        status = self._get_status_int()
+        req.query_string = 'format=json'
+        resp = req.get_response(self.app)
+        status = resp.status_int
 
         if status != HTTP_OK:
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
@@ -397,7 +393,7 @@ class ServiceController(WSGIContext):
             else:
                 return get_err_response('InvalidURI')
 
-        containers = loads(''.join(list(body_iter)))
+        containers = loads(resp.body)
         # we don't keep the creation time of a backet (s3cmd doesn't
         # work without that) so we use something bogus.
         body = '<?xml version="1.0" encoding="UTF-8"?>' \
@@ -408,33 +404,31 @@ class ServiceController(WSGIContext):
                % ("".join(['<Bucket><Name>%s</Name><CreationDate>'
                            '2009-02-03T16:45:09.000Z</CreationDate></Bucket>'
                            % xml_escape(i['name']) for i in containers]))
-        resp = Response(status=HTTP_OK, content_type='application/xml',
-                        body=body)
-        return resp
+        return HTTPOk(content_type='application/xml', body=body)
 
 
-class BucketController(WSGIContext):
+class BucketController(object):
     """
     Handles bucket request.
     """
-    def __init__(self, env, app, account_name, token, container_name,
+    def __init__(self, req, app, account_name, token, container_name,
                  **kwargs):
-        WSGIContext.__init__(self, app)
+        self.app = app
         self.container_name = container_name
         self.account_name = account_name
-        env['HTTP_X_AUTH_TOKEN'] = token
-        env['PATH_INFO'] = '/v1/%s/%s' % (account_name, container_name)
+        req.environ['HTTP_X_AUTH_TOKEN'] = token
+        req.path_info = '/v1/%s/%s' % (account_name, container_name)
 
-    def HEAD(self, env):
+    def HEAD(self, req):
         """
         Handle HEAD Bucket (Get Metadata) request
         """
-        if 'QUERY_STRING' in env:
-                del env['QUERY_STRING']
+        if req.query_string:
+                req.query_string = ''
 
-        body_iter = self._app_call(env)
-        status = self._get_status_int()
-        headers = dict(self._response_headers)
+        resp = req.get_response(self.app)
+        status = resp.status_int
+        headers = resp.headers
         if status == HTTP_NO_CONTENT:
                 status = HTTP_OK
 
@@ -443,49 +437,45 @@ class BucketController(WSGIContext):
         if 'x-container-bytes-used' in headers:
             headers['x-rgw-bytes-used'] = headers['x-container-bytes-used']
 
-        return Response(status=status, headers=headers, app_iter=body_iter)
+        return Response(status=status, headers=headers, app_iter=resp.app_iter)
 
-    def GET(self, env):
+    def GET(self, req):
         """
         Handle GET Bucket (List Objects) request
         """
-        if 'QUERY_STRING' in env:
-            args = dict(urlparse.parse_qsl(env['QUERY_STRING'], 1))
-        else:
-            args = {}
-
-        if 'max-keys' in args:
-            if args.get('max-keys').isdigit() is False:
+        if 'max-keys' in req.params:
+            if req.params.get('max-keys').isdigit() is False:
                 return get_err_response('InvalidArgument')
 
-        if 'uploads' in args:
+        if 'uploads' in req.params:
             # Pass it through, the s3multi upload helper will handle it.
             return self.app
 
-        max_keys = min(int(args.get('max-keys', MAX_BUCKET_LISTING)),
+        max_keys = min(int(req.params.get('max-keys', MAX_BUCKET_LISTING)),
                        MAX_BUCKET_LISTING)
 
-        if 'acl' not in args:
+        if 'acl' not in req.params:
             #acl request sent with format=json etc confuses swift
-            env['QUERY_STRING'] = 'format=json&limit=%s' % (max_keys + 1)
-        if 'marker' in args:
-            env['QUERY_STRING'] += '&marker=%s' % quote(args['marker'])
-        if 'prefix' in args:
-            env['QUERY_STRING'] += '&prefix=%s' % quote(args['prefix'])
-        if 'delimiter' in args:
-            env['QUERY_STRING'] += '&delimiter=%s' % quote(args['delimiter'])
-        body_iter = self._app_call(env)
-        status = self._get_status_int()
-        headers = dict(self._response_headers)
+            req.query_string = 'format=json&limit=%s' % (max_keys + 1)
+        if 'marker' in req.params:
+            req.query_string += '&marker=%s' % quote(req.params['marker'])
+        if 'prefix' in req.params:
+            req.query_string += '&prefix=%s' % quote(req.params['prefix'])
+        if 'delimiter' in req.params:
+            req.query_string += '&delimiter=%s' % \
+                quote(req.params['delimiter'])
+        resp = req.get_response(self.app)
+        status = resp.status_int
+        headers = resp.headers
 
-        if is_success(status) and 'acl' in args:
+        if is_success(status) and 'acl' in req.params:
             return get_acl(self.account_name, headers)
 
-        if 'versioning' in args:
+        if 'versioning' in req.params:
             # Just report there is no versioning configured here.
             body = ('<VersioningConfiguration '
                     'xmlns="http://s3.amazonaws.com/doc/2006-03-01/"/>')
-            return Response(body=body, content_type="text/plain")
+            return HTTPOk(body=body, content_type="text/plain")
 
         if status != HTTP_OK:
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
@@ -495,7 +485,7 @@ class BucketController(WSGIContext):
             else:
                 return get_err_response('InvalidURI')
 
-        if 'location' in args:
+        if 'location' in req.params:
             body = ('<?xml version="1.0" encoding="UTF-8"?>'
                     '<LocationConstraint '
                     'xmlns="http://s3.amazonaws.com/doc/2006-03-01/"')
@@ -503,16 +493,16 @@ class BucketController(WSGIContext):
                 body += '/>'
             else:
                 body += ('>%s</LocationConstraint>' % self.location)
-            return Response(body=body, content_type='application/xml')
+            return HTTPOk(body=body, content_type='application/xml')
 
-        if 'logging' in args:
+        if 'logging' in req.params:
             # logging disabled
             body = ('<?xml version="1.0" encoding="UTF-8"?>'
                     '<BucketLoggingStatus '
                     'xmlns="http://doc.s3.amazonaws.com/2006-03-01" />')
-            return Response(body=body, content_type='application/xml')
+            return HTTPOk(body=body, content_type='application/xml')
 
-        objects = loads(''.join(list(body_iter)))
+        objects = loads(resp.body)
         body = ('<?xml version="1.0" encoding="UTF-8"?>'
                 '<ListBucketResult '
                 'xmlns="http://s3.amazonaws.com/doc/2006-03-01">'
@@ -526,9 +516,9 @@ class BucketController(WSGIContext):
                 '%s'
                 '</ListBucketResult>' %
                 (
-                xml_escape(args.get('prefix', '')),
-                xml_escape(args.get('marker', '')),
-                xml_escape(args.get('delimiter', '')),
+                xml_escape(req.params.get('prefix', '')),
+                xml_escape(req.params.get('marker', '')),
+                xml_escape(req.params.get('delimiter', '')),
                 'true' if max_keys > 0 and len(objects) == (max_keys + 1) else
                 'false',
                 max_keys,
@@ -544,20 +534,20 @@ class BucketController(WSGIContext):
                 "".join(['<CommonPrefixes><Prefix>%s</Prefix></CommonPrefixes>'
                          % xml_escape(i['subdir'])
                          for i in objects[:max_keys] if 'subdir' in i])))
-        return Response(body=body, content_type='application/xml')
+        return HTTPOk(body=body, content_type='application/xml')
 
-    def PUT(self, env):
+    def PUT(self, req):
         """
         Handle PUT Bucket request
         """
-        if 'HTTP_X_AMZ_ACL' in env:
-            amz_acl = env['HTTP_X_AMZ_ACL']
+        if 'HTTP_X_AMZ_ACL' in req.environ:
+            amz_acl = req.environ['HTTP_X_AMZ_ACL']
             # Translate the Amazon ACL to something that can be
             # implemented in Swift, 501 otherwise. Swift uses POST
             # for ACLs, whereas S3 uses PUT.
-            del env['HTTP_X_AMZ_ACL']
-            if 'QUERY_STRING' in env:
-                del env['QUERY_STRING']
+            del req.environ['HTTP_X_AMZ_ACL']
+            if req.query_string:
+                req.query_string = ''
 
             translated_acl = swift_acl_translate(amz_acl)
             if translated_acl == 'Unsupported':
@@ -566,33 +556,28 @@ class BucketController(WSGIContext):
                 return get_err_response('InvalidArgument')
 
             for header, acl in translated_acl:
-                env[header] = acl
+                req.headers[header] = acl
 
-        if 'CONTENT_LENGTH' in env:
-            content_length = env['CONTENT_LENGTH']
+        if 'CONTENT_LENGTH' in req.environ:
             try:
-                content_length = int(content_length)
+                if req.content_length < 0:
+                    return get_err_response('InvalidArgument')
             except (ValueError, TypeError):
                 return get_err_response('InvalidArgument')
-            if content_length < 0:
+
+        if 'acl' in req.params:
+            # We very likely have an XML-based ACL request.
+            translated_acl = swift_acl_translate(req.body, xml=True)
+            if translated_acl == 'Unsupported':
+                return get_err_response('Unsupported')
+            elif translated_acl == 'InvalidArgument':
                 return get_err_response('InvalidArgument')
+            for header, acl in translated_acl:
+                req.headers[header] = acl
+            req.method = 'POST'
 
-        if 'QUERY_STRING' in env:
-            args = dict(urlparse.parse_qsl(env['QUERY_STRING'], 1))
-            if 'acl' in args:
-                # We very likely have an XML-based ACL request.
-                body = env['wsgi.input'].readline().decode()
-                translated_acl = swift_acl_translate(body, xml=True)
-                if translated_acl == 'Unsupported':
-                    return get_err_response('Unsupported')
-                elif translated_acl == 'InvalidArgument':
-                    return get_err_response('InvalidArgument')
-                for header, acl in translated_acl:
-                    env[header] = acl
-                env['REQUEST_METHOD'] = 'POST'
-
-        self._app_call(env)
-        status = self._get_status_int()
+        resp = req.get_response(self.app)
+        status = resp.status_int
 
         if status != HTTP_CREATED and status != HTTP_NO_CONTENT:
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
@@ -602,17 +587,14 @@ class BucketController(WSGIContext):
             else:
                 return get_err_response('InvalidURI')
 
-        resp = Response()
-        resp.headers['Location'] = self.container_name
-        resp.status = HTTP_OK
-        return resp
+        return HTTPOk(headers={'Location': self.container_name})
 
-    def DELETE(self, env):
+    def DELETE(self, req):
         """
         Handle DELETE Bucket request
         """
-        self._app_call(env)
-        status = self._get_status_int()
+        resp = req.get_response(self.app)
+        status = resp.status_int
 
         if status != HTTP_NO_CONTENT:
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
@@ -624,11 +606,9 @@ class BucketController(WSGIContext):
             else:
                 return get_err_response('InvalidURI')
 
-        resp = Response()
-        resp.status = HTTP_NO_CONTENT
-        return resp
+        return HTTPNoContent()
 
-    def _delete_multiple_objects(self, env):
+    def _delete_multiple_objects(self, req):
         def _object_key_iter(xml):
             dom = parseString(xml)
             delete = dom.getElementsByTagName('Delete')[0]
@@ -655,21 +635,20 @@ class BucketController(WSGIContext):
         body = '<?xml version="1.0" encoding="UTF-8"?>\r\n' \
                '<DeleteResult ' \
                'xmlns="http://doc.s3.amazonaws.com/2006-03-01">\r\n'
-        xml = env['wsgi.input'].read()
-        for key, version in _object_key_iter(xml):
+        for key, version in _object_key_iter(req.body):
             if version is not None:
                 # TODO: delete the specific version of the object
                 return get_err_response('Unsupported')
 
-            tmp_env = dict(env)
-            del tmp_env['QUERY_STRING']
-            tmp_env['CONTENT_LENGTH'] = '0'
-            tmp_env['REQUEST_METHOD'] = 'DELETE'
-            controller = ObjectController(tmp_env, self.app, self.account_name,
-                                          env['HTTP_X_AUTH_TOKEN'],
+            sub_req = Request(req.environ.copy())
+            sub_req.query_string = ''
+            sub_req.content_length = 0
+            sub_req.method = 'DELETE'
+            controller = ObjectController(sub_req, self.app, self.account_name,
+                                          req.environ['HTTP_X_AUTH_TOKEN'],
                                           self.container_name, key)
-            controller._app_call(tmp_env)
-            status = controller._get_status_int()
+            sub_resp = controller.DELETE(sub_req)
+            status = sub_resp.status_int
 
             if status == HTTP_NO_CONTENT or status == HTTP_NOT_FOUND:
                 body += _get_deleted_elem(key)
@@ -680,71 +659,61 @@ class BucketController(WSGIContext):
                     body += _get_err_elem(key, 'InvalidURI', 'Invalid URI')
 
         body += '</DeleteResult>\r\n'
-        return Response(status=HTTP_OK, body=body)
+        return HTTPOk(body=body)
 
-    def POST(self, env):
+    def POST(self, req):
         """
         Handle POST Bucket (Delete/Upload Multiple Objects) request
         """
-        if 'QUERY_STRING' in env:
-            args = dict(urlparse.parse_qsl(env['QUERY_STRING'], 1))
-        else:
-            args = {}
+        if 'delete' in req.params:
+            return self._delete_multiple_objects(req)
 
-        if 'delete' in args:
-            return self._delete_multiple_objects(env)
-
-        if 'uploads' in args:
+        if 'uploads' in req.params:
             # Pass it through, the s3multi upload helper will handle it.
             return self.app
 
-        if 'uploadId' in args:
+        if 'uploadId' in req.params:
             # Pass it through, the s3multi upload helper will handle it.
             return self.app
 
         return get_err_response('Unsupported')
 
 
-class ObjectController(WSGIContext):
+class ObjectController(object):
     """
     Handles requests on objects
     """
-    def __init__(self, env, app, account_name, token, container_name,
+    def __init__(self, req, app, account_name, token, container_name,
                  object_name, **kwargs):
-        WSGIContext.__init__(self, app)
+        self.app = app
         self.account_name = account_name
         self.container_name = container_name
-        env['HTTP_X_AUTH_TOKEN'] = token
-        env['PATH_INFO'] = '/v1/%s/%s/%s' % (account_name, container_name,
-                                             object_name)
+        req.environ['HTTP_X_AUTH_TOKEN'] = token
+        req.path_info = '/v1/%s/%s/%s' % (account_name, container_name,
+                                          object_name)
 
-    def GETorHEAD(self, env):
-        if 'QUERY_STRING' in env:
-            args = dict(urlparse.parse_qsl(env['QUERY_STRING'], 1))
-        else:
-            args = {}
-
+    def GETorHEAD(self, req):
         # Let s3multi handle it.
-        if 'uploadId' in args or 'uploads' in args:
+        if 'uploadId' in req.params or 'uploads' in req.params:
             return self.app
 
-        if 'acl' in args:
+        if 'acl' in req.params:
             # ACL requests need to make a HEAD call rather than GET
-            env['REQUEST_METHOD'] = 'HEAD'
-            env['SCRIPT_NAME'] = ''
-            env['QUERY_STRING'] = ''
+            req.method = 'HEAD'
+            req.script_name = ''
+            req.query_string = ''
 
-        app_iter = self._app_call(env)
-        status = self._get_status_int()
-        headers = dict(self._response_headers)
+        resp = req.get_response(self.app)
+        status = resp.status_int
+        headers = resp.headers
 
-        if env['REQUEST_METHOD'] == 'HEAD':
-            app_iter = None
+        if req.method == 'HEAD':
+            resp.app_iter = None
 
         if is_success(status):
-            if 'acl' in args:
+            if 'acl' in req.params:
                 # Method must be GET or the body wont be returned to the caller
-                env['REQUEST_METHOD'] = 'GET'
+                req.environ['REQUEST_METHOD'] = 'GET'
                 return get_acl(self.account_name, headers)
 
             new_hdrs = {}
@@ -756,7 +725,8 @@ class ObjectController(WSGIContext):
                               'content-range', 'content-encoding',
                               'etag', 'last-modified'):
                     new_hdrs[key] = val
-            return Response(status=status, headers=new_hdrs, app_iter=app_iter)
+            return Response(status=status, headers=new_hdrs,
+                            app_iter=resp.app_iter)
         elif status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
             return get_err_response('AccessDenied')
         elif status == HTTP_NOT_FOUND:
@@ -764,40 +734,41 @@ class ObjectController(WSGIContext):
         else:
             return get_err_response('InvalidURI')
 
-    def HEAD(self, env):
+    def HEAD(self, req):
         """
         Handle HEAD Object request
         """
-        return self.GETorHEAD(env)
+        return self.GETorHEAD(req)
 
-    def GET(self, env):
+    def GET(self, req):
         """
         Handle GET Object request
         """
-        return self.GETorHEAD(env)
+        return self.GETorHEAD(req)
 
-    def PUT(self, env):
+    def PUT(self, req):
         """
         Handle PUT Object and PUT Object (Copy) request
         """
-        for key, value in env.items():
+        for key, value in req.environ.items():
             if key.startswith('HTTP_X_AMZ_META_'):
-                del env[key]
-                env['HTTP_X_OBJECT_META_' + key[16:]] = value
+                del req.environ[key]
+                req.environ['HTTP_X_OBJECT_META_' + key[16:]] = value
             elif key == 'HTTP_CONTENT_MD5':
                 if value == '':
                     return get_err_response('InvalidDigest')
                 try:
-                    env['HTTP_ETAG'] = value.decode('base64').encode('hex')
+                    req.environ['HTTP_ETAG'] = \
+                        value.decode('base64').encode('hex')
                 except Exception:
                     return get_err_response('InvalidDigest')
-                if env['HTTP_ETAG'] == '':
+                if req.environ['HTTP_ETAG'] == '':
                     return get_err_response('SignatureDoesNotMatch')
             elif key == 'HTTP_X_AMZ_COPY_SOURCE':
-                env['HTTP_X_COPY_FROM'] = value
+                req.environ['HTTP_X_COPY_FROM'] = value
 
-        self._app_call(env)
-        status = self._get_status_int()
+        resp = req.get_response(self.app)
+        status = resp.status_int
 
         if status != HTTP_CREATED:
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
@@ -811,27 +782,27 @@ class ObjectController(WSGIContext):
             else:
                 return get_err_response('InvalidURI')
 
-        if 'HTTP_X_COPY_FROM' in env:
+        if 'HTTP_X_COPY_FROM' in req.environ:
             body = '<CopyObjectResult>' \
                    '<ETag>"%s"</ETag>' \
-                   '</CopyObjectResult>' % self._response_header_value('etag')
-            return Response(status=HTTP_OK, body=body)
+                   '</CopyObjectResult>' % resp.etag
+            return HTTPOk(body=body)
 
-        return Response(status=200, etag=self._response_header_value('etag'))
+        return HTTPOk(etag=resp.etag)
 
-    def POST(self, env):
+    def POST(self, req):
         return get_err_response('AccessDenied')
 
-    def DELETE(self, env):
+    def DELETE(self, req):
         """
         Handle DELETE Object request
         """
         try:
-            self._app_call(env)
+            resp = req.get_response(self.app)
         except Exception:
             return get_err_response('InvalidURI')
 
-        status = self._get_status_int()
+        status = resp.status_int
 
         if status != HTTP_NO_CONTENT:
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
@@ -841,9 +812,7 @@ class ObjectController(WSGIContext):
             else:
                 return get_err_response('InvalidURI')
 
-        resp = Response()
-        resp.status = HTTP_NO_CONTENT
-        return resp
+        return HTTPNoContent()
 
 
 class Swift3Middleware(object):
@@ -853,18 +822,13 @@ class Swift3Middleware(object):
         self.conf = conf
         self.logger = get_logger(self.conf, log_route='swift3')
 
-    def get_controller(self, env):
-        container, obj = split_path(env['PATH_INFO'], 0, 2, True)
+    def get_controller(self, req):
+        container, obj = req.split_path(0, 2, True)
         d = dict(container_name=container, object_name=obj)
 
-        if 'QUERY_STRING' in env:
-            args = dict(urlparse.parse_qsl(env['QUERY_STRING'], 1))
-        else:
-            args = {}
-
         if container and obj:
-            if env['REQUEST_METHOD'] == 'POST':
-                if 'uploads' in args or 'uploadId' in args:
+            if req.method == 'POST':
+                if 'uploads' in req.params or 'uploadId' in req.params:
                     return BucketController, d
             return ObjectController, d
         elif container:
@@ -873,15 +837,15 @@ class Swift3Middleware(object):
         return ServiceController, d
 
     def __call__(self, env, start_response):
+        req = Request(env)
         try:
-            resp = self.handle_request(env)
+            resp = self.handle_request(req)
         except Exception, e:
             self.logger.exception(e)
             resp = get_err_response('ServiceUnavailable')
         return resp(env, start_response)
 
-    def handle_request(self, env):
-        req = Request(env)
+    def handle_request(self, req):
         self.logger.debug('Calling Swift3 Middleware')
         self.logger.debug(req.__dict__)
 
@@ -910,7 +874,7 @@ class Swift3Middleware(object):
             return get_err_response('InvalidArgument')
 
         try:
-            controller, path_parts = self.get_controller(env)
+            controller, path_parts = self.get_controller(req)
         except ValueError:
             return get_err_response('InvalidURI')
 
@@ -945,11 +909,11 @@ class Swift3Middleware(object):
 
         token = base64.urlsafe_b64encode(canonical_string(req))
 
-        controller = controller(env, self.app, account, token, conf=self.conf,
+        controller = controller(req, self.app, account, token, conf=self.conf,
                                 **path_parts)
 
         if hasattr(controller, req.method):
-            res = getattr(controller, req.method)(env)
+            res = getattr(controller, req.method)(req)
         else:
             return get_err_response('MethodNotAllowed')
 
