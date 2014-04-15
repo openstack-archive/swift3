@@ -122,12 +122,12 @@ def get_err_response(code):
             'match your provided one'),
         'RequestTimeTooSkewed':
         (HTTP_FORBIDDEN, 'The difference between the request time and the'
-        ' current time is too large'),
+            ' current time is too large'),
         'NoSuchKey':
         (HTTP_NOT_FOUND, 'The resource you requested does not exist'),
         'Unsupported':
         (HTTP_NOT_IMPLEMENTED, 'The feature you requested is not yet'
-        ' implemented'),
+            ' implemented'),
         'MissingContentLength':
         (HTTP_LENGTH_REQUIRED, 'Length Required'),
         'ServiceUnavailable':
@@ -525,25 +525,25 @@ class BucketController(WSGIContext):
                 '%s'
                 '%s'
                 '</ListBucketResult>' %
-                (
-                xml_escape(args.get('prefix', '')),
-                xml_escape(args.get('marker', '')),
-                xml_escape(args.get('delimiter', '')),
-                'true' if max_keys > 0 and len(objects) == (max_keys + 1) else
-                'false',
-                max_keys,
-                xml_escape(self.container_name),
-                "".join(['<Contents><Key>%s</Key><LastModified>%sZ</LastModif'
-                        'ied><ETag>%s</ETag><Size>%s</Size><StorageClass>STA'
-                        'NDARD</StorageClass><Owner><ID>%s</ID><DisplayName>'
-                        '%s</DisplayName></Owner></Contents>' %
-                        (xml_escape(i['name']), i['last_modified'],
-                         i['hash'],
-                         i['bytes'], self.account_name, self.account_name)
-                         for i in objects[:max_keys] if 'subdir' not in i]),
-                "".join(['<CommonPrefixes><Prefix>%s</Prefix></CommonPrefixes>'
-                         % xml_escape(i['subdir'])
-                         for i in objects[:max_keys] if 'subdir' in i])))
+                (xml_escape(args.get('prefix', '')),
+                 xml_escape(args.get('marker', '')),
+                 xml_escape(args.get('delimiter', '')),
+                 'true' if max_keys > 0 and
+                 len(objects) == (max_keys + 1) else 'false',
+                 max_keys,
+                 xml_escape(self.container_name),
+                 "".join(['<Contents><Key>%s</Key><LastModified>%sZ</LastModif'
+                          'ied><ETag>%s</ETag><Size>%s</Size><StorageClass>STA'
+                          'NDARD</StorageClass><Owner><ID>%s</ID><DisplayName>'
+                          '%s</DisplayName></Owner></Contents>' %
+                          (xml_escape(i['name']), i['last_modified'],
+                           i['hash'],
+                           i['bytes'], self.account_name, self.account_name)
+                          for i in objects[:max_keys] if 'subdir' not in i]),
+                 "".join(
+                     ['<CommonPrefixes><Prefix>%s</Prefix></CommonPrefixes>'
+                      % xml_escape(i['subdir'])
+                      for i in objects[:max_keys] if 'subdir' in i])))
         return Response(body=body, content_type='application/xml')
 
     def PUT(self, env):
