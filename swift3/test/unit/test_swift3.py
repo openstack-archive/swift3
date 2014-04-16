@@ -18,6 +18,7 @@ from datetime import datetime
 import cgi
 import hashlib
 import base64
+from urllib import unquote, quote
 
 import xml.dom.minidom
 import simplejson
@@ -220,6 +221,19 @@ class TestSwift3(unittest.TestCase):
         self.assertEquals(dom.firstChild.nodeName, 'Error')
         code = dom.getElementsByTagName('Code')[0].childNodes[0].nodeValue
         self.assertEquals(code, 'MethodNotAllowed')
+
+    def test_path_info_encode(self):
+        local_app = swift3.filter_factory({})(FakeAppObject())
+        bucket_name = 'b%75cket'
+        object_name = 'ob%6aect:1'
+        req = Request.blank('/%s/%s' % (bucket_name, object_name),
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        local_app(req.environ, start_response)
+        raw_path_info = "/v1/test:tester/%s/%s" % (bucket_name, object_name)
+        path_info = req.environ['PATH_INFO']
+        self.assertEquals(path_info, unquote(raw_path_info))
+        self.assertEquals(req.path, quote(path_info))
 
     def _test_method_error(self, cl, method, path, status, headers={}):
         local_app = swift3.filter_factory({})(cl(status))
