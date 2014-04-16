@@ -8,6 +8,7 @@
 .coverage
 build
 dist
+cover
 
 #
 # for GLOBAL
