@@ -1,4 +1,5 @@
 hacking
 sphinx
 nose
+openstack.nose_plugin
 coverage
