@@ -23,117 +23,58 @@ from urllib import unquote, quote
 import xml.dom.minidom
 import simplejson
 
-from swift.common.swob import Request, Response, HTTPUnauthorized, \
-    HTTPCreated, HTTPNoContent, HTTPAccepted, HTTPBadRequest, HTTPNotFound, \
-    HTTPConflict, HTTPForbidden, HTTPRequestEntityTooLarge
+from swift.common import swob
+from swift.common.swob import Request
 
 from swift3 import middleware as swift3
+from swift3.test.unit.helpers import FakeSwift
 
 
-class FakeApp(object):
-    def __init__(self):
-        self.app = self
-        self.response_args = []
-
-    def __call__(self, env, start_response):
-        return "FAKE APP"
-
-    def do_start_response(self, *args):
-        self.response_args.extend(args)
-
-
-class FakeAppService(FakeApp):
-    def __init__(self, status=200):
-        FakeApp.__init__(self)
-        self.status = status
+class TestSwift3(unittest.TestCase):
+    def setup_buckets(self):
         self.buckets = (('apple', 1, 200), ('orange', 3, 430))
 
-    def __call__(self, env, start_response):
-        if self.status == 200:
-            start_response(Response().status, [('Content-Type', 'text/xml')])
-            json_pattern = ['"name":%s', '"count":%s', '"bytes":%s']
-            json_pattern = '{' + ','.join(json_pattern) + '}'
-            json_out = []
-            for b in self.buckets:
-                name = simplejson.dumps(b[0])
-                json_out.append(json_pattern %
-                                (name, b[1], b[2]))
-            account_list = '[' + ','.join(json_out) + ']'
-            return account_list
-        elif self.status == 401:
-            start_response(HTTPUnauthorized().status, [])
-        elif self.status == 403:
-            start_response(HTTPForbidden().status, [])
-        else:
-            start_response(HTTPBadRequest().status, [])
-        return []
+        json_pattern = ['"name":%s', '"count":%s', '"bytes":%s']
+        json_pattern = '{' + ','.join(json_pattern) + '}'
+        json_out = []
+        for b in self.buckets:
+            name = simplejson.dumps(b[0])
+            json_out.append(json_pattern %
+                            (name, b[1], b[2]))
+        bucket_list = '[' + ','.join(json_out) + ']'
 
+        self.app.register('GET', '/v1/AUTH_test', swob.HTTPOk, {},
+                          bucket_list)
 
-class FakeAppBucket(FakeApp):
-    def __init__(self, status=200):
-        FakeApp.__init__(self)
-        self.status = status
+    def setup_objects(self):
         self.objects = (('rose', '2011-01-05T02:19:14.275290', 0, 303),
                         ('viola', '2011-01-05T02:19:14.275290', 0, 3909),
                         ('lily', '2011-01-05T02:19:14.275290', 0, 3909),
                         ('with space', '2011-01-05T02:19:14.275290', 0, 390),
                         ('with%20space', '2011-01-05T02:19:14.275290', 0, 390))
 
-    def __call__(self, env, start_response):
-        if env['REQUEST_METHOD'] == 'GET':
-            if self.status == 200:
-                start_response(Response().status,
-                               [('Content-Type', 'text/xml')])
-                json_pattern = ['"name":%s', '"last_modified":%s', '"hash":%s',
-                                '"bytes":%s']
-                json_pattern = '{' + ','.join(json_pattern) + '}'
-                json_out = []
-                for b in self.objects:
-                    name = simplejson.dumps(b[0])
-                    time = simplejson.dumps(b[1])
-                    json_out.append(json_pattern %
-                                    (name, time, b[2], b[3]))
-                account_list = '[' + ','.join(json_out) + ']'
-                return account_list
-            elif self.status == 401:
-                start_response(HTTPUnauthorized().status, [])
-            elif self.status == 403:
-                start_response(HTTPForbidden().status, [])
-            elif self.status == 404:
-                start_response(HTTPNotFound().status, [])
-            else:
-                start_response(HTTPBadRequest().status, [])
-        elif env['REQUEST_METHOD'] == 'PUT':
-            if self.status == 201:
-                start_response(HTTPCreated().status, [])
-            elif self.status == 401:
-                start_response(HTTPUnauthorized().status, [])
-            elif self.status == 403:
-                start_response(HTTPForbidden().status, [])
-            elif self.status == 202:
-                start_response(HTTPAccepted().status, [])
-            else:
-                start_response(HTTPBadRequest().status, [])
-        elif env['REQUEST_METHOD'] == 'DELETE':
-            if self.status == 204:
-                start_response(HTTPNoContent().status, [])
-            elif self.status == 401:
-                start_response(HTTPUnauthorized().status, [])
-            elif self.status == 403:
-                start_response(HTTPForbidden().status, [])
-            elif self.status == 404:
-                start_response(HTTPNotFound().status, [])
-            elif self.status == 409:
-                start_response(HTTPConflict().status, [])
-            else:
-                start_response(HTTPBadRequest().status, [])
-        return []
+        json_pattern = ['"name":%s', '"last_modified":%s', '"hash":%s',
+                        '"bytes":%s']
+        json_pattern = '{' + ','.join(json_pattern) + '}'
+        json_out = []
+        for b in self.objects:
+            name = simplejson.dumps(b[0])
+            time = simplejson.dumps(b[1])
+            json_out.append(json_pattern %
+                            (name, time, b[2], b[3]))
+        object_list = '[' + ','.join(json_out) + ']'
+        self.app.register('GET', '/v1/AUTH_test/junk', swob.HTTPOk, {},
+                          object_list)
 
+    def setUp(self):
+        self.app = FakeSwift()
+        self.swift3 = swift3.filter_factory({})(self.app)
 
-class FakeAppObject(FakeApp):
-    def __init__(self, status=200):
-        FakeApp.__init__(self)
-        self.status = status
+        self.app.register('GET', '/something', swob.HTTPOk, {}, 'FAKE APP')
+
+        self.setup_buckets()
+        self.setup_objects()
+
         self.object_body = 'hello'
         self.response_headers = {'Content-Type': 'text/html',
                                  'Content-Length': len(self.object_body),
@@ -141,73 +82,61 @@ class FakeAppObject(FakeApp):
                                  'etag': '1b2cf535f27731c974343645a3985328',
                                  'last-modified': '2011-01-05T02:19:14.275290'}
 
-    def __call__(self, env, start_response):
-        req = Request(env)
-        if env['REQUEST_METHOD'] == 'GET' or env['REQUEST_METHOD'] == 'HEAD':
-            if self.status == 200:
-                if 'HTTP_RANGE' in env:
-                    resp = Response(request=req, body=self.object_body,
-                                    conditional_response=True)
-                    return resp(env, start_response)
-                start_response(Response(request=req).status,
-                               self.response_headers.items())
-                if env['REQUEST_METHOD'] == 'GET':
-                    return self.object_body
-            elif self.status == 401:
-                start_response(HTTPUnauthorized(request=req).status, [])
-            elif self.status == 403:
-                start_response(HTTPForbidden(request=req).status, [])
-            elif self.status == 404:
-                start_response(HTTPNotFound(request=req).status, [])
+        self.app.register('PUT', '/v1/AUTH_test/bucket',
+                          swob.HTTPCreated, {}, None)
+        self.app.register('DELETE', '/v1/AUTH_test/bucket',
+                          swob.HTTPNoContent, {}, None)
+
+        self.app.register('GET', '/v1/AUTH_test/bucket/object',
+                          swob.HTTPOk, self.response_headers, self.object_body)
+        self.app.register('PUT', '/v1/AUTH_test/bucket/object',
+                          swob.HTTPCreated, {}, None)
+        self.app.register('DELETE', '/v1/AUTH_test/bucket/object',
+                          swob.HTTPNoContent, {}, None)
+
+    def call_app(self, req, app=None, expect_exception=False):
+        if app is None:
+            app = self.app
+
+        req.headers.setdefault("User-Agent", "Mozzarella Foxfire")
+
+        status = [None]
+        headers = [None]
+
+        def start_response(s, h, ei=None):
+            status[0] = s
+            headers[0] = swob.HeaderKeyDict(h)
+
+        body_iter = app(req.environ, start_response)
+        body = ''
+        caught_exc = None
+        try:
+            for chunk in body_iter:
+                body += chunk
+        except Exception as exc:
+            if expect_exception:
+                caught_exc = exc
             else:
-                start_response(HTTPBadRequest(request=req).status, [])
-        elif env['REQUEST_METHOD'] == 'PUT':
-            if self.status == 201:
-                start_response(HTTPCreated(request=req).status,
-                               [('etag', self.response_headers['etag'])])
-            elif self.status == 401:
-                start_response(HTTPUnauthorized(request=req).status, [])
-            elif self.status == 403:
-                start_response(HTTPForbidden(request=req).status, [])
-            elif self.status == 404:
-                start_response(HTTPNotFound(request=req).status, [])
-            elif self.status == 413:
-                start_response(HTTPRequestEntityTooLarge(request=req).status,
-                               [])
-            else:
-                start_response(HTTPBadRequest(request=req).status, [])
-        elif env['REQUEST_METHOD'] == 'DELETE':
-            if self.status == 204:
-                start_response(HTTPNoContent(request=req).status, [])
-            elif self.status == 401:
-                start_response(HTTPUnauthorized(request=req).status, [])
-            elif self.status == 403:
-                start_response(HTTPForbidden(request=req).status, [])
-            elif self.status == 404:
-                start_response(HTTPNotFound(request=req).status, [])
-            else:
-                start_response(HTTPBadRequest(request=req).status, [])
-        return []
+                raise
 
+        if expect_exception:
+            return status[0], headers[0], body, caught_exc
+        else:
+            return status[0], headers[0], body
 
-def start_response(*args):
-    pass
-
-
-class TestSwift3(unittest.TestCase):
-    def setUp(self):
-        self.app = swift3.filter_factory({})(FakeApp())
+    def call_swift3(self, req, **kwargs):
+        return self.call_app(req, app=self.swift3, **kwargs)
 
     def test_non_s3_request_passthrough(self):
         req = Request.blank('/something')
-        resp = self.app(req.environ, start_response)
-        self.assertEquals(resp, 'FAKE APP')
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(body, 'FAKE APP')
 
     def test_bad_format_authorization(self):
         req = Request.blank('/something',
                             headers={'Authorization': 'hoge'})
-        resp = self.app(req.environ, start_response)
-        dom = xml.dom.minidom.parseString("".join(resp))
+        status, headers, body = self.call_swift3(req)
+        dom = xml.dom.minidom.parseString(body)
         self.assertEquals(dom.firstChild.nodeName, 'Error')
         code = dom.getElementsByTagName('Code')[0].childNodes[0].nodeValue
         self.assertEquals(code, 'AccessDenied')
@@ -216,52 +145,53 @@ class TestSwift3(unittest.TestCase):
         req = Request.blank('/',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        resp = self.app(req.environ, start_response)
-        dom = xml.dom.minidom.parseString("".join(resp))
+        status, headers, body = self.call_swift3(req)
+        dom = xml.dom.minidom.parseString(body)
         self.assertEquals(dom.firstChild.nodeName, 'Error')
         code = dom.getElementsByTagName('Code')[0].childNodes[0].nodeValue
         self.assertEquals(code, 'MethodNotAllowed')
 
     def test_path_info_encode(self):
-        local_app = swift3.filter_factory({})(FakeAppObject())
         bucket_name = 'b%75cket'
         object_name = 'ob%6aect:1'
+        self.app.register('GET', '/v1/AUTH_test/bucket/object:1', swob.HTTPOk,
+                          {}, None)
         req = Request.blank('/%s/%s' % (bucket_name, object_name),
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        local_app(req.environ, start_response)
-        raw_path_info = "/v1/test:tester/%s/%s" % (bucket_name, object_name)
+        status, headers, body = self.call_swift3(req)
+        raw_path_info = "/v1/AUTH_test/%s/%s" % (bucket_name, object_name)
         path_info = req.environ['PATH_INFO']
         self.assertEquals(path_info, unquote(raw_path_info))
         self.assertEquals(req.path, quote(path_info))
 
-    def _test_method_error(self, cl, method, path, status, headers={}):
-        local_app = swift3.filter_factory({})(cl(status))
+    def _test_method_error(self, method, path, response_class, headers={}):
+        self.app.register(method, '/v1/AUTH_test' + path, response_class,
+                          headers, None)
         headers.update({'Authorization': 'AWS test:tester:hmac'})
         req = Request.blank(path, environ={'REQUEST_METHOD': method},
                             headers=headers)
-        resp = local_app(req.environ, start_response)
-        dom = xml.dom.minidom.parseString("".join(resp))
+        status, headers, body = self.call_swift3(req)
+        dom = xml.dom.minidom.parseString(body)
         self.assertEquals(dom.firstChild.nodeName, 'Error')
         return dom.getElementsByTagName('Code')[0].childNodes[0].nodeValue
 
     def test_service_GET_error(self):
-        code = self._test_method_error(FakeAppService, 'GET', '/', 401)
+        code = self._test_method_error('GET', '', swob.HTTPUnauthorized)
         self.assertEquals(code, 'AccessDenied')
-        code = self._test_method_error(FakeAppService, 'GET', '/', 403)
+        code = self._test_method_error('GET', '', swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
-        code = self._test_method_error(FakeAppService, 'GET', '/', 0)
+        code = self._test_method_error('GET', '', swob.HTTPServerError)
         self.assertEquals(code, 'InvalidURI')
 
     def test_service_GET(self):
-        local_app = swift3.filter_factory({})(FakeAppService())
         req = Request.blank('/',
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        resp = local_app(req.environ, local_app.app.do_start_response)
-        self.assertEquals(local_app.app.response_args[0].split()[0], '200')
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
 
-        dom = xml.dom.minidom.parseString("".join(resp))
+        dom = xml.dom.minidom.parseString(body)
         self.assertEquals(dom.firstChild.nodeName, 'ListAllMyBucketsResult')
 
         buckets = [n for n in dom.getElementsByTagName('Bucket')]
@@ -273,30 +203,29 @@ class TestSwift3(unittest.TestCase):
             if b.childNodes[0].nodeName == 'Name':
                 names.append(b.childNodes[0].childNodes[0].nodeValue)
 
-        self.assertEquals(len(names), len(FakeAppService().buckets))
-        for i in FakeAppService().buckets:
+        self.assertEquals(len(names), len(self.buckets))
+        for i in self.buckets:
             self.assertTrue(i[0] in names)
 
     def test_bucket_GET_error(self):
-        code = self._test_method_error(FakeAppBucket, 'GET', '/bucket', 401)
+        code = self._test_method_error('GET', '/bucket', swob.HTTPUnauthorized)
         self.assertEquals(code, 'AccessDenied')
-        code = self._test_method_error(FakeAppBucket, 'GET', '/bucket', 403)
+        code = self._test_method_error('GET', '/bucket', swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
-        code = self._test_method_error(FakeAppBucket, 'GET', '/bucket', 404)
+        code = self._test_method_error('GET', '/bucket', swob.HTTPNotFound)
         self.assertEquals(code, 'NoSuchBucket')
-        code = self._test_method_error(FakeAppBucket, 'GET', '/bucket', 0)
+        code = self._test_method_error('GET', '/bucket', swob.HTTPServerError)
         self.assertEquals(code, 'InvalidURI')
 
     def test_bucket_GET(self):
-        local_app = swift3.filter_factory({})(FakeAppBucket())
         bucket_name = 'junk'
         req = Request.blank('/%s' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        resp = local_app(req.environ, local_app.app.do_start_response)
-        self.assertEquals(local_app.app.response_args[0].split()[0], '200')
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
 
-        dom = xml.dom.minidom.parseString("".join(resp))
+        dom = xml.dom.minidom.parseString(body)
         self.assertEquals(dom.firstChild.nodeName, 'ListBucketResult')
         name = dom.getElementsByTagName('Name')[0].childNodes[0].nodeValue
         self.assertEquals(name, bucket_name)
@@ -311,20 +240,19 @@ class TestSwift3(unittest.TestCase):
                 self.assertTrue(
                     o.childNodes[1].childNodes[0].nodeValue.endswith('Z'))
 
-        self.assertEquals(len(names), len(FakeAppBucket().objects))
-        for i in FakeAppBucket().objects:
+        self.assertEquals(len(names), len(self.objects))
+        for i in self.objects:
             self.assertTrue(i[0] in names)
 
     def test_bucket_GET_is_truncated(self):
-        local_app = swift3.filter_factory({})(FakeAppBucket())
         bucket_name = 'junk'
 
         req = Request.blank('/%s' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET',
                                      'QUERY_STRING': 'max-keys=5'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        resp = local_app(req.environ, local_app.app.do_start_response)
-        dom = xml.dom.minidom.parseString("".join(resp))
+        status, headers, body = self.call_swift3(req)
+        dom = xml.dom.minidom.parseString(body)
         self.assertEquals(dom.getElementsByTagName('IsTruncated')[0].
                           childNodes[0].nodeValue, 'false')
 
@@ -332,112 +260,104 @@ class TestSwift3(unittest.TestCase):
                             environ={'REQUEST_METHOD': 'GET',
                                      'QUERY_STRING': 'max-keys=4'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        resp = local_app(req.environ, local_app.app.do_start_response)
-        dom = xml.dom.minidom.parseString("".join(resp))
+        status, headers, body = self.call_swift3(req)
+        dom = xml.dom.minidom.parseString(body)
         self.assertEquals(dom.getElementsByTagName('IsTruncated')[0].
                           childNodes[0].nodeValue, 'true')
 
     def test_bucket_GET_max_keys(self):
-        class FakeApp(object):
-            def __call__(self, env, start_response):
-                self.query_string = env['QUERY_STRING']
-                start_response('200 OK', [])
-                return '[]'
-        fake_app = FakeApp()
-        local_app = swift3.filter_factory({})(fake_app)
         bucket_name = 'junk'
 
         req = Request.blank('/%s' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET',
                                      'QUERY_STRING': 'max-keys=5'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        resp = local_app(req.environ, lambda *args: None)
-        dom = xml.dom.minidom.parseString("".join(resp))
+        status, headers, body = self.call_swift3(req)
+        dom = xml.dom.minidom.parseString(body)
         self.assertEquals(dom.getElementsByTagName('MaxKeys')[0].
                           childNodes[0].nodeValue, '5')
-        args = dict(cgi.parse_qsl(fake_app.query_string))
+        _, path = self.app.calls[-1]
+        _, query_string = path.split('?')
+        args = dict(cgi.parse_qsl(query_string))
         self.assert_(args['limit'] == '6')
 
         req = Request.blank('/%s' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET',
                                      'QUERY_STRING': 'max-keys=5000'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        resp = local_app(req.environ, lambda *args: None)
-        dom = xml.dom.minidom.parseString("".join(resp))
+        status, headers, body = self.call_swift3(req)
+        dom = xml.dom.minidom.parseString(body)
         self.assertEquals(dom.getElementsByTagName('MaxKeys')[0].
                           childNodes[0].nodeValue, '1000')
-        args = dict(cgi.parse_qsl(fake_app.query_string))
+        _, path = self.app.calls[-1]
+        _, query_string = path.split('?')
+        args = dict(cgi.parse_qsl(query_string))
         self.assertEquals(args['limit'], '1001')
 
     def test_bucket_GET_passthroughs(self):
-        class FakeApp(object):
-            def __call__(self, env, start_response):
-                self.query_string = env['QUERY_STRING']
-                start_response('200 OK', [])
-                return '[]'
-        fake_app = FakeApp()
-        local_app = swift3.filter_factory({})(fake_app)
         bucket_name = 'junk'
         req = Request.blank('/%s' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET', 'QUERY_STRING':
                                      'delimiter=a&marker=b&prefix=c'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        resp = local_app(req.environ, lambda *args: None)
-        dom = xml.dom.minidom.parseString("".join(resp))
+        status, headers, body = self.call_swift3(req)
+        dom = xml.dom.minidom.parseString(body)
         self.assertEquals(dom.getElementsByTagName('Prefix')[0].
                           childNodes[0].nodeValue, 'c')
         self.assertEquals(dom.getElementsByTagName('Marker')[0].
                           childNodes[0].nodeValue, 'b')
         self.assertEquals(dom.getElementsByTagName('Delimiter')[0].
                           childNodes[0].nodeValue, 'a')
-        args = dict(cgi.parse_qsl(fake_app.query_string))
+        _, path = self.app.calls[-1]
+        _, query_string = path.split('?')
+        args = dict(cgi.parse_qsl(query_string))
         self.assertEquals(args['delimiter'], 'a')
         self.assertEquals(args['marker'], 'b')
         self.assertEquals(args['prefix'], 'c')
 
     def test_bucket_PUT_error(self):
-        code = self._test_method_error(FakeAppBucket, 'PUT', '/bucket', 201,
+        code = self._test_method_error('PUT', '/bucket', swob.HTTPCreated,
                                        headers={'Content-Length': 'a'})
         self.assertEqual(code, 'InvalidArgument')
-        code = self._test_method_error(FakeAppBucket, 'PUT', '/bucket', 201,
+        code = self._test_method_error('PUT', '/bucket', swob.HTTPCreated,
                                        headers={'Content-Length': '-1'})
         self.assertEqual(code, 'InvalidArgument')
-        code = self._test_method_error(FakeAppBucket, 'PUT', '/bucket', 401)
+        code = self._test_method_error('PUT', '/bucket', swob.HTTPUnauthorized)
         self.assertEquals(code, 'AccessDenied')
-        code = self._test_method_error(FakeAppBucket, 'PUT', '/bucket', 403)
+        code = self._test_method_error('PUT', '/bucket', swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
-        code = self._test_method_error(FakeAppBucket, 'PUT', '/bucket', 202)
+        code = self._test_method_error('PUT', '/bucket', swob.HTTPAccepted)
         self.assertEquals(code, 'BucketAlreadyExists')
-        code = self._test_method_error(FakeAppBucket, 'PUT', '/bucket', 0)
+        code = self._test_method_error('PUT', '/bucket', swob.HTTPServerError)
         self.assertEquals(code, 'InvalidURI')
 
     def test_bucket_PUT(self):
-        local_app = swift3.filter_factory({})(FakeAppBucket(201))
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        local_app(req.environ, local_app.app.do_start_response)
-        self.assertEquals(local_app.app.response_args[0].split()[0], '200')
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
 
     def test_bucket_DELETE_error(self):
-        code = self._test_method_error(FakeAppBucket, 'DELETE', '/bucket', 401)
+        code = self._test_method_error('DELETE', '/bucket',
+                                       swob.HTTPUnauthorized)
         self.assertEquals(code, 'AccessDenied')
-        code = self._test_method_error(FakeAppBucket, 'DELETE', '/bucket', 403)
+        code = self._test_method_error('DELETE', '/bucket', swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
-        code = self._test_method_error(FakeAppBucket, 'DELETE', '/bucket', 404)
+        code = self._test_method_error('DELETE', '/bucket', swob.HTTPNotFound)
         self.assertEquals(code, 'NoSuchBucket')
-        code = self._test_method_error(FakeAppBucket, 'DELETE', '/bucket', 409)
+        code = self._test_method_error('DELETE', '/bucket', swob.HTTPConflict)
         self.assertEquals(code, 'BucketNotEmpty')
-        code = self._test_method_error(FakeAppBucket, 'DELETE', '/bucket', 0)
+        code = self._test_method_error('DELETE', '/bucket',
+                                       swob.HTTPServerError)
         self.assertEquals(code, 'InvalidURI')
 
     def test_bucket_DELETE(self):
-        local_app = swift3.filter_factory({})(FakeAppBucket(204))
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'DELETE'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        local_app(req.environ, local_app.app.do_start_response)
-        self.assertEquals(local_app.app.response_args[0].split()[0], '204')
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '204')
 
     def _check_acl(self, owner, resp):
         dom = xml.dom.minidom.parseString("".join(resp))
@@ -449,35 +369,30 @@ class TestSwift3(unittest.TestCase):
         self.assertEquals(name, owner)
 
     def test_bucket_acl_GET(self):
-        local_app = swift3.filter_factory({})(FakeAppBucket())
         bucket_name = 'junk'
         req = Request.blank('/%s?acl' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        resp = local_app(req.environ, local_app.app.do_start_response)
-        self._check_acl('test:tester', resp)
+        status, headers, body = self.call_swift3(req)
+        self._check_acl('test:tester', body)
 
     def test_bucket_versioning_GET(self):
-        local_app = swift3.filter_factory({})(FakeAppBucket())
         bucket_name = 'junk'
         req = Request.blank('/%s?versioning' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        resp = local_app(req.environ, local_app.app.do_start_response)
-        dom = xml.dom.minidom.parseString("".join(resp))
+        status, headers, body = self.call_swift3(req)
+        dom = xml.dom.minidom.parseString(body)
         self.assertEquals(dom.firstChild.nodeName, 'VersioningConfiguration')
 
     def _test_object_GETorHEAD(self, method):
-        local_app = swift3.filter_factory({})(FakeAppObject())
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': method},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        resp = local_app(req.environ, local_app.app.do_start_response)
-        self.assertEquals(local_app.app.response_args[0].split()[0], '200')
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
 
-        headers = dict((k.lower(), v) for k, v in
-                       local_app.app.response_args[1])
-        for key, val in local_app.app.response_headers.iteritems():
+        for key, val in self.response_headers.iteritems():
             if key in ('content-length', 'content-type', 'content-encoding',
                        'etag', 'last-modified'):
                 self.assertTrue(key in headers)
@@ -488,61 +403,57 @@ class TestSwift3(unittest.TestCase):
                 self.assertEquals(headers['x-amz-meta-' + key[14:]], val)
 
         if method == 'GET':
-            self.assertEquals(''.join(resp), local_app.app.object_body)
+            self.assertEquals(body, self.object_body)
 
     def test_object_HEAD(self):
         self._test_object_GETorHEAD('HEAD')
 
     def test_object_GET_error(self):
-        code = self._test_method_error(FakeAppObject, 'GET',
-                                       '/bucket/object', 401)
+        code = self._test_method_error('GET', '/bucket/object',
+                                       swob.HTTPUnauthorized)
         self.assertEquals(code, 'AccessDenied')
-        code = self._test_method_error(FakeAppObject, 'GET',
-                                       '/bucket/object', 403)
+        code = self._test_method_error('GET', '/bucket/object',
+                                       swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
-        code = self._test_method_error(FakeAppObject, 'GET',
-                                       '/bucket/object', 404)
+        code = self._test_method_error('GET', '/bucket/object',
+                                       swob.HTTPNotFound)
         self.assertEquals(code, 'NoSuchKey')
-        code = self._test_method_error(FakeAppObject, 'GET',
-                                       '/bucket/object', 0)
+        code = self._test_method_error('GET', '/bucket/object',
+                                       swob.HTTPServerError)
         self.assertEquals(code, 'InvalidURI')
 
     def test_object_GET(self):
         self._test_object_GETorHEAD('GET')
 
     def test_object_GET_Range(self):
-        local_app = swift3.filter_factory({})(FakeAppObject())
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Range': 'bytes=0-3'})
-        local_app(req.environ, local_app.app.do_start_response)
-        self.assertEquals(local_app.app.response_args[0].split()[0], '206')
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '206')
 
-        headers = dict((k.lower(), v) for k, v in
-                       local_app.app.response_args[1])
         self.assertTrue('content-range' in headers)
         self.assertTrue(headers['content-range'].startswith('bytes 0-3'))
 
     def test_object_PUT_error(self):
-        code = self._test_method_error(FakeAppObject, 'PUT',
-                                       '/bucket/object', 401)
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPUnauthorized)
         self.assertEquals(code, 'AccessDenied')
-        code = self._test_method_error(FakeAppObject, 'PUT',
-                                       '/bucket/object', 403)
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
-        code = self._test_method_error(FakeAppObject, 'PUT',
-                                       '/bucket/object', 404)
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPNotFound)
         self.assertEquals(code, 'NoSuchBucket')
-        code = self._test_method_error(FakeAppObject, 'PUT',
-                                       '/bucket/object', 413)
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPRequestEntityTooLarge)
         self.assertEquals(code, 'EntityTooLarge')
-        code = self._test_method_error(FakeAppObject, 'PUT',
-                                       '/bucket/object', 0)
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPServerError)
         self.assertEquals(code, 'InvalidURI')
 
     def test_object_PUT(self):
-        local_app = swift3.filter_factory({})(FakeAppObject(201))
         req = Request.blank(
             '/bucket/object',
             environ={'REQUEST_METHOD': 'PUT'},
@@ -551,22 +462,13 @@ class TestSwift3(unittest.TestCase):
                      'Content-MD5': 'Gyz1NfJ3Mcl0NDZFo5hTKA=='})
         req.date = datetime.now()
         req.content_type = 'text/plain'
-        local_app(req.environ, local_app.app.do_start_response)
-        self.assertEquals(local_app.app.response_args[0].split()[0], '200')
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
 
-        headers = dict((k.lower(), v) for k, v in
-                       local_app.app.response_args[1])
-        self.assertEquals(headers['etag'],
-                          "\"%s\"" % local_app.app.response_headers['etag'])
+        _, _, headers = self.app.calls_with_headers[-1]
+        self.assertEquals(headers['etag'], self.response_headers['etag'])
 
     def test_object_PUT_headers(self):
-        class FakeApp(object):
-            def __call__(self, env, start_response):
-                self.req = Request(env)
-                start_response('200 OK', [])
-                return []
-        app = FakeApp()
-        local_app = swift3.filter_factory({})(app)
         req = Request.blank(
             '/bucket/object',
             environ={'REQUEST_METHOD': 'PUT'},
@@ -577,36 +479,35 @@ class TestSwift3(unittest.TestCase):
                      'Content-MD5': 'ffoHqOWd280dyE1MT4KuoQ=='})
         req.date = datetime.now()
         req.content_type = 'text/plain'
-        local_app(req.environ, lambda *args: None)
-        self.assertEquals(app.req.headers['ETag'],
+        status, headers, body = self.call_swift3(req)
+        _, _, headers = self.app.calls_with_headers[-1]
+        self.assertEquals(headers['ETag'],
                           '7dfa07a8e59ddbcd1dc84d4c4f82aea1')
-        self.assertEquals(app.req.headers['X-Object-Meta-Something'], 'oh hai')
-        self.assertEquals(app.req.headers['X-Copy-From'], '/some/source')
+        self.assertEquals(headers['X-Object-Meta-Something'], 'oh hai')
+        self.assertEquals(headers['X-Copy-From'], '/some/source')
 
     def test_object_DELETE_error(self):
-        code = self._test_method_error(FakeAppObject, 'DELETE',
-                                       '/bucket/object', 401)
+        code = self._test_method_error('DELETE', '/bucket/object',
+                                       swob.HTTPUnauthorized)
         self.assertEquals(code, 'AccessDenied')
-        code = self._test_method_error(FakeAppObject, 'DELETE',
-                                       '/bucket/object', 403)
+        code = self._test_method_error('DELETE', '/bucket/object',
+                                       swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
-        code = self._test_method_error(FakeAppObject, 'DELETE',
-                                       '/bucket/object', 404)
+        code = self._test_method_error('DELETE', '/bucket/object',
+                                       swob.HTTPNotFound)
         self.assertEquals(code, 'NoSuchKey')
-        code = self._test_method_error(FakeAppObject, 'DELETE',
-                                       '/bucket/object', 0)
+        code = self._test_method_error('DELETE', '/bucket/object',
+                                       swob.HTTPServerError)
         self.assertEquals(code, 'InvalidURI')
 
     def test_object_DELETE(self):
-        local_app = swift3.filter_factory({})(FakeAppObject(204))
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': 'DELETE'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        local_app(req.environ, local_app.app.do_start_response)
-        self.assertEquals(local_app.app.response_args[0].split()[0], '204')
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '204')
 
     def test_object_multi_DELETE(self):
-        local_app = swift3.filter_factory({})(FakeAppBucket())
         body = '<?xml version="1.0" encoding="UTF-8"?> \
                 <Delete>\
                   <Object>\
@@ -622,16 +523,15 @@ class TestSwift3(unittest.TestCase):
                             body=body)
         req.date = datetime.now()
         req.content_type = 'text/plain'
-        local_app(req.environ, local_app.app.do_start_response)
-        self.assertEquals(local_app.app.response_args[0].split()[0], '200')
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
 
     def test_object_acl_GET(self):
-        local_app = swift3.filter_factory({})(FakeAppObject())
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        resp = local_app(req.environ, local_app.app.do_start_response)
-        self._check_acl('test:tester', resp)
+        status, headers, body = self.call_swift3(req)
+        self._check_acl('test:tester', body)
 
     def test_canonical_string(self):
         """
@@ -689,28 +589,21 @@ class TestSwift3(unittest.TestCase):
                           swift3.canonical_string(req3))
 
     def test_signed_urls(self):
-        class FakeApp(object):
-            def __call__(self, env, start_response):
-                self.req = Request(env)
-                start_response('200 OK', [])
-                return []
-        app = FakeApp()
-        local_app = swift3.filter_factory({})(app)
-        req = Request.blank('/bucket/object?Signature=X&Expires=Y&'
-                            'AWSAccessKeyId=Z',
+        req = Request.blank('/bucket/object?Signature=hmac&Expires=Y&'
+                            'AWSAccessKeyId=test:tester',
                             environ={'REQUEST_METHOD': 'GET'})
         req.headers['Date'] = datetime.utcnow()
         req.content_type = 'text/plain'
-        local_app(req.environ, lambda *args: None)
-        self.assertEquals(req.headers['Authorization'], 'AWS Z:X')
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(req.headers['Authorization'], 'AWS test:tester:hmac')
         self.assertEquals(req.headers['Date'], 'Y')
 
     def test_token_generation(self):
         req = Request.blank('/bucket/object?uploadId=123456789abcdef'
                             '&partNumber=1',
                             environ={'REQUEST_METHOD': 'PUT'})
-        req.headers['Authorization'] = 'AWS X:Y'
-        self.app(req.environ, start_response)
+        req.headers['Authorization'] = 'AWS test:tester:hmac'
+        status, headers, body = self.call_swift3(req)
         self.assertEquals(base64.urlsafe_b64decode(
             req.headers['X-Auth-Token']),
             'PUT\n\n\n/bucket/object?partNumber=1&uploadId=123456789abcdef')
