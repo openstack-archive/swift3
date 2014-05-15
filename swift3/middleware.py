@@ -370,15 +370,30 @@ def validate_bucket_name(name):
         return True
 
 
-class ServiceController(object):
+class Controller(object):
+    """
+    Base WSGI controller class for the middleware
+    """
+    def __init__(self, req, app, account_name, token, container_name=None,
+                 object_name=None, **kwargs):
+        self.app = app
+        self.account_name = account_name
+        self.container_name = container_name
+        self.object_name = object_name
+        req.environ['HTTP_X_AUTH_TOKEN'] = token
+        if object_name:
+            req.path_info = '/v1/%s/%s/%s' % (account_name, container_name,
+                                              object_name)
+        elif container_name:
+            req.path_info = '/v1/%s/%s' % (account_name, container_name)
+        else:
+            req.path_info = '/v1/%s' % (account_name)
+
+
+class ServiceController(Controller):
     """
     Handles account level requests.
     """
-    def __init__(self, req, app, account_name, token, **kwargs):
-        self.app = app
-        req.environ['HTTP_X_AUTH_TOKEN'] = token
-        req.path_info = '/v1/%s' % account_name
-
     def GET(self, req):
         """
         Handle GET Service request
@@ -407,18 +422,10 @@ class ServiceController(object):
         return HTTPOk(content_type='application/xml', body=body)
 
 
-class BucketController(object):
+class BucketController(Controller):
     """
     Handles bucket request.
     """
-    def __init__(self, req, app, account_name, token, container_name,
-                 **kwargs):
-        self.app = app
-        self.container_name = container_name
-        self.account_name = account_name
-        req.environ['HTTP_X_AUTH_TOKEN'] = token
-        req.path_info = '/v1/%s/%s' % (account_name, container_name)
-
     def HEAD(self, req):
         """
         Handle HEAD Bucket (Get Metadata) request
@@ -447,16 +454,10 @@ class BucketController(object):
             if req.params.get('max-keys').isdigit() is False:
                 return get_err_response('InvalidArgument')
 
-        if 'uploads' in req.params:
-            # Pass it through, the s3multi upload helper will handle it.
-            return self.app
-
         max_keys = min(int(req.params.get('max-keys', MAX_BUCKET_LISTING)),
                        MAX_BUCKET_LISTING)
 
-        if 'acl' not in req.params:
-            #acl request sent with format=json etc confuses swift
-            req.query_string = 'format=json&limit=%s' % (max_keys + 1)
+        req.query_string = 'format=json&limit=%s' % (max_keys + 1)
         if 'marker' in req.params:
             req.query_string += '&marker=%s' % quote(req.params['marker'])
         if 'prefix' in req.params:
@@ -466,16 +467,6 @@ class BucketController(object):
                 quote(req.params['delimiter'])
         resp = req.get_response(self.app)
         status = resp.status_int
-        headers = resp.headers
-
-        if is_success(status) and 'acl' in req.params:
-            return get_acl(self.account_name, headers)
-
-        if 'versioning' in req.params:
-            # Just report there is no versioning configured here.
-            body = ('<VersioningConfiguration '
-                    'xmlns="http://s3.amazonaws.com/doc/2006-03-01/"/>')
-            return HTTPOk(body=body, content_type="text/plain")
 
         if status != HTTP_OK:
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
@@ -484,23 +475,6 @@ class BucketController(object):
                 return get_err_response('NoSuchBucket')
             else:
                 return get_err_response('InvalidURI')
-
-        if 'location' in req.params:
-            body = ('<?xml version="1.0" encoding="UTF-8"?>'
-                    '<LocationConstraint '
-                    'xmlns="http://s3.amazonaws.com/doc/2006-03-01/"')
-            if self.location == 'US':
-                body += '/>'
-            else:
-                body += ('>%s</LocationConstraint>' % self.location)
-            return HTTPOk(body=body, content_type='application/xml')
-
-        if 'logging' in req.params:
-            # logging disabled
-            body = ('<?xml version="1.0" encoding="UTF-8"?>'
-                    '<BucketLoggingStatus '
-                    'xmlns="http://doc.s3.amazonaws.com/2006-03-01" />')
-            return HTTPOk(body=body, content_type='application/xml')
 
         objects = loads(resp.body)
         body = ('<?xml version="1.0" encoding="UTF-8"?>'
@@ -565,17 +539,6 @@ class BucketController(object):
             except (ValueError, TypeError):
                 return get_err_response('InvalidArgument')
 
-        if 'acl' in req.params:
-            # We very likely have an XML-based ACL request.
-            translated_acl = swift_acl_translate(req.body, xml=True)
-            if translated_acl == 'Unsupported':
-                return get_err_response('Unsupported')
-            elif translated_acl == 'InvalidArgument':
-                return get_err_response('InvalidArgument')
-            for header, acl in translated_acl:
-                req.headers[header] = acl
-            req.method = 'POST'
-
         resp = req.get_response(self.app)
         status = resp.status_int
 
@@ -608,101 +571,18 @@ class BucketController(object):
 
         return HTTPNoContent()
 
-    def _delete_multiple_objects(self, req):
-        def _object_key_iter(xml):
-            dom = parseString(xml)
-            delete = dom.getElementsByTagName('Delete')[0]
-            for obj in delete.getElementsByTagName('Object'):
-                key = obj.getElementsByTagName('Key')[0].firstChild.data
-                version = None
-                if obj.getElementsByTagName('VersionId').length > 0:
-                    version = obj.getElementsByTagName('VersionId')[0]\
-                        .firstChild.data
-                yield (key, version)
-
-        def _get_deleted_elem(key):
-            return '  <Deleted>\r\n' \
-                   '    <Key>%s</Key>\r\n' \
-                   '  </Deleted>\r\n' % (key)
-
-        def _get_err_elem(key, err_code, message):
-            return '  <Error>\r\n' \
-                   '    <Key>%s</Key>\r\n' \
-                   '    <Code>%s</Code>\r\n' \
-                   '    <Message>%s</Message>\r\n' \
-                   '  </Error>\r\n' % (key, err_code, message)
-
-        body = '<?xml version="1.0" encoding="UTF-8"?>\r\n' \
-               '<DeleteResult ' \
-               'xmlns="http://doc.s3.amazonaws.com/2006-03-01">\r\n'
-        for key, version in _object_key_iter(req.body):
-            if version is not None:
-                # TODO: delete the specific version of the object
-                return get_err_response('Unsupported')
-
-            sub_req = Request(req.environ.copy())
-            sub_req.query_string = ''
-            sub_req.content_length = 0
-            sub_req.method = 'DELETE'
-            controller = ObjectController(sub_req, self.app, self.account_name,
-                                          req.environ['HTTP_X_AUTH_TOKEN'],
-                                          self.container_name, key)
-            sub_resp = controller.DELETE(sub_req)
-            status = sub_resp.status_int
-
-            if status == HTTP_NO_CONTENT or status == HTTP_NOT_FOUND:
-                body += _get_deleted_elem(key)
-            else:
-                if status == HTTP_UNAUTHORIZED:
-                    body += _get_err_elem(key, 'AccessDenied', 'Access Denied')
-                else:
-                    body += _get_err_elem(key, 'InvalidURI', 'Invalid URI')
-
-        body += '</DeleteResult>\r\n'
-        return HTTPOk(body=body)
-
     def POST(self, req):
         """
-        Handle POST Bucket (Delete/Upload Multiple Objects) request
+        Handle POST Bucket request
         """
-        if 'delete' in req.params:
-            return self._delete_multiple_objects(req)
-
-        if 'uploads' in req.params:
-            # Pass it through, the s3multi upload helper will handle it.
-            return self.app
-
-        if 'uploadId' in req.params:
-            # Pass it through, the s3multi upload helper will handle it.
-            return self.app
-
         return get_err_response('Unsupported')
 
 
-class ObjectController(object):
+class ObjectController(Controller):
     """
     Handles requests on objects
     """
-    def __init__(self, req, app, account_name, token, container_name,
-                 object_name, **kwargs):
-        self.app = app
-        self.account_name = account_name
-        self.container_name = container_name
-        req.environ['HTTP_X_AUTH_TOKEN'] = token
-        req.path_info = '/v1/%s/%s/%s' % (account_name, container_name,
-                                          object_name)
-
     def GETorHEAD(self, req):
-        # Let s3multi handle it.
-        if 'uploadId' in req.params or 'uploads' in req.params:
-            return self.app
-
-        if 'acl' in req.params:
-            # ACL requests need to make a HEAD call rather than GET
-            req.method = 'HEAD'
-            req.script_name = ''
-            req.query_string = ''
-
         resp = req.get_response(self.app)
         status = resp.status_int
         headers = resp.headers
@@ -711,11 +591,6 @@ class ObjectController(object):
             resp.app_iter = None
 
         if is_success(status):
-            if 'acl' in req.params:
-                # Method must be GET or the body wont be returned to the caller
-                req.environ['REQUEST_METHOD'] = 'GET'
-                return get_acl(self.account_name, headers)
-
             new_hdrs = {}
             for key, val in headers.iteritems():
                 _key = key.lower()
@@ -815,6 +690,258 @@ class ObjectController(object):
         return HTTPNoContent()
 
 
+class AclController(Controller):
+    """
+    Handles ACL requests
+    """
+    def GET(self, req):
+        if self.object_name:
+            # Handle Object ACL
+
+            # ACL requests need to make a HEAD call rather than GET
+            req.method = 'HEAD'
+            req.script_name = ''
+            req.query_string = ''
+
+            resp = req.get_response(self.app)
+            status = resp.status_int
+            headers = resp.headers
+
+            if is_success(status):
+                # Method must be GET or the body wont be returned to the caller
+                req.environ['REQUEST_METHOD'] = 'GET'
+                return get_acl(self.account_name, headers)
+            elif status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+                return get_err_response('AccessDenied')
+            elif status == HTTP_NOT_FOUND:
+                return get_err_response('NoSuchKey')
+            else:
+                return get_err_response('InvalidURI')
+
+        else:
+            # Handle Bucket ACL
+            resp = req.get_response(self.app)
+            status = resp.status_int
+            headers = resp.headers
+
+            if is_success(status):
+                return get_acl(self.account_name, headers)
+
+            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+                return get_err_response('AccessDenied')
+            elif status == HTTP_NOT_FOUND:
+                return get_err_response('NoSuchBucket')
+            else:
+                return get_err_response('InvalidURI')
+
+    def PUT(self, req):
+        if self.object_name:
+            # Handle Object ACL
+            return get_err_response('Unsupported')
+        else:
+            # Handle Bucket ACL
+
+            # We very likely have an XML-based ACL request.
+            translated_acl = swift_acl_translate(req.body, xml=True)
+            if translated_acl == 'Unsupported':
+                return get_err_response('Unsupported')
+            elif translated_acl == 'InvalidArgument':
+                return get_err_response('InvalidArgument')
+            for header, acl in translated_acl:
+                req.headers[header] = acl
+            req.method = 'POST'
+
+            resp = req.get_response(self.app)
+            status = resp.status_int
+
+            if status != HTTP_CREATED and status != HTTP_NO_CONTENT:
+                if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+                    return get_err_response('AccessDenied')
+                elif status == HTTP_ACCEPTED:
+                    return get_err_response('BucketAlreadyExists')
+                else:
+                    return get_err_response('InvalidURI')
+
+                return HTTPOk(headers={'Location': self.container_name})
+
+
+class LocationController(Controller):
+    """
+    Handles location requests
+    """
+    def GET(self, req):
+        resp = req.get_response(self.app)
+        status = resp.status_int
+
+        if status != HTTP_OK:
+            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+                return get_err_response('AccessDenied')
+            elif status == HTTP_NOT_FOUND:
+                return get_err_response('NoSuchBucket')
+            else:
+                return get_err_response('InvalidURI')
+
+        body = ('<?xml version="1.0" encoding="UTF-8"?>'
+                '<LocationConstraint '
+                'xmlns="http://s3.amazonaws.com/doc/2006-03-01/"')
+        if self.location == 'US':
+            body += '/>'
+        else:
+            body += ('>%s</LocationConstraint>' % self.location)
+        return HTTPOk(body=body, content_type='application/xml')
+
+
+class LoggingStatusController(Controller):
+    """
+    Handles logging requests
+    """
+    def GET(self, req):
+        resp = req.get_response(self.app)
+        status = resp.status_int
+
+        if status != HTTP_OK:
+            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+                return get_err_response('AccessDenied')
+            elif status == HTTP_NOT_FOUND:
+                return get_err_response('NoSuchBucket')
+            else:
+                return get_err_response('InvalidURI')
+
+        # logging disabled
+        body = ('<?xml version="1.0" encoding="UTF-8"?>'
+                '<BucketLoggingStatus '
+                'xmlns="http://doc.s3.amazonaws.com/2006-03-01" />')
+        return HTTPOk(body=body, content_type='application/xml')
+
+    def PUT(self, req):
+        return get_err_response('Unsupported')
+
+
+class MultiObjectDeleteController(Controller):
+    """
+    Handles Multi Delete Object requests
+    """
+    def POST(self, req):
+        def object_key_iter(xml):
+            dom = parseString(xml)
+            delete = dom.getElementsByTagName('Delete')[0]
+            for obj in delete.getElementsByTagName('Object'):
+                key = obj.getElementsByTagName('Key')[0].firstChild.data
+                version = None
+                if obj.getElementsByTagName('VersionId').length > 0:
+                    version = obj.getElementsByTagName('VersionId')[0]\
+                        .firstChild.data
+                yield (key, version)
+
+        def get_deleted_elem(key):
+            return '  <Deleted>\r\n' \
+                   '    <Key>%s</Key>\r\n' \
+                   '  </Deleted>\r\n' % (key)
+
+        def get_err_elem(key, err_code, message):
+            return '  <Error>\r\n' \
+                   '    <Key>%s</Key>\r\n' \
+                   '    <Code>%s</Code>\r\n' \
+                   '    <Message>%s</Message>\r\n' \
+                   '  </Error>\r\n' % (key, err_code, message)
+
+        body = '<?xml version="1.0" encoding="UTF-8"?>\r\n' \
+               '<DeleteResult ' \
+               'xmlns="http://doc.s3.amazonaws.com/2006-03-01">\r\n'
+        for key, version in object_key_iter(req.body):
+            if version is not None:
+                # TODO: delete the specific version of the object
+                return get_err_response('Unsupported')
+
+            sub_req = Request(req.environ.copy())
+            sub_req.query_string = ''
+            sub_req.content_length = 0
+            sub_req.method = 'DELETE'
+            controller = ObjectController(sub_req, self.app, self.account_name,
+                                          req.environ['HTTP_X_AUTH_TOKEN'],
+                                          self.container_name, key)
+            sub_resp = controller.DELETE(sub_req)
+            status = sub_resp.status_int
+
+            if status == HTTP_NO_CONTENT or status == HTTP_NOT_FOUND:
+                body += get_deleted_elem(key)
+            else:
+                if status == HTTP_UNAUTHORIZED:
+                    body += get_err_elem(key, 'AccessDenied', 'Access Denied')
+                else:
+                    body += get_err_elem(key, 'InvalidURI', 'Invalid URI')
+
+        body += '</DeleteResult>\r\n'
+        return HTTPOk(body=body)
+
+
+class PartController(Controller):
+    """
+    Put upload part controller
+    """
+    def PUT(self, req):
+        # Pass it through, the s3multi upload helper will handle it.
+        return self.app
+
+
+class UploadsController(Controller):
+    """
+    Multipart uploads controller
+    """
+    def GET(self, req):
+        # Pass it through, the s3multi upload helper will handle it.
+        return self.app
+
+    def POST(self, req):
+        # Pass it through, the s3multi upload helper will handle it.
+        return self.app
+
+
+class UploadController(Controller):
+    """
+    Handles multipart upload requests
+
+    All the method are passed through so that the s3multi upload helper will
+    handle it.
+    """
+    def GET(self, req):
+        # Pass it through, the s3multi upload helper will handle it.
+        return self.app
+
+    def DELETE(self, req):
+        # Pass it through, the s3multi upload helper will handle it.
+        return self.app
+
+    def POST(self, req):
+        # Pass it through, the s3multi upload helper will handle it.
+        return self.app
+
+
+class VersioningController(Controller):
+    """
+    Handles versioning requests
+    """
+    def GET(self, req):
+        resp = req.get_response(self.app)
+        status = resp.status_int
+
+        if status != HTTP_OK:
+            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+                return get_err_response('AccessDenied')
+            elif status == HTTP_NOT_FOUND:
+                return get_err_response('NoSuchBucket')
+            else:
+                return get_err_response('InvalidURI')
+
+        # Just report there is no versioning configured here.
+        body = ('<VersioningConfiguration '
+                'xmlns="http://s3.amazonaws.com/doc/2006-03-01/"/>')
+        return HTTPOk(body=body, content_type="text/plain")
+
+    def PUT(self, req):
+        return get_err_response('Unsupported')
+
+
 class Swift3Middleware(object):
     """Swift3 S3 compatibility midleware"""
     def __init__(self, app, conf, *args, **kwargs):
@@ -825,6 +952,23 @@ class Swift3Middleware(object):
     def get_controller(self, req):
         container, obj = req.split_path(0, 2, True)
         d = dict(container_name=container, object_name=obj)
+
+        if 'acl' in req.params:
+            return AclController, d
+        if 'delete' in req.params:
+            return MultiObjectDeleteController, d
+        if 'location' in req.params:
+            return LocationController, d
+        if 'logging' in req.params:
+            return LoggingStatusController, d
+        if 'partNumber' in req.params:
+            return PartController, d
+        if 'uploadId' in req.params:
+            return UploadController, d
+        if 'uploads' in req.params:
+            return UploadsController, d
+        if 'versioning' in req.params:
+            return VersioningController, d
 
         if container and obj:
             if req.method == 'POST':
