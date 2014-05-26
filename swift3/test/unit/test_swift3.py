@@ -20,7 +20,7 @@ import hashlib
 import base64
 from urllib import unquote, quote
 
-import xml.dom.minidom
+from lxml.etree import fromstring, tostring, Element, SubElement
 import simplejson
 
 from swift.common import swob
@@ -78,15 +78,12 @@ class TestSwift3(unittest.TestCase):
                         ('with space', '2011-01-05T02:19:14.275290', 0, 390),
                         ('with%20space', '2011-01-05T02:19:14.275290', 0, 390))
 
-        json_pattern = ['"name":%s', '"last_modified":%s', '"hash":%s',
+        json_pattern = ['"name":"%s"', '"last_modified":"%s"', '"hash":"%s"',
                         '"bytes":%s']
         json_pattern = '{' + ','.join(json_pattern) + '}'
         json_out = []
         for b in self.objects:
-            name = simplejson.dumps(b[0])
-            time = simplejson.dumps(b[1])
-            json_out.append(json_pattern %
-                            (name, time, b[2], b[3]))
+            json_out.append(json_pattern % b)
         object_list = '[' + ','.join(json_out) + ']'
         self.swift.register('GET', '/v1/AUTH_test/junk', swob.HTTPOk, {},
                             object_list)
@@ -120,6 +117,11 @@ class TestSwift3(unittest.TestCase):
                             swob.HTTPCreated, {}, None)
         self.swift.register('DELETE', '/v1/AUTH_test/bucket/object',
                             swob.HTTPNoContent, {}, None)
+
+    def _get_error_code(self, body):
+        elem = fromstring(body)
+        self.assertEquals(elem.tag, 'Error')
+        return elem.find('./Code').text
 
     def call_app(self, req, app=None, expect_exception=False):
         if app is None:
@@ -163,20 +165,14 @@ class TestSwift3(unittest.TestCase):
         req = Request.blank('/something',
                             headers={'Authorization': 'hoge'})
         status, headers, body = self.call_swift3(req)
-        dom = xml.dom.minidom.parseString(body)
-        self.assertEquals(dom.firstChild.nodeName, 'Error')
-        code = dom.getElementsByTagName('Code')[0].childNodes[0].nodeValue
-        self.assertEquals(code, 'AccessDenied')
+        self.assertEquals(self._get_error_code(body), 'AccessDenied')
 
     def test_bad_method(self):
         req = Request.blank('/',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        dom = xml.dom.minidom.parseString(body)
-        self.assertEquals(dom.firstChild.nodeName, 'Error')
-        code = dom.getElementsByTagName('Code')[0].childNodes[0].nodeValue
-        self.assertEquals(code, 'MethodNotAllowed')
+        self.assertEquals(self._get_error_code(body), 'MethodNotAllowed')
 
     def test_path_info_encode(self):
         bucket_name = 'b%75cket'
@@ -199,9 +195,7 @@ class TestSwift3(unittest.TestCase):
         req = Request.blank(path, environ={'REQUEST_METHOD': method},
                             headers=headers)
         status, headers, body = self.call_swift3(req)
-        dom = xml.dom.minidom.parseString(body)
-        self.assertEquals(dom.firstChild.nodeName, 'Error')
-        return dom.getElementsByTagName('Code')[0].childNodes[0].nodeValue
+        return self._get_error_code(body)
 
     def test_service_GET_error(self):
         code = self._test_method_error('GET', '', swob.HTTPUnauthorized)
@@ -218,17 +212,17 @@ class TestSwift3(unittest.TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
-        dom = xml.dom.minidom.parseString(body)
-        self.assertEquals(dom.firstChild.nodeName, 'ListAllMyBucketsResult')
+        elem = fromstring(body)
+        self.assertEquals(elem.tag, 'ListAllMyBucketsResult')
 
-        buckets = [n for n in dom.getElementsByTagName('Bucket')]
-        listing = [n for n in buckets[0].childNodes if n.nodeName != '#text']
+        all_buckets = elem.find('./Buckets')
+        buckets = all_buckets.iterchildren('Bucket')
+        listing = list(list(buckets)[0])
         self.assertEquals(len(listing), 2)
 
         names = []
-        for b in buckets:
-            if b.childNodes[0].nodeName == 'Name':
-                names.append(b.childNodes[0].childNodes[0].nodeValue)
+        for b in all_buckets.iterchildren('Bucket'):
+            names.append(b.find('./Name').text)
 
         self.assertEquals(len(names), len(self.buckets))
         for i in self.buckets:
@@ -252,20 +246,17 @@ class TestSwift3(unittest.TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
-        dom = xml.dom.minidom.parseString(body)
-        self.assertEquals(dom.firstChild.nodeName, 'ListBucketResult')
-        name = dom.getElementsByTagName('Name')[0].childNodes[0].nodeValue
+        elem = fromstring(body)
+        self.assertEquals(elem.tag, 'ListBucketResult')
+        name = elem.find('./Name').text
         self.assertEquals(name, bucket_name)
 
-        objects = [n for n in dom.getElementsByTagName('Contents')]
+        objects = elem.iterchildren('Contents')
 
         names = []
         for o in objects:
-            if o.childNodes[0].nodeName == 'Key':
-                names.append(o.childNodes[0].childNodes[0].nodeValue)
-            if o.childNodes[1].nodeName == 'LastModified':
-                self.assertTrue(
-                    o.childNodes[1].childNodes[0].nodeValue.endswith('Z'))
+            names.append(o.find('./Key').text)
+            self.assertTrue(o.find('./LastModified').text.endswith('Z'))
 
         self.assertEquals(len(names), len(self.objects))
         for i in self.objects:
@@ -279,18 +270,16 @@ class TestSwift3(unittest.TestCase):
                                      'QUERY_STRING': 'max-keys=5'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        dom = xml.dom.minidom.parseString(body)
-        self.assertEquals(dom.getElementsByTagName('IsTruncated')[0].
-                          childNodes[0].nodeValue, 'false')
+        elem = fromstring(body)
+        self.assertEquals(elem.find('./IsTruncated').text, 'false')
 
         req = Request.blank('/%s' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET',
                                      'QUERY_STRING': 'max-keys=4'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        dom = xml.dom.minidom.parseString(body)
-        self.assertEquals(dom.getElementsByTagName('IsTruncated')[0].
-                          childNodes[0].nodeValue, 'true')
+        elem = fromstring(body)
+        self.assertEquals(elem.find('./IsTruncated').text, 'true')
 
     def test_bucket_GET_max_keys(self):
         bucket_name = 'junk'
@@ -300,9 +289,8 @@ class TestSwift3(unittest.TestCase):
                                      'QUERY_STRING': 'max-keys=5'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        dom = xml.dom.minidom.parseString(body)
-        self.assertEquals(dom.getElementsByTagName('MaxKeys')[0].
-                          childNodes[0].nodeValue, '5')
+        elem = fromstring(body)
+        self.assertEquals(elem.find('./MaxKeys').text, '5')
         _, path = self.swift.calls[-1]
         _, query_string = path.split('?')
         args = dict(cgi.parse_qsl(query_string))
@@ -313,9 +301,8 @@ class TestSwift3(unittest.TestCase):
                                      'QUERY_STRING': 'max-keys=5000'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        dom = xml.dom.minidom.parseString(body)
-        self.assertEquals(dom.getElementsByTagName('MaxKeys')[0].
-                          childNodes[0].nodeValue, '1000')
+        elem = fromstring(body)
+        self.assertEquals(elem.find('./MaxKeys').text, '1000')
         _, path = self.swift.calls[-1]
         _, query_string = path.split('?')
         args = dict(cgi.parse_qsl(query_string))
@@ -328,13 +315,10 @@ class TestSwift3(unittest.TestCase):
                                      'delimiter=a&marker=b&prefix=c'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        dom = xml.dom.minidom.parseString(body)
-        self.assertEquals(dom.getElementsByTagName('Prefix')[0].
-                          childNodes[0].nodeValue, 'c')
-        self.assertEquals(dom.getElementsByTagName('Marker')[0].
-                          childNodes[0].nodeValue, 'b')
-        self.assertEquals(dom.getElementsByTagName('Delimiter')[0].
-                          childNodes[0].nodeValue, 'a')
+        elem = fromstring(body)
+        self.assertEquals(elem.find('./Prefix').text, 'c')
+        self.assertEquals(elem.find('./Marker').text, 'b')
+        self.assertEquals(elem.find('./Delimiter').text, 'a')
         _, path = self.swift.calls[-1]
         _, query_string = path.split('?')
         args = dict(cgi.parse_qsl(query_string))
@@ -386,13 +370,12 @@ class TestSwift3(unittest.TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '204')
 
-    def _check_acl(self, owner, resp):
-        dom = xml.dom.minidom.parseString("".join(resp))
-        self.assertEquals(dom.firstChild.nodeName, 'AccessControlPolicy')
-        permission = dom.getElementsByTagName('Permission')[0]
-        name = permission.childNodes[0].nodeValue
-        self.assertEquals(name, 'FULL_CONTROL')
-        name = dom.getElementsByTagName('ID')[0].childNodes[0].nodeValue
+    def _check_acl(self, owner, body):
+        elem = fromstring(body)
+        self.assertEquals(elem.tag, 'AccessControlPolicy')
+        permission = elem.find('./AccessControlList/Grant/Permission').text
+        self.assertEquals(permission, 'FULL_CONTROL')
+        name = elem.find('./AccessControlList/Grant/Grantee/ID').text
         self.assertEquals(name, owner)
 
     def test_bucket_acl_GET(self):
@@ -409,8 +392,8 @@ class TestSwift3(unittest.TestCase):
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        dom = xml.dom.minidom.parseString(body)
-        self.assertEquals(dom.firstChild.nodeName, 'VersioningConfiguration')
+        elem = fromstring(body)
+        self.assertEquals(elem.tag, 'VersioningConfiguration')
 
     def _test_object_GETorHEAD(self, method):
         req = Request.blank('/bucket/object',
@@ -535,15 +518,12 @@ class TestSwift3(unittest.TestCase):
         self.assertEquals(status.split()[0], '204')
 
     def test_object_multi_DELETE(self):
-        body = '<?xml version="1.0" encoding="UTF-8"?> \
-                <Delete>\
-                  <Object>\
-                    <Key>Key1</Key>\
-                  </Object>\
-                  <Object>\
-                    <Key>Key2</Key>\
-                  </Object>\
-                </Delete>'
+        elem = Element('Delete')
+        for key in ['Key1', 'Key2']:
+            obj = SubElement(elem, 'Object')
+            SubElement(obj, 'Key').text = key
+        body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+
         req = Request.blank('/bucket?delete',
                             environ={'REQUEST_METHOD': 'POST'},
                             headers={'Authorization': 'AWS test:tester:hmac'},
