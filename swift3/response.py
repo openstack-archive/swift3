@@ -90,6 +90,25 @@ class Response(swob.Response):
 
         self.headers = headers
 
+    @classmethod
+    def from_swift_resp(cls, sw_resp):
+        """
+        Create a new S3 response object based on the given Swift response.
+        """
+        if sw_resp.app_iter:
+            body = None
+            app_iter = sw_resp.app_iter
+        else:
+            body = sw_resp.body
+            app_iter = None
+
+        resp = Response(status=sw_resp.status, headers=sw_resp.headers,
+                        request=sw_resp.request, body=body, app_iter=app_iter,
+                        conditional_response=sw_resp.conditional_response)
+        resp.environ.update(sw_resp.environ)
+
+        return resp
+
 
 class StatusMap(object):
     """
