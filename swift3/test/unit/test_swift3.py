@@ -187,7 +187,7 @@ class TestSwift3(unittest.TestCase):
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        raw_path_info = "/v1/AUTH_test/%s/%s" % (bucket_name, object_name)
+        raw_path_info = "/%s/%s" % (bucket_name, object_name)
         path_info = req.environ['PATH_INFO']
         self.assertEquals(path_info, unquote(raw_path_info))
         self.assertEquals(req.path, quote(path_info))
@@ -668,8 +668,9 @@ class TestSwift3(unittest.TestCase):
                             environ={'REQUEST_METHOD': 'PUT'})
         req.headers['Authorization'] = 'AWS test:tester:hmac'
         status, headers, body = self.call_swift3(req)
+        _, _, headers = self.swift.calls_with_headers[-1]
         self.assertEquals(base64.urlsafe_b64decode(
-            req.headers['X-Auth-Token']),
+            headers['X-Auth-Token']),
             'PUT\n\n\n/bucket/object?partNumber=1&uploadId=123456789abcdef')
 
     def test_xml_namespace(self):

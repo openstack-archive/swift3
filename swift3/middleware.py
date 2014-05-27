@@ -53,14 +53,10 @@ following for an SAIO setup::
 """
 
 from urllib import quote
-import base64
 from simplejson import loads
-import email.utils
-import datetime
 import re
 
 from swift.common.utils import get_logger
-from swift.common.swob import Request
 from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_NO_CONTENT, HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, HTTP_NOT_FOUND, \
     HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, is_success, \
@@ -68,11 +64,12 @@ from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
 from swift.common.middleware.acl import parse_acl, referrer_allowed
 
 from swift3.etree import fromstring, tostring, Element, SubElement
-from swift3.response import Response, HTTPNoContent, HTTPOk, ErrorResponse, \
+from swift3.exception import NotS3Request
+from swift3.request import Request
+from swift3.response import HTTPNoContent, HTTPOk, ErrorResponse, \
     AccessDenied, BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
-    InternalError, InvalidArgument, InvalidDigest, InvalidURI, \
-    MalformedACLError, MethodNotAllowed, NoSuchBucket, NoSuchKey, \
-    S3NotImplemented, RequestTimeTooSkewed, SignatureDoesNotMatch
+    InternalError, InvalidArgument, InvalidDigest, MalformedACLError, \
+    MethodNotAllowed, NoSuchBucket, NoSuchKey, S3NotImplemented
 
 
 XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
@@ -255,21 +252,9 @@ class Controller(object):
     """
     Base WSGI controller class for the middleware
     """
-    def __init__(self, req, app, account_name, token, conf,
-                 container_name=None, object_name=None, **kwargs):
+    def __init__(self, app, conf, **kwargs):
         self.app = app
         self.conf = conf
-        self.account_name = account_name
-        self.container_name = container_name
-        self.object_name = object_name
-        req.environ['HTTP_X_AUTH_TOKEN'] = token
-        if object_name:
-            req.path_info = '/v1/%s/%s/%s' % (account_name, container_name,
-                                              object_name)
-        elif container_name:
-            req.path_info = '/v1/%s/%s' % (account_name, container_name)
-        else:
-            req.path_info = '/v1/%s' % (account_name)
 
 
 class ServiceController(Controller):
@@ -318,12 +303,10 @@ class BucketController(Controller):
                 req.query_string = ''
 
         resp = req.get_response(self.app)
-        status = resp.status_int
-        headers = resp.headers
-        if status == HTTP_NO_CONTENT:
-                status = HTTP_OK
+        if resp.status_int == HTTP_NO_CONTENT:
+                resp.status_int = HTTP_OK
 
-        return Response(status=status, headers=headers, app_iter=resp.app_iter)
+        return resp
 
     def GET(self, req):
         """
@@ -351,7 +334,7 @@ class BucketController(Controller):
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
-                raise NoSuchBucket(self.container_name)
+                raise NoSuchBucket(req.container_name)
             else:
                 raise InternalError()
 
@@ -367,7 +350,7 @@ class BucketController(Controller):
             is_truncated = 'false'
         SubElement(elem, 'IsTruncated').text = is_truncated
         SubElement(elem, 'MaxKeys').text = str(max_keys)
-        SubElement(elem, 'Name').text = self.container_name
+        SubElement(elem, 'Name').text = req.container_name
 
         for o in objects[:max_keys]:
             if 'subdir' not in o:
@@ -377,7 +360,7 @@ class BucketController(Controller):
                     o['last_modified'] + 'Z'
                 SubElement(contents, 'ETag').text = o['hash']
                 SubElement(contents, 'Size').text = str(o['bytes'])
-                add_canonical_user(contents, 'Owner', self.account_name)
+                add_canonical_user(contents, 'Owner', req.access_key)
 
         for o in objects[:max_keys]:
             if 'subdir' in o:
@@ -410,14 +393,6 @@ class BucketController(Controller):
             for header, acl in translated_acl:
                 req.headers[header] = acl
 
-        if 'CONTENT_LENGTH' in req.environ:
-            try:
-                if req.content_length < 0:
-                    raise InvalidArgument('Content-Length', req.content_length)
-            except (ValueError, TypeError):
-                raise InvalidArgument('Content-Length',
-                                      req.environ['CONTENT_LENGTH'])
-
         resp = req.get_response(self.app)
         status = resp.status_int
 
@@ -425,11 +400,11 @@ class BucketController(Controller):
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 raise AccessDenied()
             elif status == HTTP_ACCEPTED:
-                raise BucketAlreadyExists(self.container_name)
+                raise BucketAlreadyExists(req.container_name)
             else:
                 raise InternalError()
 
-        return HTTPOk(headers={'Location': self.container_name})
+        return HTTPOk(headers={'Location': req.container_name})
 
     def DELETE(self, req):
         """
@@ -442,7 +417,7 @@ class BucketController(Controller):
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
-                raise NoSuchBucket(self.container_name)
+                raise NoSuchBucket(req.container_name)
             elif status == HTTP_CONFLICT:
                 raise BucketNotEmpty()
             else:
@@ -464,18 +439,16 @@ class ObjectController(Controller):
     def GETorHEAD(self, req):
         resp = req.get_response(self.app)
         status = resp.status_int
-        headers = resp.headers
 
         if req.method == 'HEAD':
             resp.app_iter = None
 
         if is_success(status):
-            return Response(status=status, headers=headers,
-                            app_iter=resp.app_iter)
+            return resp
         elif status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
             raise AccessDenied()
         elif status == HTTP_NOT_FOUND:
-            raise NoSuchKey(self.object_name)
+            raise NoSuchKey(req.object_name)
         else:
             raise InternalError()
 
@@ -495,23 +468,6 @@ class ObjectController(Controller):
         """
         Handle PUT Object and PUT Object (Copy) request
         """
-        for key, value in req.environ.items():
-            if key.startswith('HTTP_X_AMZ_META_'):
-                del req.environ[key]
-                req.environ['HTTP_X_OBJECT_META_' + key[16:]] = value
-            elif key == 'HTTP_CONTENT_MD5':
-                if value == '':
-                    raise InvalidDigest()
-                try:
-                    req.environ['HTTP_ETAG'] = \
-                        value.decode('base64').encode('hex')
-                except Exception:
-                    raise InvalidDigest()
-                if req.environ['HTTP_ETAG'] == '':
-                    raise SignatureDoesNotMatch()
-            elif key == 'HTTP_X_AMZ_COPY_SOURCE':
-                req.environ['HTTP_X_COPY_FROM'] = value
-
         resp = req.get_response(self.app)
         status = resp.status_int
 
@@ -519,7 +475,7 @@ class ObjectController(Controller):
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
-                raise NoSuchBucket(self.container_name)
+                raise NoSuchBucket(req.container_name)
             elif status == HTTP_UNPROCESSABLE_ENTITY:
                 raise InvalidDigest()
             elif status == HTTP_REQUEST_ENTITY_TOO_LARGE:
@@ -553,7 +509,7 @@ class ObjectController(Controller):
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
-                raise NoSuchKey(self.object_name)
+                raise NoSuchKey(req.object_name)
             else:
                 raise InternalError()
 
@@ -575,7 +531,7 @@ class AclController(Controller):
         """
         Handles GET Bucket acl and GET Object acl.
         """
-        if self.object_name:
+        if req.object_name:
             # Handle Object ACL
 
             # ACL requests need to make a HEAD call rather than GET
@@ -590,11 +546,11 @@ class AclController(Controller):
             if is_success(status):
                 # Method must be GET or the body wont be returned to the caller
                 req.environ['REQUEST_METHOD'] = 'GET'
-                return get_acl(self.account_name, headers)
+                return get_acl(req.access_key, headers)
             elif status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
-                raise NoSuchKey(self.object_name)
+                raise NoSuchKey(req.object_name)
             else:
                 raise InternalError()
 
@@ -605,12 +561,12 @@ class AclController(Controller):
             headers = resp.headers
 
             if is_success(status):
-                return get_acl(self.account_name, headers)
+                return get_acl(req.access_key, headers)
 
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
-                raise NoSuchBucket(self.container_name)
+                raise NoSuchBucket(req.container_name)
             else:
                 raise InternalError()
 
@@ -618,7 +574,7 @@ class AclController(Controller):
         """
         Handles PUT Bucket acl and PUT Object acl.
         """
-        if self.object_name:
+        if req.object_name:
             # Handle Object ACL
             raise S3NotImplemented()
         else:
@@ -643,7 +599,7 @@ class AclController(Controller):
                 else:
                     raise InternalError()
 
-            return HTTPOk(headers={'Location': self.container_name})
+            return HTTPOk(headers={'Location': req.container_name})
 
 
 class LocationController(Controller):
@@ -662,7 +618,7 @@ class LocationController(Controller):
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
-                raise NoSuchBucket(self.container_name)
+                raise NoSuchBucket(req.container_name)
             else:
                 raise InternalError()
 
@@ -694,7 +650,7 @@ class LoggingStatusController(Controller):
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
-                raise NoSuchBucket(self.container_name)
+                raise NoSuchBucket(req.container_name)
             else:
                 raise InternalError()
 
@@ -741,9 +697,9 @@ class MultiObjectDeleteController(Controller):
             sub_req.query_string = ''
             sub_req.content_length = 0
             sub_req.method = 'DELETE'
-            controller = ObjectController(sub_req, self.app, self.account_name,
-                                          req.environ['HTTP_X_AUTH_TOKEN'],
-                                          self.container_name, key)
+            sub_req.object_name = key
+
+            controller = ObjectController(self.app, self.conf)
             try:
                 controller.DELETE(sub_req)
             except NoSuchKey:
@@ -777,7 +733,7 @@ class PartController(Controller):
         Handles Upload Part and Upload Part Copy.
         """
         # Pass it through, the s3multi upload helper will handle it.
-        return self.app
+        return req.get_response(self.app)
 
 
 class UploadsController(Controller):
@@ -794,14 +750,14 @@ class UploadsController(Controller):
         Handles List Multipart Uploads
         """
         # Pass it through, the s3multi upload helper will handle it.
-        return self.app
+        return req.get_response(self.app)
 
     def POST(self, req):
         """
         Handles Initiate Multipart Upload.
         """
         # Pass it through, the s3multi upload helper will handle it.
-        return self.app
+        return req.get_response(self.app)
 
 
 class UploadController(Controller):
@@ -819,21 +775,21 @@ class UploadController(Controller):
         Handles List Parts.
         """
         # Pass it through, the s3multi upload helper will handle it.
-        return self.app
+        return req.get_response(self.app)
 
     def DELETE(self, req):
         """
         Handles Abort Multipart Upload.
         """
         # Pass it through, the s3multi upload helper will handle it.
-        return self.app
+        return req.get_response(self.app)
 
     def POST(self, req):
         """
         Handles Complete Multipart Upload.
         """
         # Pass it through, the s3multi upload helper will handle it.
-        return self.app
+        return req.get_response(self.app)
 
 
 class VersioningController(Controller):
@@ -856,7 +812,7 @@ class VersioningController(Controller):
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
-                raise NoSuchBucket(self.container_name)
+                raise NoSuchBucket(req.container_name)
             else:
                 raise InternalError()
 
@@ -880,41 +836,12 @@ class Swift3Middleware(object):
         self.conf = conf
         self.logger = get_logger(self.conf, log_route='swift3')
 
-    def get_controller(self, req):
-        container, obj = req.split_path(0, 2, True)
-        d = dict(container_name=container, object_name=obj)
-
-        if 'acl' in req.params:
-            return AclController, d
-        if 'delete' in req.params:
-            return MultiObjectDeleteController, d
-        if 'location' in req.params:
-            return LocationController, d
-        if 'logging' in req.params:
-            return LoggingStatusController, d
-        if 'partNumber' in req.params:
-            return PartController, d
-        if 'uploadId' in req.params:
-            return UploadController, d
-        if 'uploads' in req.params:
-            return UploadsController, d
-        if 'versioning' in req.params:
-            return VersioningController, d
-
-        if container and obj:
-            if req.method == 'POST':
-                if 'uploads' in req.params or 'uploadId' in req.params:
-                    return BucketController, d
-            return ObjectController, d
-        elif container:
-            return BucketController, d
-
-        return ServiceController, d
-
     def __call__(self, env, start_response):
-        req = Request(env)
         try:
+            req = Request(env)
             resp = self.handle_request(req)
+        except NotS3Request:
+            resp = self.app
         except ErrorResponse as err_resp:
             if isinstance(err_resp, InternalError):
                 self.logger.exception(err_resp)
@@ -928,71 +855,7 @@ class Swift3Middleware(object):
         self.logger.debug('Calling Swift3 Middleware')
         self.logger.debug(req.__dict__)
 
-        if 'AWSAccessKeyId' in req.params:
-            try:
-                req.headers['Date'] = req.params['Expires']
-                req.headers['Authorization'] = \
-                    'AWS %(AWSAccessKeyId)s:%(Signature)s' % req.params
-            except KeyError:
-                raise AccessDenied()
-
-        if 'Authorization' not in req.headers:
-            return self.app
-
-        try:
-            keyword, info = req.headers['Authorization'].split(' ')
-        except Exception:
-            raise AccessDenied()
-
-        if keyword != 'AWS':
-            raise AccessDenied()
-
-        try:
-            account, signature = info.rsplit(':', 1)
-        except Exception:
-            err_msg = 'AWS authorization header is invalid.  ' \
-                'Expected AwsAccessKeyId:signature'
-            raise InvalidArgument('Authorization',
-                                  req.headers['Authorization'], err_msg)
-
-        try:
-            controller, path_parts = self.get_controller(req)
-        except ValueError:
-            raise InvalidURI(req.path)
-
-        if 'Date' in req.headers:
-            now = datetime.datetime.utcnow()
-            date = email.utils.parsedate(req.headers['Date'])
-            if 'Expires' in req.params:
-                try:
-                    d = email.utils.formatdate(float(req.params['Expires']))
-                except ValueError:
-                    raise AccessDenied()
-
-                # check expiration
-                expdate = email.utils.parsedate(d)
-                ex = datetime.datetime(*expdate[0:6])
-                if now > ex:
-                    raise AccessDenied()
-            elif date is not None:
-                epoch = datetime.datetime(1970, 1, 1, 0, 0, 0, 0)
-
-                d1 = datetime.datetime(*date[0:6])
-                if d1 < epoch:
-                    raise AccessDenied()
-
-                # If the standard date is too far ahead or behind, it is an
-                # error
-                delta = datetime.timedelta(seconds=60 * 5)
-                if abs(d1 - now) > delta:
-                    raise RequestTimeTooSkewed()
-            else:
-                raise AccessDenied()
-
-        token = base64.urlsafe_b64encode(canonical_string(req))
-
-        controller = controller(req, self.app, account, token, self.conf,
-                                **path_parts)
+        controller = req.controller(self.app, self.conf)
 
         if hasattr(controller, req.method):
             res = getattr(controller, req.method)(req)
