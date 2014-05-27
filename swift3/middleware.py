@@ -63,7 +63,8 @@ import datetime
 import re
 
 from swift.common.utils import get_logger
-from swift.common.swob import Request, Response, HTTPForbidden, HTTPConflict, \
+from swift.common.swob import Request
+from swift3.response import Response, HTTPForbidden, HTTPConflict, \
     HTTPBadRequest, HTTPMethodNotAllowed, HTTPNotFound, HTTPNotImplemented, \
     HTTPLengthRequired, HTTPServiceUnavailable, HTTPNoContent, HTTPOk
 from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
@@ -439,11 +440,6 @@ class BucketController(Controller):
         if status == HTTP_NO_CONTENT:
                 status = HTTP_OK
 
-        if 'x-container-object-count' in headers:
-            headers['x-rgw-object-count'] = headers['x-container-object-count']
-        if 'x-container-bytes-used' in headers:
-            headers['x-rgw-bytes-used'] = headers['x-container-bytes-used']
-
         return Response(status=status, headers=headers, app_iter=resp.app_iter)
 
     def GET(self, req):
@@ -591,16 +587,7 @@ class ObjectController(Controller):
             resp.app_iter = None
 
         if is_success(status):
-            new_hdrs = {}
-            for key, val in headers.iteritems():
-                _key = key.lower()
-                if _key.startswith('x-object-meta-'):
-                    new_hdrs['x-amz-meta-' + key[14:]] = val
-                elif _key in ('content-length', 'content-type',
-                              'content-range', 'content-encoding',
-                              'etag', 'last-modified'):
-                    new_hdrs[key] = val
-            return Response(status=status, headers=new_hdrs,
+            return Response(status=status, headers=headers,
                             app_iter=resp.app_iter)
         elif status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
             return get_err_response('AccessDenied')
