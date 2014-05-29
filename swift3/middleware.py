@@ -54,8 +54,6 @@ following for an SAIO setup::
 
 from urllib import quote
 import base64
-from lxml.etree import fromstring, tostring, Element, SubElement
-
 from simplejson import loads
 import email.utils
 import datetime
@@ -72,6 +70,8 @@ from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, is_success, \
     HTTP_REQUEST_ENTITY_TOO_LARGE
 from swift.common.middleware.acl import parse_acl, referrer_allowed
+
+from swift3.etree import fromstring, tostring, Element, SubElement
 
 XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
 
@@ -142,7 +142,7 @@ def get_err_response(code):
     elem = Element('Error')
     SubElement(elem, 'Code').text = code
     SubElement(elem, 'Message').text = message
-    body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+    body = tostring(elem, use_s3ns=False)
 
     return resp(body=body, content_type='text/xml')
 
@@ -194,7 +194,7 @@ def get_acl(account_name, headers):
             'http://acs.amazonaws.com/groups/global/AllUsers'
         SubElement(grant, 'Permission').text = 'WRITE'
 
-    body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+    body = tostring(elem)
 
     return HTTPOk(body=body, content_type="text/plain")
 
@@ -360,7 +360,7 @@ class ServiceController(Controller):
             SubElement(bucket, 'CreationDate').text = \
                 '2009-02-03T16:45:09.000Z'
 
-        body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+        body = tostring(elem)
 
         return HTTPOk(content_type='application/xml', body=body)
 
@@ -443,7 +443,7 @@ class BucketController(Controller):
                 common_prefixes = SubElement(elem, 'CommonPrefixes')
                 SubElement(common_prefixes, 'Prefix').text = o['subdir']
 
-        body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+        body = tostring(elem)
 
         return HTTPOk(body=body, content_type='application/xml')
 
@@ -588,7 +588,7 @@ class ObjectController(Controller):
         if 'HTTP_X_COPY_FROM' in req.environ:
             elem = Element('CopyObjectResult')
             SubElement(elem, 'ETag').text = '"%s"' % resp.etag
-            body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+            body = tostring(elem, use_s3ns=False)
             return HTTPOk(body=body)
 
         return HTTPOk(etag=resp.etag)
@@ -727,7 +727,7 @@ class LocationController(Controller):
         elem = Element('LocationConstraint')
         if self.conf['location'] != 'US':
             elem.text = self.conf['location']
-        body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+        body = tostring(elem)
 
         return HTTPOk(body=body, content_type='application/xml')
 
@@ -758,7 +758,7 @@ class LoggingStatusController(Controller):
 
         # logging disabled
         elem = Element('BucketLoggingStatus')
-        body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+        body = tostring(elem)
 
         return HTTPOk(body=body, content_type='application/xml')
 
@@ -818,7 +818,7 @@ class MultiObjectDeleteController(Controller):
                     SubElement(error, 'Code').text = 'InternalError'
                     SubElement(error, 'Message').text = 'Internal Error'
 
-        body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+        body = tostring(elem)
 
         return HTTPOk(body=body)
 
@@ -922,7 +922,7 @@ class VersioningController(Controller):
 
         # Just report there is no versioning configured here.
         elem = Element('VersioningConfiguration')
-        body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+        body = tostring(elem)
 
         return HTTPOk(body=body, content_type="text/plain")
 
