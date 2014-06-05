@@ -595,15 +595,48 @@ class TestSwift3(unittest.TestCase):
         self.assertEquals(swift3.canonical_string(req2),
                           swift3.canonical_string(req3))
 
-    def test_signed_urls(self):
-        req = Request.blank('/bucket/object?Signature=hmac&Expires=Y&'
-                            'AWSAccessKeyId=test:tester',
+    def test_signed_urls_expired(self):
+        expire = '1000000000'
+        req = Request.blank('/bucket/object?Signature=X&Expires=%s&'
+                            'AWSAccessKeyId=test:tester' % expire,
                             environ={'REQUEST_METHOD': 'GET'})
         req.headers['Date'] = datetime.utcnow()
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(req.headers['Authorization'], 'AWS test:tester:hmac')
-        self.assertEquals(req.headers['Date'], 'Y')
+        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+
+    def test_signed_urls(self):
+        expire = '10000000000'
+        req = Request.blank('/bucket/object?Signature=X&Expires=%s&'
+                            'AWSAccessKeyId=test:tester' % expire,
+                            environ={'REQUEST_METHOD': 'GET'})
+        req.headers['Date'] = datetime.utcnow()
+        req.content_type = 'text/plain'
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+        for _, _, headers in self.swift.calls_with_headers:
+            self.assertEquals(headers['Authorization'], 'AWS test:tester:X')
+            self.assertEquals(headers['Date'], expire)
+
+    def test_signed_urls_invalid_expire(self):
+        expire = 'invalid'
+        req = Request.blank('/bucket/object?Signature=X&Expires=%s&'
+                            'AWSAccessKeyId=test:tester' % expire,
+                            environ={'REQUEST_METHOD': 'GET'})
+        req.headers['Date'] = datetime.utcnow()
+        req.content_type = 'text/plain'
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+
+    def test_signed_urls_no_sign(self):
+        expire = 'invalid'
+        req = Request.blank('/bucket/object?Expires=%s&'
+                            'AWSAccessKeyId=test:tester' % expire,
+                            environ={'REQUEST_METHOD': 'GET'})
+        req.headers['Date'] = datetime.utcnow()
+        req.content_type = 'text/plain'
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'AccessDenied')
 
     def test_token_generation(self):
         req = Request.blank('/bucket/object?uploadId=123456789abcdef'
