@@ -209,7 +209,7 @@ class TestSwift3(unittest.TestCase):
         code = self._test_method_error('GET', '', swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
         code = self._test_method_error('GET', '', swob.HTTPServerError)
-        self.assertEquals(code, 'InvalidURI')
+        self.assertEquals(code, 'InternalError')
 
     def test_service_GET(self):
         req = Request.blank('/',
@@ -242,7 +242,7 @@ class TestSwift3(unittest.TestCase):
         code = self._test_method_error('GET', '/bucket', swob.HTTPNotFound)
         self.assertEquals(code, 'NoSuchBucket')
         code = self._test_method_error('GET', '/bucket', swob.HTTPServerError)
-        self.assertEquals(code, 'InvalidURI')
+        self.assertEquals(code, 'InternalError')
 
     def test_bucket_GET(self):
         bucket_name = 'junk'
@@ -356,7 +356,7 @@ class TestSwift3(unittest.TestCase):
         code = self._test_method_error('PUT', '/bucket', swob.HTTPAccepted)
         self.assertEquals(code, 'BucketAlreadyExists')
         code = self._test_method_error('PUT', '/bucket', swob.HTTPServerError)
-        self.assertEquals(code, 'InvalidURI')
+        self.assertEquals(code, 'InternalError')
 
     def test_bucket_PUT(self):
         req = Request.blank('/bucket',
@@ -377,7 +377,7 @@ class TestSwift3(unittest.TestCase):
         self.assertEquals(code, 'BucketNotEmpty')
         code = self._test_method_error('DELETE', '/bucket',
                                        swob.HTTPServerError)
-        self.assertEquals(code, 'InvalidURI')
+        self.assertEquals(code, 'InternalError')
 
     def test_bucket_DELETE(self):
         req = Request.blank('/bucket',
@@ -447,7 +447,7 @@ class TestSwift3(unittest.TestCase):
         self.assertEquals(code, 'NoSuchKey')
         code = self._test_method_error('GET', '/bucket/object',
                                        swob.HTTPServerError)
-        self.assertEquals(code, 'InvalidURI')
+        self.assertEquals(code, 'InternalError')
 
     def test_object_GET(self):
         self._test_object_GETorHEAD('GET')
@@ -478,7 +478,7 @@ class TestSwift3(unittest.TestCase):
         self.assertEquals(code, 'EntityTooLarge')
         code = self._test_method_error('PUT', '/bucket/object',
                                        swob.HTTPServerError)
-        self.assertEquals(code, 'InvalidURI')
+        self.assertEquals(code, 'InternalError')
 
     def test_object_PUT(self):
         req = Request.blank(
@@ -525,7 +525,7 @@ class TestSwift3(unittest.TestCase):
         self.assertEquals(code, 'NoSuchKey')
         code = self._test_method_error('DELETE', '/bucket/object',
                                        swob.HTTPServerError)
-        self.assertEquals(code, 'InvalidURI')
+        self.assertEquals(code, 'InternalError')
 
     def test_object_DELETE(self):
         req = Request.blank('/bucket/object',
