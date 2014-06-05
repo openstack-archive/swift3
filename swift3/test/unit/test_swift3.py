@@ -88,6 +88,8 @@ class TestSwift3(unittest.TestCase):
         for b in self.objects:
             json_out.append(json_pattern % b)
         object_list = '[' + ','.join(json_out) + ']'
+        self.swift.register('HEAD', '/v1/AUTH_test/junk', swob.HTTPNoContent,
+                            {}, object_list)
         self.swift.register('GET', '/v1/AUTH_test/junk', swob.HTTPOk, {},
                             object_list)
 
@@ -111,7 +113,7 @@ class TestSwift3(unittest.TestCase):
         self.swift.register('PUT', '/v1/AUTH_test/bucket',
                             swob.HTTPCreated, {}, None)
         self.swift.register('POST', '/v1/AUTH_test/bucket',
-                            swob.HTTPAccepted, {}, None)
+                            swob.HTTPNoContent, {}, None)
         self.swift.register('DELETE', '/v1/AUTH_test/bucket',
                             swob.HTTPNoContent, {}, None)
 
@@ -543,6 +545,11 @@ class TestSwift3(unittest.TestCase):
         self.assertEquals(status.split()[0], '204')
 
     def test_object_multi_DELETE(self):
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket/Key1',
+                            swob.HTTPNoContent, {}, None)
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket/Key2',
+                            swob.HTTPNotFound, {}, None)
+
         elem = Element('Delete')
         for key in ['Key1', 'Key2']:
             obj = SubElement(elem, 'Object')

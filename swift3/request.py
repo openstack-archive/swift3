@@ -19,10 +19,14 @@ import email.utils
 import datetime
 
 from swift.common import swob
+from swift.common.http import HTTP_OK, HTTP_BAD_REQUEST, HTTP_UNAUTHORIZED, \
+    HTTP_FORBIDDEN, HTTP_SERVICE_UNAVAILABLE
 
 from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
-    RequestTimeTooSkewed, Response, SignatureDoesNotMatch
-from swift3.exception import NotS3Request
+    RequestTimeTooSkewed, Response, SignatureDoesNotMatch, InternalError, \
+    ServiceUnavailable
+
+from swift3.exception import NotS3Request, BadSwiftRequest
 
 # List of sub-resources that must be maintained as part of the HMAC
 # signature string.
@@ -192,7 +196,7 @@ class Request(swob.Request):
 
         return ServiceController
 
-    def to_swift_req(self):
+    def to_swift_req(self, method, path, query=None):
         """
         Create a Swift request based on this request's environment.
         """
@@ -208,27 +212,61 @@ class Request(swob.Request):
                 del env[key]
 
         env['swift.source'] = 'S3'
+        if method is not None:
+            env['REQUEST_METHOD'] = method
         env['HTTP_X_AUTH_TOKEN'] = self.token
 
-        if self.object_name:
-            path = '/v1/%s/%s/%s' % (self.access_key, self.container_name,
-                                     self.object_name)
-        elif self.container_name:
-            path = '/v1/%s/%s' % (self.access_key, self.container_name)
-        else:
-            path = '/v1/%s' % (self.access_key)
+        if path is None:
+            if self.object_name:
+                path = '/v1/%s/%s/%s' % (self.access_key, self.container_name,
+                                         self.object_name)
+            elif self.container_name:
+                path = '/v1/%s/%s' % (self.access_key, self.container_name)
+            else:
+                path = '/v1/%s' % (self.access_key)
         env['PATH_INFO'] = path
 
-        env['QUERY_STRING'] = self.query_string
+        query_string = ''
+        if query is not None:
+            params = []
+            for key, value in sorted(query.items()):
+                if value is not None:
+                    params.append('%s=%s' % (key, quote(str(value))))
+                else:
+                    params.append(key)
+            query_string = '&'.join(params)
+        env['QUERY_STRING'] = query_string
 
         return swob.Request.blank(quote(path), environ=env)
 
-    def get_response(self, app):
+    def get_response(self, app, method=None, path=None, query=None,
+                     success=[HTTP_OK], error={}):
         """
         Calls the application with this request's environment.  Returns a
         Response object that wraps up the application's result.
         """
-        sw_req = self.to_swift_req()
+        sw_req = self.to_swift_req(method=method, path=path, query=query)
         sw_resp = sw_req.get_response(app)
+        resp = Response.from_swift_resp(sw_resp)
+        status = resp.status_int  # pylint: disable-msg=E1101
 
-        return Response.from_swift_resp(sw_resp)
+        if status in success:
+            return resp
+
+        if status in error.keys():
+            err_resp = error[sw_resp.status_int]
+            if isinstance(err_resp, tuple):
+                raise err_resp[0](*err_resp[1:])
+            else:
+                raise err_resp()
+
+        if status == HTTP_BAD_REQUEST:
+            raise BadSwiftRequest(resp.body)
+        if status == HTTP_UNAUTHORIZED:
+            raise SignatureDoesNotMatch()
+        if status == HTTP_FORBIDDEN:
+            raise AccessDenied()
+        if status == HTTP_SERVICE_UNAVAILABLE:
+            raise ServiceUnavailable()
+
+        raise InternalError('unexpteted status code %d' % status)
