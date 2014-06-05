@@ -69,7 +69,8 @@ from swift3.request import Request
 from swift3.response import HTTPNoContent, HTTPOk, ErrorResponse, \
     AccessDenied, BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
     InternalError, InvalidArgument, InvalidDigest, MalformedACLError, \
-    MethodNotAllowed, NoSuchBucket, NoSuchKey, S3NotImplemented
+    MethodNotAllowed, NoSuchBucket, NoSuchKey, S3NotImplemented, \
+    SignatureDoesNotMatch
 
 
 XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
@@ -270,7 +271,9 @@ class ServiceController(Controller):
         status = resp.status_int
 
         if status != HTTP_OK:
-            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+            if status == HTTP_UNAUTHORIZED:
+                raise SignatureDoesNotMatch()
+            if status == HTTP_FORBIDDEN:
                 raise AccessDenied()
             else:
                 raise InternalError()
@@ -331,7 +334,9 @@ class BucketController(Controller):
         status = resp.status_int
 
         if status != HTTP_OK:
-            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+            if status == HTTP_UNAUTHORIZED:
+                raise SignatureDoesNotMatch()
+            if status == HTTP_FORBIDDEN:
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
                 raise NoSuchBucket(req.container_name)
@@ -397,7 +402,9 @@ class BucketController(Controller):
         status = resp.status_int
 
         if status != HTTP_CREATED and status != HTTP_NO_CONTENT:
-            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+            if status == HTTP_UNAUTHORIZED:
+                raise SignatureDoesNotMatch()
+            if status == HTTP_FORBIDDEN:
                 raise AccessDenied()
             elif status == HTTP_ACCEPTED:
                 raise BucketAlreadyExists(req.container_name)
@@ -414,7 +421,9 @@ class BucketController(Controller):
         status = resp.status_int
 
         if status != HTTP_NO_CONTENT:
-            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+            if status == HTTP_UNAUTHORIZED:
+                raise SignatureDoesNotMatch()
+            if status == HTTP_FORBIDDEN:
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
                 raise NoSuchBucket(req.container_name)
@@ -445,7 +454,9 @@ class ObjectController(Controller):
 
         if is_success(status):
             return resp
-        elif status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+        elif status == HTTP_UNAUTHORIZED:
+            raise SignatureDoesNotMatch()
+        elif status == HTTP_FORBIDDEN:
             raise AccessDenied()
         elif status == HTTP_NOT_FOUND:
             raise NoSuchKey(req.object_name)
@@ -476,7 +487,9 @@ class ObjectController(Controller):
         status = resp.status_int
 
         if status != HTTP_CREATED:
-            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+            if status == HTTP_UNAUTHORIZED:
+                raise SignatureDoesNotMatch()
+            elif status == HTTP_FORBIDDEN:
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
                 raise NoSuchBucket(req.container_name)
@@ -510,7 +523,9 @@ class ObjectController(Controller):
         status = resp.status_int
 
         if status != HTTP_NO_CONTENT:
-            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+            if status == HTTP_UNAUTHORIZED:
+                raise SignatureDoesNotMatch()
+            elif status == HTTP_FORBIDDEN:
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
                 raise NoSuchKey(req.object_name)
@@ -551,7 +566,9 @@ class AclController(Controller):
                 # Method must be GET or the body wont be returned to the caller
                 req.environ['REQUEST_METHOD'] = 'GET'
                 return get_acl(req.access_key, headers)
-            elif status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+            elif status == HTTP_UNAUTHORIZED:
+                raise SignatureDoesNotMatch()
+            elif status == HTTP_FORBIDDEN:
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
                 raise NoSuchKey(req.object_name)
@@ -567,7 +584,9 @@ class AclController(Controller):
             if is_success(status):
                 return get_acl(req.access_key, headers)
 
-            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+            if status == HTTP_UNAUTHORIZED:
+                raise SignatureDoesNotMatch()
+            elif status == HTTP_FORBIDDEN:
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
                 raise NoSuchBucket(req.container_name)
@@ -598,7 +617,9 @@ class AclController(Controller):
             status = resp.status_int
 
             if status != HTTP_ACCEPTED:
-                if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+                if status == HTTP_UNAUTHORIZED:
+                    raise SignatureDoesNotMatch()
+                elif status == HTTP_FORBIDDEN:
                     raise AccessDenied()
                 else:
                     raise InternalError()
@@ -619,7 +640,9 @@ class LocationController(Controller):
         status = resp.status_int
 
         if status != HTTP_OK:
-            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+            if status == HTTP_UNAUTHORIZED:
+                raise SignatureDoesNotMatch()
+            elif status == HTTP_FORBIDDEN:
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
                 raise NoSuchBucket(req.container_name)
@@ -651,7 +674,9 @@ class LoggingStatusController(Controller):
         status = resp.status_int
 
         if status != HTTP_OK:
-            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+            if status == HTTP_UNAUTHORIZED:
+                raise SignatureDoesNotMatch()
+            elif status == HTTP_FORBIDDEN:
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
                 raise NoSuchBucket(req.container_name)
@@ -813,7 +838,9 @@ class VersioningController(Controller):
         status = resp.status_int
 
         if status != HTTP_OK:
-            if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
+            if status == HTTP_UNAUTHORIZED:
+                raise SignatureDoesNotMatch()
+            elif status == HTTP_FORBIDDEN:
                 raise AccessDenied()
             elif status == HTTP_NOT_FOUND:
                 raise NoSuchBucket(req.container_name)

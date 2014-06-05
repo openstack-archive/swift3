@@ -203,7 +203,7 @@ class TestSwift3(unittest.TestCase):
 
     def test_service_GET_error(self):
         code = self._test_method_error('GET', '', swob.HTTPUnauthorized)
-        self.assertEquals(code, 'AccessDenied')
+        self.assertEquals(code, 'SignatureDoesNotMatch')
         code = self._test_method_error('GET', '', swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
         code = self._test_method_error('GET', '', swob.HTTPServerError)
@@ -234,7 +234,7 @@ class TestSwift3(unittest.TestCase):
 
     def test_bucket_GET_error(self):
         code = self._test_method_error('GET', '/bucket', swob.HTTPUnauthorized)
-        self.assertEquals(code, 'AccessDenied')
+        self.assertEquals(code, 'SignatureDoesNotMatch')
         code = self._test_method_error('GET', '/bucket', swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
         code = self._test_method_error('GET', '/bucket', swob.HTTPNotFound)
@@ -338,7 +338,7 @@ class TestSwift3(unittest.TestCase):
                                        headers={'Content-Length': '-1'})
         self.assertEqual(code, 'InvalidArgument')
         code = self._test_method_error('PUT', '/bucket', swob.HTTPUnauthorized)
-        self.assertEquals(code, 'AccessDenied')
+        self.assertEquals(code, 'SignatureDoesNotMatch')
         code = self._test_method_error('PUT', '/bucket', swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
         code = self._test_method_error('PUT', '/bucket', swob.HTTPAccepted)
@@ -356,7 +356,7 @@ class TestSwift3(unittest.TestCase):
     def test_bucket_DELETE_error(self):
         code = self._test_method_error('DELETE', '/bucket',
                                        swob.HTTPUnauthorized)
-        self.assertEquals(code, 'AccessDenied')
+        self.assertEquals(code, 'SignatureDoesNotMatch')
         code = self._test_method_error('DELETE', '/bucket', swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
         code = self._test_method_error('DELETE', '/bucket', swob.HTTPNotFound)
@@ -445,7 +445,7 @@ class TestSwift3(unittest.TestCase):
     def test_object_GET_error(self):
         code = self._test_method_error('GET', '/bucket/object',
                                        swob.HTTPUnauthorized)
-        self.assertEquals(code, 'AccessDenied')
+        self.assertEquals(code, 'SignatureDoesNotMatch')
         code = self._test_method_error('GET', '/bucket/object',
                                        swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
@@ -473,7 +473,7 @@ class TestSwift3(unittest.TestCase):
     def test_object_PUT_error(self):
         code = self._test_method_error('PUT', '/bucket/object',
                                        swob.HTTPUnauthorized)
-        self.assertEquals(code, 'AccessDenied')
+        self.assertEquals(code, 'SignatureDoesNotMatch')
         code = self._test_method_error('PUT', '/bucket/object',
                                        swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
@@ -523,7 +523,7 @@ class TestSwift3(unittest.TestCase):
     def test_object_DELETE_error(self):
         code = self._test_method_error('DELETE', '/bucket/object',
                                        swob.HTTPUnauthorized)
-        self.assertEquals(code, 'AccessDenied')
+        self.assertEquals(code, 'SignatureDoesNotMatch')
         code = self._test_method_error('DELETE', '/bucket/object',
                                        swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
