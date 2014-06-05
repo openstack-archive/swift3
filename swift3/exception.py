@@ -20,3 +20,7 @@ class S3Exception(Exception):
 
 class NotS3Request(S3Exception):
     pass
+
+
+class BadSwiftRequest(S3Exception):
+    pass

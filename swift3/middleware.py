@@ -52,26 +52,19 @@ following for an SAIO setup::
         calling_format=boto.s3.connection.OrdinaryCallingFormat())
 """
 
-from urllib import quote
 from simplejson import loads
 import re
 
 from swift.common.utils import get_logger
-from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
-    HTTP_NO_CONTENT, HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, HTTP_NOT_FOUND, \
-    HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, is_success, \
-    HTTP_REQUEST_ENTITY_TOO_LARGE
+from swift.common.http import HTTP_OK
 from swift.common.middleware.acl import parse_acl, referrer_allowed
 
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.exception import NotS3Request
 from swift3.request import Request
-from swift3.response import HTTPNoContent, HTTPOk, ErrorResponse, \
-    AccessDenied, BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
-    InternalError, InvalidArgument, InvalidDigest, MalformedACLError, \
-    MethodNotAllowed, NoSuchBucket, NoSuchKey, S3NotImplemented, \
-    SignatureDoesNotMatch
-
+from swift3.response import HTTPOk, ErrorResponse, AccessDenied, \
+    InternalError, InvalidArgument, MalformedACLError, MethodNotAllowed, \
+    NoSuchKey, S3NotImplemented
 
 XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
 
@@ -227,17 +220,7 @@ class ServiceController(Controller):
         """
         Handle GET Service request
         """
-        req.query_string = 'format=json'
-        resp = req.get_response(self.app)
-        status = resp.status_int
-
-        if status != HTTP_OK:
-            if status == HTTP_UNAUTHORIZED:
-                raise SignatureDoesNotMatch()
-            if status == HTTP_FORBIDDEN:
-                raise AccessDenied()
-            else:
-                raise InternalError()
+        resp = req.get_response(self.app, query={'format': 'json'})
 
         containers = loads(resp.body)
         # we don't keep the creation time of a backet (s3cmd doesn't
@@ -263,14 +246,7 @@ class BucketController(Controller):
         """
         Handle HEAD Bucket (Get Metadata) request
         """
-        if req.query_string:
-                req.query_string = ''
-
-        resp = req.get_response(self.app)
-        if resp.status_int == HTTP_NO_CONTENT:
-                resp.status_int = HTTP_OK
-
-        return resp
+        return req.get_response(self.app)
 
     def GET(self, req):
         """
@@ -283,26 +259,18 @@ class BucketController(Controller):
         max_keys = min(int(req.params.get('max-keys', MAX_BUCKET_LISTING)),
                        MAX_BUCKET_LISTING)
 
-        req.query_string = 'format=json&limit=%s' % (max_keys + 1)
+        query = {
+            'format': 'json',
+            'limit': max_keys + 1,
+        }
         if 'marker' in req.params:
-            req.query_string += '&marker=%s' % quote(req.params['marker'])
+            query.update({'marker': req.params['marker']})
         if 'prefix' in req.params:
-            req.query_string += '&prefix=%s' % quote(req.params['prefix'])
+            query.update({'prefix': req.params['prefix']})
         if 'delimiter' in req.params:
-            req.query_string += '&delimiter=%s' % \
-                quote(req.params['delimiter'])
-        resp = req.get_response(self.app)
-        status = resp.status_int
+            query.update({'delimiter': req.params['delimiter']})
 
-        if status != HTTP_OK:
-            if status == HTTP_UNAUTHORIZED:
-                raise SignatureDoesNotMatch()
-            if status == HTTP_FORBIDDEN:
-                raise AccessDenied()
-            elif status == HTTP_NOT_FOUND:
-                raise NoSuchBucket(req.container_name)
-            else:
-                raise InternalError()
+        resp = req.get_response(self.app, query=query)
 
         objects = loads(resp.body)
 
@@ -360,40 +328,16 @@ class BucketController(Controller):
                 req.headers[header] = acl
 
         resp = req.get_response(self.app)
-        status = resp.status_int
+        resp.status = HTTP_OK
+        resp.headers.update({'Location': req.container_name})
 
-        if status != HTTP_CREATED and status != HTTP_NO_CONTENT:
-            if status == HTTP_UNAUTHORIZED:
-                raise SignatureDoesNotMatch()
-            if status == HTTP_FORBIDDEN:
-                raise AccessDenied()
-            elif status == HTTP_ACCEPTED:
-                raise BucketAlreadyExists(req.container_name)
-            else:
-                raise InternalError()
-
-        return HTTPOk(headers={'Location': req.container_name})
+        return resp
 
     def DELETE(self, req):
         """
         Handle DELETE Bucket request
         """
-        resp = req.get_response(self.app)
-        status = resp.status_int
-
-        if status != HTTP_NO_CONTENT:
-            if status == HTTP_UNAUTHORIZED:
-                raise SignatureDoesNotMatch()
-            if status == HTTP_FORBIDDEN:
-                raise AccessDenied()
-            elif status == HTTP_NOT_FOUND:
-                raise NoSuchBucket(req.container_name)
-            elif status == HTTP_CONFLICT:
-                raise BucketNotEmpty()
-            else:
-                raise InternalError()
-
-        return HTTPNoContent()
+        return req.get_response(self.app)
 
     def POST(self, req):
         """
@@ -408,21 +352,10 @@ class ObjectController(Controller):
     """
     def GETorHEAD(self, req):
         resp = req.get_response(self.app)
-        status = resp.status_int
-
         if req.method == 'HEAD':
             resp.app_iter = None
 
-        if is_success(status):
-            return resp
-        elif status == HTTP_UNAUTHORIZED:
-            raise SignatureDoesNotMatch()
-        elif status == HTTP_FORBIDDEN:
-            raise AccessDenied()
-        elif status == HTTP_NOT_FOUND:
-            raise NoSuchKey(req.object_name)
-        else:
-            raise InternalError()
+        return resp
 
     def HEAD(self, req):
         """
@@ -441,21 +374,6 @@ class ObjectController(Controller):
         Handle PUT Object and PUT Object (Copy) request
         """
         resp = req.get_response(self.app)
-        status = resp.status_int
-
-        if status != HTTP_CREATED:
-            if status == HTTP_UNAUTHORIZED:
-                raise SignatureDoesNotMatch()
-            elif status == HTTP_FORBIDDEN:
-                raise AccessDenied()
-            elif status == HTTP_NOT_FOUND:
-                raise NoSuchBucket(req.container_name)
-            elif status == HTTP_UNPROCESSABLE_ENTITY:
-                raise InvalidDigest()
-            elif status == HTTP_REQUEST_ENTITY_TOO_LARGE:
-                raise EntityTooLarge()
-            else:
-                raise InternalError()
 
         if 'HTTP_X_COPY_FROM' in req.environ:
             elem = Element('CopyObjectResult')
@@ -463,7 +381,9 @@ class ObjectController(Controller):
             body = tostring(elem, use_s3ns=False)
             return HTTPOk(body=body)
 
-        return HTTPOk(etag=resp.etag)
+        resp.status = HTTP_OK
+
+        return resp
 
     def POST(self, req):
         raise AccessDenied()
@@ -472,24 +392,7 @@ class ObjectController(Controller):
         """
         Handle DELETE Object request
         """
-        try:
-            resp = req.get_response(self.app)
-        except Exception:
-            raise InternalError()
-
-        status = resp.status_int
-
-        if status != HTTP_NO_CONTENT:
-            if status == HTTP_UNAUTHORIZED:
-                raise SignatureDoesNotMatch()
-            elif status == HTTP_FORBIDDEN:
-                raise AccessDenied()
-            elif status == HTTP_NOT_FOUND:
-                raise NoSuchKey(req.object_name)
-            else:
-                raise InternalError()
-
-        return HTTPNoContent()
+        return req.get_response(self.app)
 
 
 class AclController(Controller):
@@ -507,48 +410,9 @@ class AclController(Controller):
         """
         Handles GET Bucket acl and GET Object acl.
         """
-        if req.object_name:
-            # Handle Object ACL
+        resp = req.get_response(self.app, method='HEAD')
 
-            # ACL requests need to make a HEAD call rather than GET
-            req.method = 'HEAD'
-            req.script_name = ''
-            req.query_string = ''
-
-            resp = req.get_response(self.app)
-            status = resp.status_int
-            headers = resp.headers
-
-            if is_success(status):
-                # Method must be GET or the body wont be returned to the caller
-                req.environ['REQUEST_METHOD'] = 'GET'
-                return get_acl(req.access_key, headers)
-            elif status == HTTP_UNAUTHORIZED:
-                raise SignatureDoesNotMatch()
-            elif status == HTTP_FORBIDDEN:
-                raise AccessDenied()
-            elif status == HTTP_NOT_FOUND:
-                raise NoSuchKey(req.object_name)
-            else:
-                raise InternalError()
-
-        else:
-            # Handle Bucket ACL
-            resp = req.get_response(self.app)
-            status = resp.status_int
-            headers = resp.headers
-
-            if is_success(status):
-                return get_acl(req.access_key, headers)
-
-            if status == HTTP_UNAUTHORIZED:
-                raise SignatureDoesNotMatch()
-            elif status == HTTP_FORBIDDEN:
-                raise AccessDenied()
-            elif status == HTTP_NOT_FOUND:
-                raise NoSuchBucket(req.container_name)
-            else:
-                raise InternalError()
+        return get_acl(req.access_key, resp.headers)
 
     def PUT(self, req):
         """
@@ -568,20 +432,12 @@ class AclController(Controller):
                 raise MalformedACLError()
             for header, acl in translated_acl:
                 req.headers[header] = acl
-            req.method = 'POST'
 
             resp = req.get_response(self.app)
-            status = resp.status_int
+            resp.status = HTTP_OK
+            resp.headers.update({'Location': req.container_name})
 
-            if status != HTTP_ACCEPTED:
-                if status == HTTP_UNAUTHORIZED:
-                    raise SignatureDoesNotMatch()
-                elif status == HTTP_FORBIDDEN:
-                    raise AccessDenied()
-                else:
-                    raise InternalError()
-
-            return HTTPOk(headers={'Location': req.container_name})
+            return resp
 
 
 class LocationController(Controller):
@@ -593,18 +449,7 @@ class LocationController(Controller):
         """
         Handles GET Bucket location.
         """
-        resp = req.get_response(self.app)
-        status = resp.status_int
-
-        if status != HTTP_OK:
-            if status == HTTP_UNAUTHORIZED:
-                raise SignatureDoesNotMatch()
-            elif status == HTTP_FORBIDDEN:
-                raise AccessDenied()
-            elif status == HTTP_NOT_FOUND:
-                raise NoSuchBucket(req.container_name)
-            else:
-                raise InternalError()
+        req.get_response(self.app, method='HEAD')
 
         elem = Element('LocationConstraint')
         if self.conf['location'] != 'US':
@@ -627,18 +472,7 @@ class LoggingStatusController(Controller):
         """
         Handles GET Bucket logging.
         """
-        resp = req.get_response(self.app)
-        status = resp.status_int
-
-        if status != HTTP_OK:
-            if status == HTTP_UNAUTHORIZED:
-                raise SignatureDoesNotMatch()
-            elif status == HTTP_FORBIDDEN:
-                raise AccessDenied()
-            elif status == HTTP_NOT_FOUND:
-                raise NoSuchBucket(req.container_name)
-            else:
-                raise InternalError()
+        req.get_response(self.app, method='HEAD')
 
         # logging disabled
         elem = Element('BucketLoggingStatus')
@@ -679,15 +513,10 @@ class MultiObjectDeleteController(Controller):
                 # TODO: delete the specific version of the object
                 raise S3NotImplemented()
 
-            sub_req = Request(req.environ.copy())
-            sub_req.query_string = ''
-            sub_req.content_length = 0
-            sub_req.method = 'DELETE'
-            sub_req.object_name = key
+            req.object_name = key
 
-            controller = ObjectController(self.app, self.conf)
             try:
-                controller.DELETE(sub_req)
+                req.get_response(self.app, method='DELETE')
             except NoSuchKey:
                 pass
             except ErrorResponse as e:
@@ -791,18 +620,7 @@ class VersioningController(Controller):
         """
         Handles GET Bucket versioning.
         """
-        resp = req.get_response(self.app)
-        status = resp.status_int
-
-        if status != HTTP_OK:
-            if status == HTTP_UNAUTHORIZED:
-                raise SignatureDoesNotMatch()
-            elif status == HTTP_FORBIDDEN:
-                raise AccessDenied()
-            elif status == HTTP_NOT_FOUND:
-                raise NoSuchBucket(req.container_name)
-            else:
-                raise InternalError()
+        req.get_response(self.app, method='HEAD')
 
         # Just report there is no versioning configured here.
         elem = Element('VersioningConfiguration')
