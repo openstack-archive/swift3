@@ -1005,7 +1005,7 @@ class Swift3Middleware(object):
                 req.headers['Authorization'] = \
                     'AWS %(AWSAccessKeyId)s:%(Signature)s' % req.params
             except KeyError:
-                return get_err_response('InvalidArgument')
+                return get_err_response('AccessDenied')
 
         if 'Authorization' not in req.headers:
             return self.app
@@ -1029,33 +1029,33 @@ class Swift3Middleware(object):
             return get_err_response('InvalidURI')
 
         if 'Date' in req.headers:
-            date = email.utils.parsedate(req.headers['Date'])
-            expdate = None
-            if date is None and 'Expires' in req.params:
-                d = email.utils.formatdate(float(req.params['Expires']))
-                expdate = email.utils.parsedate(d)
-
-                date = datetime.datetime.utcnow().timetuple()
-            elif date is None:
-                return get_err_response('AccessDenied')
-
-            epoch = datetime.datetime(1970, 1, 1, 0, 0, 0, 0)
-            delta = datetime.timedelta(seconds=60 * 5)
-
-            d1 = datetime.datetime(*date[0:6])
             now = datetime.datetime.utcnow()
-            if d1 < epoch:
-                return get_err_response('AccessDenied')
+            date = email.utils.parsedate(req.headers['Date'])
+            if 'Expires' in req.params:
+                try:
+                    d = email.utils.formatdate(float(req.params['Expires']))
+                except ValueError:
+                    return get_err_response('AccessDenied')
 
-            # If the standard date is too far ahead or behind, it is an error
-            if abs(d1 - now) > delta:
-                return get_err_response('RequestTimeTooSkewed')
-
-            # If there was an expiration date in the parameters, check it also
-            if expdate:
+                # check expiration
+                expdate = email.utils.parsedate(d)
                 ex = datetime.datetime(*expdate[0:6])
-                if (now > ex and (now - ex) > delta):
+                if now > ex:
+                    return get_err_response('AccessDenied')
+            elif date is not None:
+                epoch = datetime.datetime(1970, 1, 1, 0, 0, 0, 0)
+
+                d1 = datetime.datetime(*date[0:6])
+                if d1 < epoch:
+                    return get_err_response('AccessDenied')
+
+                # If the standard date is too far ahead or behind, it is an
+                # error
+                delta = datetime.timedelta(seconds=60 * 5)
+                if abs(d1 - now) > delta:
                     return get_err_response('RequestTimeTooSkewed')
+            else:
+                return get_err_response('AccessDenied')
 
         token = base64.urlsafe_b64encode(canonical_string(req))
 
