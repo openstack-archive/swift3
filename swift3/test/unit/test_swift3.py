@@ -719,8 +719,9 @@ class TestSwift3(unittest.TestCase):
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac'},
                             body=xml)
+        # FIXME: swift3 should handle invalid xml file
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '503')
+        self.assertEquals(self._get_error_code(body), 'InternalError')
 
 if __name__ == '__main__':
     unittest.main()
