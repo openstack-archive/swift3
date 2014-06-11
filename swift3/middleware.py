@@ -313,9 +313,10 @@ class Controller(object):
     """
     Base WSGI controller class for the middleware
     """
-    def __init__(self, req, app, account_name, token, container_name=None,
-                 object_name=None, **kwargs):
+    def __init__(self, req, app, account_name, token, conf,
+                 container_name=None, object_name=None, **kwargs):
         self.app = app
+        self.conf = conf
         self.account_name = account_name
         self.container_name = container_name
         self.object_name = object_name
@@ -739,8 +740,8 @@ class LocationController(Controller):
                 return get_err_response('InternalError')
 
         elem = Element('LocationConstraint')
-        if self.location != 'US':
-            elem.text = self.location
+        if self.conf['location'] != 'US':
+            elem.text = self.conf['location']
         body = tostring(elem, xml_declaration=True, encoding='UTF-8')
 
         return HTTPOk(body=body, content_type='application/xml')
@@ -1058,7 +1059,7 @@ class Swift3Middleware(object):
 
         token = base64.urlsafe_b64encode(canonical_string(req))
 
-        controller = controller(req, self.app, account, token, conf=self.conf,
+        controller = controller(req, self.app, account, token, self.conf,
                                 **path_parts)
 
         if hasattr(controller, req.method):

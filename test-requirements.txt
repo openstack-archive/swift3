@@ -3,3 +3,4 @@ sphinx
 nose
 openstack.nose_plugin
 coverage
+pylint
