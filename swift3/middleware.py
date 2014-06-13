@@ -66,7 +66,8 @@ from swift.common.utils import get_logger
 from swift.common.swob import Request
 from swift3.response import Response, HTTPForbidden, HTTPConflict, \
     HTTPBadRequest, HTTPMethodNotAllowed, HTTPNotFound, HTTPNotImplemented, \
-    HTTPLengthRequired, HTTPServiceUnavailable, HTTPNoContent, HTTPOk
+    HTTPLengthRequired, HTTPServiceUnavailable, HTTPNoContent, HTTPOk, \
+    HTTPInternalServerError
 from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_NO_CONTENT, HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, HTTP_NOT_FOUND, \
     HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, is_success, \
@@ -98,6 +99,9 @@ def get_err_response(code):
         (HTTPConflict, 'The requested bucket name is not available'),
         'BucketNotEmpty':
         (HTTPConflict, 'The bucket you tried to delete is not empty'),
+        'InternalError':
+        (HTTPInternalServerError, 'We encountered an internal error. '
+            'Please try again.'),
         'InvalidArgument':
         (HTTPBadRequest, 'Invalid Argument'),
         'InvalidBucketName':
@@ -407,7 +411,7 @@ class ServiceController(Controller):
             if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                 return get_err_response('AccessDenied')
             else:
-                return get_err_response('InvalidURI')
+                return get_err_response('InternalError')
 
         containers = loads(resp.body)
         # we don't keep the creation time of a backet (s3cmd doesn't
@@ -470,7 +474,7 @@ class BucketController(Controller):
             elif status == HTTP_NOT_FOUND:
                 return get_err_response('NoSuchBucket')
             else:
-                return get_err_response('InvalidURI')
+                return get_err_response('InternalError')
 
         objects = loads(resp.body)
         body = ('<?xml version="1.0" encoding="UTF-8"?>'
@@ -544,7 +548,7 @@ class BucketController(Controller):
             elif status == HTTP_ACCEPTED:
                 return get_err_response('BucketAlreadyExists')
             else:
-                return get_err_response('InvalidURI')
+                return get_err_response('InternalError')
 
         return HTTPOk(headers={'Location': self.container_name})
 
@@ -563,7 +567,7 @@ class BucketController(Controller):
             elif status == HTTP_CONFLICT:
                 return get_err_response('BucketNotEmpty')
             else:
-                return get_err_response('InvalidURI')
+                return get_err_response('InternalError')
 
         return HTTPNoContent()
 
@@ -594,7 +598,7 @@ class ObjectController(Controller):
         elif status == HTTP_NOT_FOUND:
             return get_err_response('NoSuchKey')
         else:
-            return get_err_response('InvalidURI')
+            return get_err_response('InternalError')
 
     def HEAD(self, req):
         """
@@ -642,7 +646,7 @@ class ObjectController(Controller):
             elif status == HTTP_REQUEST_ENTITY_TOO_LARGE:
                 return get_err_response('EntityTooLarge')
             else:
-                return get_err_response('InvalidURI')
+                return get_err_response('InternalError')
 
         if 'HTTP_X_COPY_FROM' in req.environ:
             body = '<CopyObjectResult>' \
@@ -662,7 +666,7 @@ class ObjectController(Controller):
         try:
             resp = req.get_response(self.app)
         except Exception:
-            return get_err_response('InvalidURI')
+            return get_err_response('InternalError')
 
         status = resp.status_int
 
@@ -672,7 +676,7 @@ class ObjectController(Controller):
             elif status == HTTP_NOT_FOUND:
                 return get_err_response('NoSuchKey')
             else:
-                return get_err_response('InvalidURI')
+                return get_err_response('InternalError')
 
         return HTTPNoContent()
 
@@ -713,7 +717,7 @@ class AclController(Controller):
             elif status == HTTP_NOT_FOUND:
                 return get_err_response('NoSuchKey')
             else:
-                return get_err_response('InvalidURI')
+                return get_err_response('InternalError')
 
         else:
             # Handle Bucket ACL
@@ -729,7 +733,7 @@ class AclController(Controller):
             elif status == HTTP_NOT_FOUND:
                 return get_err_response('NoSuchBucket')
             else:
-                return get_err_response('InvalidURI')
+                return get_err_response('InternalError')
 
     def PUT(self, req):
         """
@@ -760,7 +764,7 @@ class AclController(Controller):
                 elif status == HTTP_ACCEPTED:
                     return get_err_response('BucketAlreadyExists')
                 else:
-                    return get_err_response('InvalidURI')
+                    return get_err_response('InternalError')
 
                 return HTTPOk(headers={'Location': self.container_name})
 
@@ -783,7 +787,7 @@ class LocationController(Controller):
             elif status == HTTP_NOT_FOUND:
                 return get_err_response('NoSuchBucket')
             else:
-                return get_err_response('InvalidURI')
+                return get_err_response('InternalError')
 
         body = ('<?xml version="1.0" encoding="UTF-8"?>'
                 '<LocationConstraint '
@@ -817,7 +821,7 @@ class LoggingStatusController(Controller):
             elif status == HTTP_NOT_FOUND:
                 return get_err_response('NoSuchBucket')
             else:
-                return get_err_response('InvalidURI')
+                return get_err_response('InternalError')
 
         # logging disabled
         body = ('<?xml version="1.0" encoding="UTF-8"?>'
@@ -888,7 +892,8 @@ class MultiObjectDeleteController(Controller):
                 if status == HTTP_UNAUTHORIZED:
                     body += get_err_elem(key, 'AccessDenied', 'Access Denied')
                 else:
-                    body += get_err_elem(key, 'InvalidURI', 'Invalid URI')
+                    body += get_err_elem(key, 'InternalError',
+                                         'Internal Error')
 
         body += '</DeleteResult>\r\n'
         return HTTPOk(body=body)
@@ -989,7 +994,7 @@ class VersioningController(Controller):
             elif status == HTTP_NOT_FOUND:
                 return get_err_response('NoSuchBucket')
             else:
-                return get_err_response('InvalidURI')
+                return get_err_response('InternalError')
 
         # Just report there is no versioning configured here.
         body = ('<VersioningConfiguration '
