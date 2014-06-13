@@ -54,8 +54,7 @@ following for an SAIO setup::
 
 from urllib import quote
 import base64
-from xml.sax.saxutils import escape as xml_escape
-from xml.dom.minidom import parseString
+from lxml.etree import fromstring, tostring, Element, SubElement
 
 from simplejson import loads
 import email.utils
@@ -72,7 +71,9 @@ from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_NO_CONTENT, HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, HTTP_NOT_FOUND, \
     HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, is_success, \
     HTTP_REQUEST_ENTITY_TOO_LARGE
+from swift.common.middleware.acl import parse_acl, referrer_allowed
 
+XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
 
 MAX_BUCKET_LISTING = 1000
 
@@ -137,10 +138,24 @@ def get_err_response(code):
         (HTTPServiceUnavailable, 'Please reduce your request rate')}
 
     resp, message = error_table[code]
-    body = '<?xml version="1.0" encoding="UTF-8"?>\r\n<Error>\r\n  ' \
-        '<Code>%s</Code>\r\n  <Message>%s</Message>\r\n</Error>\r\n' \
-        % (code, message)
+
+    elem = Element('Error')
+    SubElement(elem, 'Code').text = code
+    SubElement(elem, 'Message').text = message
+    body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+
     return resp(body=body, content_type='text/xml')
+
+
+def add_canonical_user(parent, tag, user, nsmap=None):
+    """
+    Create an element for cannonical user.
+    """
+    elem = SubElement(parent, tag, nsmap=nsmap)
+    SubElement(elem, 'ID').text = user
+    SubElement(elem, 'DisplayName').text = user
+
+    return elem
 
 
 def get_acl(account_name, headers):
@@ -148,117 +163,39 @@ def get_acl(account_name, headers):
     Attempts to construct an S3 ACL based on what is found in the swift headers
     """
 
-    acl = 'private'  # default to private
+    elem = Element('AccessControlPolicy')
+    add_canonical_user(elem, 'Owner', account_name)
+    access_control_list = SubElement(elem, 'AccessControlList')
 
-    if 'x-container-read' in headers:
-        if headers['x-container-read'] == ".r:*" or\
-            ".r:*," in headers['x-container-read'] or \
-                ",*," in headers['x-container-read']:
-            acl = 'public-read'
-    if 'x-container-write' in headers:
-        if headers['x-container-write'] == ".r:*" or\
-            ".r:*," in headers['x-container-write'] or \
-                ",*," in headers['x-container-write']:
-            if acl == 'public-read':
-                acl = 'public-read-write'
-            else:
-                acl = 'public-write'
+    # grant FULL_CONTROL to myself by default
+    grant = SubElement(access_control_list, 'Grant')
+    grantee = add_canonical_user(grant, 'Grantee', account_name,
+                                 nsmap={'xsi': XMLNS_XSI})
+    grantee.set('{%s}type' % XMLNS_XSI, 'CanonicalUser')
+    SubElement(grant, 'Permission').text = 'FULL_CONTROL'
 
-    if acl == 'private':
-        body = ('<AccessControlPolicy>'
-                '<Owner>'
-                '<ID>%s</ID>'
-                '<DisplayName>%s</DisplayName>'
-                '</Owner>'
-                '<AccessControlList>'
-                '<Grant>'
-                '<Grantee xmlns:xsi="http://www.w3.org/2001/'
-                'XMLSchema-instance" xsi:type="CanonicalUser">'
-                '<ID>%s</ID>'
-                '<DisplayName>%s</DisplayName>'
-                '</Grantee>'
-                '<Permission>FULL_CONTROL</Permission>'
-                '</Grant>'
-                '</AccessControlList>'
-                '</AccessControlPolicy>' %
-                (account_name, account_name, account_name, account_name))
-    elif acl == 'public-read':
-        body = ('<AccessControlPolicy>'
-                '<Owner>'
-                '<ID>%s</ID>'
-                '<DisplayName>%s</DisplayName>'
-                '</Owner>'
-                '<AccessControlList>'
-                '<Grant>'
-                '<Grantee xmlns:xsi="http://www.w3.org/2001/'
-                'XMLSchema-instance" xsi:type="CanonicalUser">'
-                '<ID>%s</ID>'
-                '<DisplayName>%s</DisplayName>'
-                '</Grantee>'
-                '<Permission>FULL_CONTROL</Permission>'
-                '</Grant>'
-                '<Grant>'
-                '<Grantee xmlns:xsi="http://www.w3.org/2001/'
-                'XMLSchema-instance" xsi:type="Group">'
-                '<URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>'
-                '</Grantee>'
-                '<Permission>READ</Permission>'
-                '</Grant>'
-                '</AccessControlList>'
-                '</AccessControlPolicy>' %
-                (account_name, account_name, account_name, account_name))
-    elif acl == 'public-read-write':
-        body = ('<AccessControlPolicy>'
-                '<Owner>'
-                '<ID>%s</ID>'
-                '<DisplayName>%s</DisplayName>'
-                '</Owner>'
-                '<AccessControlList>'
-                '<Grant>'
-                '<Grantee xmlns:xsi="http://www.w3.org/2001/'
-                'XMLSchema-instance" xsi:type="CanonicalUser">'
-                '<ID>%s</ID>'
-                '<DisplayName>%s</DisplayName>'
-                '</Grantee>'
-                '<Permission>FULL_CONTROL</Permission>'
-                '</Grant>'
-                '<Grant>'
-                '<Grantee xmlns:xsi="http://www.w3.org/2001/'
-                'XMLSchema-instance" xsi:type="Group">'
-                '<URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>'
-                '</Grantee>'
-                '<Permission>READ</Permission>'
-                '</Grant>'
-                '</AccessControlList>'
-                '<AccessControlList>'
-                '<Grant>'
-                '<Grantee xmlns:xsi="http://www.w3.org/2001/'
-                'XMLSchema-instance" xsi:type="Group">'
-                '<URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>'
-                '</Grantee>'
-                '<Permission>WRITE</Permission>'
-                '</Grant>'
-                '</AccessControlList>'
-                '</AccessControlPolicy>' %
-                (account_name, account_name, account_name, account_name))
-    else:
-        body = ('<AccessControlPolicy>'
-                '<Owner>'
-                '<ID>%s</ID>'
-                '<DisplayName>%s</DisplayName>'
-                '</Owner>'
-                '<AccessControlList>'
-                '<Grant>'
-                '<Grantee xmlns:xsi="http://www.w3.org/2001/'
-                'XMLSchema-instance" xsi:type="CanonicalUser">'
-                '<ID>%s</ID>'
-                '<DisplayName>%s</DisplayName>'
-                '</Grantee>'
-                '<Permission>FULL_CONTROL</Permission>'
-                '</Grant>'
-                '</AccessControlList>'
-                '</AccessControlPolicy>' %
-                (account_name, account_name, account_name, account_name))
+    referrers, _ = parse_acl(headers.get('x-container-read'))
+    if referrer_allowed('unknown', referrers):
+        # grant public-read access
+        grant = SubElement(access_control_list, 'Grant')
+        grantee = SubElement(grant, 'Grantee', nsmap={'xsi': XMLNS_XSI})
+        grantee.set('{%s}type' % XMLNS_XSI, 'Group')
+        SubElement(grantee, 'URI').text = \
+            'http://acs.amazonaws.com/groups/global/AllUsers'
+        SubElement(grant, 'Permission').text = 'READ'
+
+    referrers, _ = parse_acl(headers.get('x-container-write'))
+    if referrer_allowed('unknown', referrers):
+        # grant public-write access
+        grant = SubElement(access_control_list, 'Grant')
+        grantee = SubElement(grant, 'Grantee', nsmap={'xsi': XMLNS_XSI})
+        grantee.set('{%s}type' % XMLNS_XSI, 'Group')
+        SubElement(grantee, 'URI').text = \
+            'http://acs.amazonaws.com/groups/global/AllUsers'
+        SubElement(grant, 'Permission').text = 'WRITE'
+
+    body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+
     return HTTPOk(body=body, content_type="text/plain")
 
 
@@ -323,13 +260,11 @@ def swift_acl_translate(acl, group='', user='', xml=False):
                             ['HTTP_X_CONTAINER_READ', '.']]
     if xml:
         # We are working with XML and need to parse it
-        dom = parseString(acl)
+        elem = fromstring(acl)
         acl = 'unknown'
-        for grant in dom.getElementsByTagName('Grant'):
-            permission = grant.getElementsByTagName('Permission')[0]\
-                .firstChild.data
-            grantee = grant.getElementsByTagName('Grantee')[0]\
-                .getAttributeNode('xsi:type').nodeValue
+        for grant in elem.findall('./AccessControlList/Grant'):
+            permission = grant.find('./Permission').text
+            grantee = grant.find('./Grantee').get('{%s}type' % XMLNS_XSI)
             if permission == "FULL_CONTROL" and grantee == 'CanonicalUser' and\
                     acl != 'public-read' and acl != 'public-read-write':
                 acl = 'private'
@@ -416,14 +351,16 @@ class ServiceController(Controller):
         containers = loads(resp.body)
         # we don't keep the creation time of a backet (s3cmd doesn't
         # work without that) so we use something bogus.
-        body = '<?xml version="1.0" encoding="UTF-8"?>' \
-               '<ListAllMyBucketsResult ' \
-               'xmlns="http://doc.s3.amazonaws.com/2006-03-01">' \
-               '<Buckets>%s</Buckets>' \
-               '</ListAllMyBucketsResult>' \
-               % ("".join(['<Bucket><Name>%s</Name><CreationDate>'
-                           '2009-02-03T16:45:09.000Z</CreationDate></Bucket>'
-                           % xml_escape(i['name']) for i in containers]))
+        elem = Element('ListAllMyBucketsResult')
+        buckets = SubElement(elem, 'Buckets')
+        for c in containers:
+            bucket = SubElement(buckets, 'Bucket')
+            SubElement(bucket, 'Name').text = c['name']
+            SubElement(bucket, 'CreationDate').text = \
+                '2009-02-03T16:45:09.000Z'
+
+        body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+
         return HTTPOk(content_type='application/xml', body=body)
 
 
@@ -477,37 +414,36 @@ class BucketController(Controller):
                 return get_err_response('InternalError')
 
         objects = loads(resp.body)
-        body = ('<?xml version="1.0" encoding="UTF-8"?>'
-                '<ListBucketResult '
-                'xmlns="http://s3.amazonaws.com/doc/2006-03-01">'
-                '<Prefix>%s</Prefix>'
-                '<Marker>%s</Marker>'
-                '<Delimiter>%s</Delimiter>'
-                '<IsTruncated>%s</IsTruncated>'
-                '<MaxKeys>%s</MaxKeys>'
-                '<Name>%s</Name>'
-                '%s'
-                '%s'
-                '</ListBucketResult>' %
-                (
-                xml_escape(req.params.get('prefix', '')),
-                xml_escape(req.params.get('marker', '')),
-                xml_escape(req.params.get('delimiter', '')),
-                'true' if max_keys > 0 and len(objects) == (max_keys + 1) else
-                'false',
-                max_keys,
-                xml_escape(self.container_name),
-                "".join(['<Contents><Key>%s</Key><LastModified>%sZ</LastModif'
-                        'ied><ETag>%s</ETag><Size>%s</Size><StorageClass>STA'
-                        'NDARD</StorageClass><Owner><ID>%s</ID><DisplayName>'
-                        '%s</DisplayName></Owner></Contents>' %
-                        (xml_escape(i['name']), i['last_modified'],
-                         i['hash'],
-                         i['bytes'], self.account_name, self.account_name)
-                         for i in objects[:max_keys] if 'subdir' not in i]),
-                "".join(['<CommonPrefixes><Prefix>%s</Prefix></CommonPrefixes>'
-                         % xml_escape(i['subdir'])
-                         for i in objects[:max_keys] if 'subdir' in i])))
+
+        elem = Element('ListBucketResult')
+        SubElement(elem, 'Prefix').text = req.params.get('prefix')
+        SubElement(elem, 'Marker').text = req.params.get('marker')
+        SubElement(elem, 'Delimiter').text = req.params.get('delimiter')
+        if max_keys > 0 and len(objects) == max_keys + 1:
+            is_truncated = 'true'
+        else:
+            is_truncated = 'false'
+        SubElement(elem, 'IsTruncated').text = is_truncated
+        SubElement(elem, 'MaxKeys').text = str(max_keys)
+        SubElement(elem, 'Name').text = self.container_name
+
+        for o in objects[:max_keys]:
+            if 'subdir' not in o:
+                contents = SubElement(elem, 'Contents')
+                SubElement(contents, 'Key').text = o['name']
+                SubElement(contents, 'LastModified').text = \
+                    o['last_modified'] + 'Z'
+                SubElement(contents, 'ETag').text = o['hash']
+                SubElement(contents, 'Size').text = str(o['bytes'])
+                add_canonical_user(contents, 'Owner', self.account_name)
+
+        for o in objects[:max_keys]:
+            if 'subdir' in o:
+                common_prefixes = SubElement(elem, 'CommonPrefixes')
+                SubElement(common_prefixes, 'Prefix').text = o['subdir']
+
+        body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+
         return HTTPOk(body=body, content_type='application/xml')
 
     def PUT(self, req):
@@ -649,9 +585,9 @@ class ObjectController(Controller):
                 return get_err_response('InternalError')
 
         if 'HTTP_X_COPY_FROM' in req.environ:
-            body = '<CopyObjectResult>' \
-                   '<ETag>"%s"</ETag>' \
-                   '</CopyObjectResult>' % resp.etag
+            elem = Element('CopyObjectResult')
+            SubElement(elem, 'ETag').text = '"%s"' % resp.etag
+            body = tostring(elem, xml_declaration=True, encoding='UTF-8')
             return HTTPOk(body=body)
 
         return HTTPOk(etag=resp.etag)
@@ -789,13 +725,11 @@ class LocationController(Controller):
             else:
                 return get_err_response('InternalError')
 
-        body = ('<?xml version="1.0" encoding="UTF-8"?>'
-                '<LocationConstraint '
-                'xmlns="http://s3.amazonaws.com/doc/2006-03-01/"')
-        if self.location == 'US':
-            body += '/>'
-        else:
-            body += ('>%s</LocationConstraint>' % self.location)
+        elem = Element('LocationConstraint')
+        if self.location != 'US':
+            elem.text = self.location
+        body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+
         return HTTPOk(body=body, content_type='application/xml')
 
 
@@ -824,9 +758,9 @@ class LoggingStatusController(Controller):
                 return get_err_response('InternalError')
 
         # logging disabled
-        body = ('<?xml version="1.0" encoding="UTF-8"?>'
-                '<BucketLoggingStatus '
-                'xmlns="http://doc.s3.amazonaws.com/2006-03-01" />')
+        elem = Element('BucketLoggingStatus')
+        body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+
         return HTTPOk(body=body, content_type='application/xml')
 
     def PUT(self, req):
@@ -846,31 +780,17 @@ class MultiObjectDeleteController(Controller):
         Handles Delete Multiple Objects.
         """
         def object_key_iter(xml):
-            dom = parseString(xml)
-            delete = dom.getElementsByTagName('Delete')[0]
-            for obj in delete.getElementsByTagName('Object'):
-                key = obj.getElementsByTagName('Key')[0].firstChild.data
-                version = None
-                if obj.getElementsByTagName('VersionId').length > 0:
-                    version = obj.getElementsByTagName('VersionId')[0]\
-                        .firstChild.data
+            elem = fromstring(xml)
+            for obj in elem.iterchildren('Object'):
+                key = obj.find('./Key').text
+                version = obj.find('./VersionId')
+                if version is not None:
+                    version = version.text
+
                 yield (key, version)
 
-        def get_deleted_elem(key):
-            return '  <Deleted>\r\n' \
-                   '    <Key>%s</Key>\r\n' \
-                   '  </Deleted>\r\n' % (key)
+        elem = Element('DeleteResult')
 
-        def get_err_elem(key, err_code, message):
-            return '  <Error>\r\n' \
-                   '    <Key>%s</Key>\r\n' \
-                   '    <Code>%s</Code>\r\n' \
-                   '    <Message>%s</Message>\r\n' \
-                   '  </Error>\r\n' % (key, err_code, message)
-
-        body = '<?xml version="1.0" encoding="UTF-8"?>\r\n' \
-               '<DeleteResult ' \
-               'xmlns="http://doc.s3.amazonaws.com/2006-03-01">\r\n'
         for key, version in object_key_iter(req.body):
             if version is not None:
                 # TODO: delete the specific version of the object
@@ -887,15 +807,20 @@ class MultiObjectDeleteController(Controller):
             status = sub_resp.status_int
 
             if status == HTTP_NO_CONTENT or status == HTTP_NOT_FOUND:
-                body += get_deleted_elem(key)
+                deleted = SubElement(elem, 'Deleted')
+                SubElement(deleted, 'Key').text = key
             else:
+                error = SubElement(elem, 'Error')
+                SubElement(error, 'Key').text = key
                 if status == HTTP_UNAUTHORIZED:
-                    body += get_err_elem(key, 'AccessDenied', 'Access Denied')
+                    SubElement(error, 'Code').text = 'AccessDenied'
+                    SubElement(error, 'Message').text = 'Access Denied'
                 else:
-                    body += get_err_elem(key, 'InternalError',
-                                         'Internal Error')
+                    SubElement(error, 'Code').text = 'InternalError'
+                    SubElement(error, 'Message').text = 'Internal Error'
 
-        body += '</DeleteResult>\r\n'
+        body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+
         return HTTPOk(body=body)
 
 
@@ -997,8 +922,9 @@ class VersioningController(Controller):
                 return get_err_response('InternalError')
 
         # Just report there is no versioning configured here.
-        body = ('<VersioningConfiguration '
-                'xmlns="http://s3.amazonaws.com/doc/2006-03-01/"/>')
+        elem = Element('VersioningConfiguration')
+        body = tostring(elem, xml_declaration=True, encoding='UTF-8')
+
         return HTTPOk(body=body, content_type="text/plain")
 
     def PUT(self, req):
