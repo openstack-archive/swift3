@@ -29,6 +29,8 @@ from swift.common.swob import Request
 from swift3 import middleware as swift3
 from swift3.test.unit.helpers import FakeSwift
 
+XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
+
 
 class FakeApp(object):
     def __init__(self):
@@ -107,6 +109,8 @@ class TestSwift3(unittest.TestCase):
 
         self.swift.register('PUT', '/v1/AUTH_test/bucket',
                             swob.HTTPCreated, {}, None)
+        self.swift.register('POST', '/v1/AUTH_test/bucket',
+                            swob.HTTPAccepted, {}, None)
         self.swift.register('DELETE', '/v1/AUTH_test/bucket',
                             swob.HTTPNoContent, {}, None)
 
@@ -385,6 +389,26 @@ class TestSwift3(unittest.TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         self._check_acl('test:tester', body)
+
+    def test_bucket_acl_PUT(self):
+        elem = Element('AccessControlPolicy')
+        owner = SubElement(elem, 'Owner')
+        SubElement(owner, 'ID').text = 'id'
+        acl = SubElement(elem, 'AccessControlList')
+        grant = SubElement(acl, 'Grant')
+        grantee = SubElement(grant, 'Grantee', nsmap={'xsi': XMLNS_XSI})
+        grantee.set('{%s}type' % XMLNS_XSI, 'Group')
+        SubElement(grantee, 'URI').text = \
+            'http://acs.amazonaws.com/groups/global/AllUsers'
+        SubElement(grant, 'Permission').text = 'READ'
+
+        xml = tostring(elem)
+        req = Request.blank('/bucket?acl',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            body=xml)
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
 
     def test_bucket_versioning_GET(self):
         bucket_name = 'junk'

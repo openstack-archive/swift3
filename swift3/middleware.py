@@ -695,15 +695,13 @@ class AclController(Controller):
             resp = req.get_response(self.app)
             status = resp.status_int
 
-            if status != HTTP_CREATED and status != HTTP_NO_CONTENT:
+            if status != HTTP_ACCEPTED:
                 if status in (HTTP_UNAUTHORIZED, HTTP_FORBIDDEN):
                     return get_err_response('AccessDenied')
-                elif status == HTTP_ACCEPTED:
-                    return get_err_response('BucketAlreadyExists')
                 else:
                     return get_err_response('InternalError')
 
-                return HTTPOk(headers={'Location': self.container_name})
+            return HTTPOk(headers={'Location': self.container_name})
 
 
 class LocationController(Controller):
