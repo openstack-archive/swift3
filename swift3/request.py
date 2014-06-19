@@ -26,12 +26,15 @@ from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_REQUESTED_RANGE_NOT_SATISFIABLE, HTTP_LENGTH_REQUIRED, \
     HTTP_BAD_REQUEST, HTTP_SERVICE_UNAVAILABLE
 
+from swift3.controllers import ServiceController, BucketController, \
+    ObjectController, AclController, MultiObjectDeleteController, \
+    LocationController, LoggingStatusController, PartController, \
+    UploadController, UploadsController, VersioningController
 from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     RequestTimeTooSkewed, Response, SignatureDoesNotMatch, \
     ServiceUnavailable, BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
     MissingContentLength
-
 from swift3.exception import NotS3Request, BadSwiftRequest
 
 # List of sub-resources that must be maintained as part of the HMAC
@@ -173,11 +176,6 @@ class Request(swob.Request):
 
     @property
     def controller(self):
-        from swift3.middleware import ServiceController, BucketController, \
-            ObjectController, AclController, MultiObjectDeleteController, \
-            LocationController, LoggingStatusController, PartController, \
-            UploadController, UploadsController, VersioningController
-
         if 'acl' in self.params:
             return AclController
         if 'delete' in self.params:
