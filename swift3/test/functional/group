@@ -1,0 +1,16 @@
+#
+# QA groups control file
+#
+# Defines test groups
+# - do not start group names with a digit
+# - test-group association are one line per test
+# - each test can be part of multiple groups
+#
+# auto:		tests that are run by defaul
+# quick:	test that take less than 30 seconds (normally)
+# bucket:	test bucket operations
+# object:	test object operations
+#
+001 auto quick
+002 auto quick
+003 auto quick

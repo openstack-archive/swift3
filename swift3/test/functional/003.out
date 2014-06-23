@@ -1,0 +1,29 @@
+QA output created by 003
+> s3curl --id tester -- -X PUT http://SWIFT_HOST/bucket... 200
+> s3curl --id tester -- -X PUT -T /dev/null http://SWIFT_HOST/bucket/sample.jpg... 200
+> s3curl --id tester -- -X PUT -T /dev/null http://SWIFT_HOST/bucket/photos/2006/January/sample.jpg... 200
+> s3curl --id tester -- -X PUT -T /dev/null http://SWIFT_HOST/bucket/photos/2006/February/sample2.jpg... 200
+> s3curl --id tester -- -X PUT -T /dev/null http://SWIFT_HOST/bucket/photos/2006/February/sample3.jpg... 200
+> s3curl --id tester -- -X PUT -T /dev/null http://SWIFT_HOST/bucket/pho/2006/February/sample4.jpg... 200
+> s3curl --id tester -- -X GET -D - http://SWIFT_HOST/bucket?delimiter=/&prefix=photos/2006/... 200
+HTTP/1.1 200 OK
+Content-Length: LENGTH
+Content-Type: application/xml
+Date: DATE
+X-Trans-Id: TXID
+
+<?xml version='1.0' encoding='UTF-8'?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Prefix>photos/2006/</Prefix>
+  <Marker/>
+  <Delimiter>/</Delimiter>
+  <IsTruncated>false</IsTruncated>
+  <MaxKeys>1000</MaxKeys>
+  <Name>bucket</Name>
+  <CommonPrefixes>
+    <Prefix>photos/2006/February/</Prefix>
+  </CommonPrefixes>
+  <CommonPrefixes>
+    <Prefix>photos/2006/January/</Prefix>
+  </CommonPrefixes>
+</ListBucketResult>
