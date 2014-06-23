@@ -1,0 +1,313 @@
+#!/bin/bash
+#
+# Copyright (C) 2009 Red Hat, Inc.
+# Copyright (c) 2000-2001 Silicon Graphics, Inc.  All Rights Reserved.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+#
+# standard filters
+#
+
+# Checks that given_value is in range of correct_value +/- tolerance.
+# Tolerance can be an absolute value or a percentage of the correct value
+# (see examples with tolerances below).
+# Outputs suitable message to stdout if it's not in range.
+#
+# A verbose option, -v, may be used as the LAST argument
+# 
+# e.g. 
+# foo: 0.0298 = 0.03 +/- 5%
+# _within_tolerance "foo" 0.0298 0.03 5%  
+# 
+# foo: 0.0298 = 0.03 +/- 0.01
+# _within_tolerance "foo" 0.0298 0.03 0.01
+#
+# foo: 0.0298 = 0.03 -0.01 +0.002
+# _within_tolerance "foo" 0.0298 0.03 0.01 0.002
+#
+# foo: verbose output of 0.0298 = 0.03 +/- 5% 
+# _within_tolerance "foo" 0.0298 0.03 5% -v 
+_within_tolerance()
+{
+  _name=$1
+  _given_val=$2
+  _correct_val=$3
+  _mintol=$4
+  _maxtol=$_mintol
+  _verbose=0
+  _debug=false
+
+  # maxtol arg is optional
+  # verbose arg is optional
+  if [ $# -ge 5 ]
+  then 
+     if [ "$5" = "-v" ]
+     then
+	_verbose=1
+     else
+        _maxtol=$5
+     fi
+  fi
+  if [ $# -ge 6 ]
+  then
+     [ "$6" = "-v" ] && _verbose=1
+  fi
+
+  # find min with or without %
+  _mintolerance=`echo $_mintol | sed -e 's/%//'` 
+  if [ $_mintol = $_mintolerance ]
+  then 
+      _min=`echo "scale=5; $_correct_val-$_mintolerance" | bc`
+  else
+      _min=`echo "scale=5; $_correct_val-$_mintolerance*0.01*$_correct_val" | bc`
+  fi
+
+  # find max with or without %
+  _maxtolerance=`echo $_maxtol | sed -e 's/%//'` 
+  if [ $_maxtol = $_maxtolerance ]
+  then 
+      _max=`echo "scale=5; $_correct_val+$_maxtolerance" | bc`
+  else
+      _max=`echo "scale=5; $_correct_val+$_maxtolerance*0.01*$_correct_val" | bc`
+  fi
+
+  $_debug && echo "min = $_min"
+  $_debug && echo "max = $_max"
+
+  cat <<EOF >$tmp.bc.1
+scale=5;
+if ($_min <= $_given_val) 1;
+if ($_min > $_given_val) 0; 
+EOF
+
+  cat <<EOF >$tmp.bc.2
+scale=5;
+if ($_given_val <= $_max) 1;
+if ($_given_val > $_max) 0;
+EOF
+
+  _above_min=`bc <$tmp.bc.1`
+  _below_max=`bc <$tmp.bc.2`
+
+  rm -f $tmp.bc.[12]
+
+  _in_range=`expr $_above_min \& $_below_max` 
+
+  # fix up min, max precision for output
+  # can vary for 5.3, 6.2
+  _min=`echo $_min | sed -e 's/0*$//'` # get rid of trailling zeroes
+  _max=`echo $_max | sed -e 's/0*$//'` # get rid of trailling zeroes
+
+  if [ $_in_range -eq 1 ] 
+  then
+	[ $_verbose -eq 1 ] && echo $_name is in range
+	return 0
+  else
+	[ $_verbose -eq 1 ] && echo $_name has value of $_given_val
+	[ $_verbose -eq 1 ] && echo $_name is NOT in range $_min .. $_max	
+	return 1
+  fi
+}
+
+# ctime(3) dates
+#
+_filter_date()
+{
+    sed -e 's/[A-Z][a-z][a-z] [A-Za-z][a-z][a-z]  *[0-9][0-9]* [0-9][0-9]:[0-9][0-9]:[0-9][0-9] [0-9][0-9][0-9][0-9]$/DATE/'
+}
+
+# ISO dates
+_filter_iso_date()
+{
+    sed -e 's/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9]/DATE/g'
+}
+
+_filter_short_date()
+{
+    sed -e 's/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]/DATE/g'
+}
+
+# remove trailing whitespace, some versions of sg3_utils do that
+_filter_spaces()
+{
+    sed -e 's/ *$//'
+}
+
+_filter_eol()
+{
+    tr -d '\r\n'
+}
+
+_filter_nop()
+{
+    cat
+}
+
+_filter_user()
+{
+
+    sed "s/${TENANT}:${ADMIN_USER}/ADMIN_USER/g" | \
+	sed "s/${TENANT}:${TESTER_USER}/TESTER/g" | \
+	sed "s/${TENANT}:${TESTER2_USER}/TESTER2/g"
+}
+
+_filter_tenant()
+{
+    sed -e 's/AUTH_[a-z0-9]*\>/TENANT/g'
+}
+
+_filter_timestamp()
+{
+    sed -e 's/[0-9]\{10\}\.[0-9]\{5\}/TIMESTAMP/g'
+}
+
+_filter_host()
+{
+    sed "s/$SWIFT_HOST/SWIFT_HOST/g"
+}
+
+_filter_s3_iso_date()
+{
+    sed -e 's/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]\.[0-9][0-9][0-9]Z/DATE/g'
+}
+
+_filter_upload_id()
+{
+    sed -e 's#<UploadId>[-_0-9a-zA-Z]*</#<UploadId>UPLOAD_ID</#g' \
+	-e 's#<NextUploadIdMarker>[-_0-9a-zA-Z]*</#<NextUploadIdMarker>UPLOAD_ID</#g' \
+	-e 's#uploadId=[-_0-9a-zA-Z]*#uploadId=UPLOAD_ID#g'
+}
+
+_filter_version_id()
+{
+    sed -e 's#^x-amz-version-id: [-_0-9a-zA-Z]*#x-amz-version-id: VERSION_ID#g' \
+	-e 's#<VersionId>[-_0-9a-zA-Z]*</#<VersionId>VERSION_ID</#g' \
+	-e 's#<NextVersionIdMarker>[-_0-9a-zA-Z]*</#<NextVersionIdMarker>VERSION_ID</#g' \
+	-e 's#versionId=[-_0-9a-zA-Z]*#versionId=VERSION_ID#g'
+}
+
+_filter_txid()
+{
+    sed -e 's/tx[a-z0-9]\{21\}-[a-z0-9]\{10\}\>/TXID/g'
+}
+
+_filter_etag()
+{
+    sed -e 's/\<[a-z0-9]\{32\}\>/ETAG/g'
+}
+
+_filter_header_date()
+{
+    sed -e 's/[A-Z][a-z][a-z], [0-9][0-9] [A-Z][a-z][a-z] [0-9]\{4\} [0-9][0-9]:[0-9][0-9]:[0-9][0-9] GMT/DATE/g'
+}
+
+_filter_header_content_length()
+{
+    sed -e 's/^Content-Length: [0-9]*$/Content-Length: LENGTH/g'
+}
+
+# This is not necessary after Swift merge swift3 patch
+_filter_header_capitalization()
+{
+    perl -pe '$_=lc($&).$'\'' if /^x-(amz|rgw)-.+?:/i' | \
+	perl -pe '$_="ETag:".$'\'' if /^etag:/i'
+}
+
+_filter_header()
+{
+    _filter_header_capitalization | _filter_header_date | _filter_user | \
+	_filter_upload_id | _filter_version_id | _filter_txid | _filter_etag | \
+	_filter_timestamp | _filter_header_content_length
+}
+
+_filter_body()
+{
+    local format=$1
+    local fmt_filter=""
+
+    case "$format"
+    in
+	xml)
+	    fmt_filter=_xmlindent
+	    ;;
+	json)
+	    fmt_filter=_jsonindent
+	    ;;
+	*)
+	    fmt_filter=_filter_nop
+	    ;;
+    esac
+
+    $fmt_filter | _filter_user | _filter_s3_iso_date | \
+	_filter_host | _filter_tenant | _filter_upload_id | \
+	_filter_version_id | _filter_txid | _filter_etag | \
+	_filter_timestamp
+}
+
+_filter_curl()
+{
+    local format=$1
+    local type=body
+    local status=""
+    local header=""
+    local body=""
+
+    while read line; do
+	line=$(echo -n $line | _filter_eol)
+	if [[ "$body" == "" && "$line" == HTTP/1.1* ]]; then
+	    type=status
+	fi
+
+	case "$type"
+	in
+	    status)
+		if [[ "$line" == *:* ]]; then
+		    type=header
+		    header="${header}${line}\n"
+		else
+		    status="${status}${line}\n"
+		fi
+		;;
+	    header)
+		if [ "$line" == "" ]; then
+		    type=body
+		else
+		    header="${header}${line}\n"
+		fi
+		;;
+	    body)
+		body="${body}${line}\n"
+		;;
+	esac
+    done
+
+    body="${body}${line}"
+
+    echo -en $status
+    if [ "$header" != "" ]; then
+	echo -en $header | _filter_header | sort -f
+	echo
+    fi
+    echo -en $body | _filter_body $format
+}
+
+_filter_curl_command()
+{
+    sed "s#$tmp#/TMP#g" | _filter_user | _filter_host | _filter_tenant | \
+	_filter_upload_id | _filter_version_id | _filter_txid | _filter_etag | \
+	_filter_timestamp
+}
+
+# make sure this script returns success
+/bin/true
