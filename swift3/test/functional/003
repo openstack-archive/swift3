@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# GET Bucket
+
+. ./common
+
+S3USER=tester
+
+_s3_put /bucket
+_s3_put /bucket/sample.jpg -T /dev/null
+_s3_put /bucket/photos/2006/January/sample.jpg -T /dev/null
+_s3_put /bucket/photos/2006/February/sample2.jpg -T /dev/null
+_s3_put /bucket/photos/2006/February/sample3.jpg -T /dev/null
+_s3_put /bucket/pho/2006/February/sample4.jpg -T /dev/null
+
+_s3_get /bucket?delimiter=/\&prefix=photos/2006/ -D - | _filter_curl xml

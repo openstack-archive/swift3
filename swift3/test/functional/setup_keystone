@@ -1,0 +1,73 @@
+export OS_AUTH_URL=http://localhost:35357/v2.0
+export OS_TENANT_NAME=admin
+export OS_USERNAME=admin
+export OS_PASSWORD=password
+
+export OS_TOKEN=ADMIN
+export OS_URL=http://localhost:35357/v2.0
+
+_get_id()
+{
+    awk '/ id / { print $4 }'
+}
+
+_add_user()
+{
+    local name=$1
+    local tenant=$2
+    local user=$3
+    local password=$4
+    local role=$5
+
+    TENANT_ID=$(openstack project list | awk "/ $tenant / { print \$2 }")
+    if [ "$TENANT_ID" == "" ]; then
+	# create a new tenant
+	TENANT_ID=$(openstack project create $tenant | _get_id)
+    fi
+
+    USER_ID=$(openstack user create $user --password=$password \
+        --project $TENANT_ID | _get_id)
+
+    if [ "$role" != "" ]; then
+	ROLE_ID=$(openstack role list | awk "/ $role / { print \$2 }")
+	if [ "$ROLE_ID" == "" ]; then
+	    # create a new role
+	    ROLE_ID=$(openstack role create $role | _get_id)
+	fi
+
+	openstack role add --user $USER_ID --project $TENANT_ID $ROLE_ID
+    fi
+
+    eval $(openstack ec2 credentials create --user $user --project $tenant \
+	-f shell -c access -c secret)
+    export ${name}_ACCESS_KEY=$access
+    export ${name}_SECRET_KEY=$secret
+}
+
+_create_swift_accounts()
+{
+    _add_user SERVICE service swift password admin
+    _add_user ADMIN test admin admin ResellerAdmin
+    _add_user TESTER test tester testing admin
+    _add_user TESTER2 test tester2 testing2 admin
+
+    SERVICE=$(openstack service create swift --type=object-store | _get_id)
+    openstack endpoint create $SERVICE \
+        --publicurl "http://localhost:8080/v1/AUTH_\$(tenant_id)s"
+}
+
+_setup_keystone()
+{
+    keystone-all --config-file conf/keystone.conf --debug > ${TEST_DIR}/log/keystone.log 2>&1 &
+    export keystone_pid=$!
+
+    mysql -uroot -ppassword -e "DROP DATABASE IF EXISTS keystone;"
+    mysql -uroot -ppassword -e "CREATE DATABASE keystone CHARACTER SET utf8;"
+
+    keystone-manage --config-file conf/keystone.conf --debug db_sync
+    keystone-manage --config-file conf/keystone.conf --debug pki_setup
+
+    _create_swift_accounts
+}
+
+_setup_keystone

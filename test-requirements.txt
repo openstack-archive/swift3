@@ -4,3 +4,4 @@ nose
 openstack.nose_plugin
 coverage
 pylint
+python-openstackclient
