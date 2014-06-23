@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# PUT Bucket
+
+. ./common
+
+echo '
+<CreateBucketConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+<LocationConstraint>US</LocationConstraint>
+</CreateBucketConfiguration>' > $tmp.default.xml
+
+S3USER=tester
+
+_s3_put /bucket -D - -T $tmp.default.xml | _filter_curl
