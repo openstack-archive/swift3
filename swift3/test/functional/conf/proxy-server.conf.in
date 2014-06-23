@@ -1,0 +1,73 @@
+[DEFAULT]
+bind_port = 8080
+user = %USER%
+swift_dir = %TEST_DIR%/etc
+devices = %TEST_DIR%
+mount_check = false
+workers = 1
+account_autocreate = true
+log_level = DEBUG
+
+[pipeline:main]
+pipeline = catch_errors proxy-logging cache swift3 %MIDDLEWARE% bulk slo proxy-logging proxy-server
+
+[app:proxy-server]
+use = egg:swift#proxy
+
+[filter:tempauth]
+use = egg:swift#tempauth
+user_test_admin = admin .admin .reseller_admin
+user_test_tester = testing
+user_test_tester2 = testing2
+
+[filter:swift3]
+use = egg:swift3#swift3
+#location = 'jp'
+storage_domain = localhost
+pretty_print_xml = true
+
+[filter:catch_errors]
+use = egg:swift#catch_errors
+
+[filter:proxy-logging]
+use = egg:swift#proxy_logging
+
+[filter:bulk]
+use = egg:swift#bulk
+
+[filter:slo]
+use = egg:swift#slo
+min_segment_size = 4
+
+[filter:dlo]
+use = egg:swift#dlo
+
+[filter:cache]
+use = egg:swift#memcache
+
+[filter:s3token]
+paste.filter_factory = keystone.middleware.s3_token:filter_factory
+auth_host = localhost
+auth_port = 35357
+auth_protocol = http
+auth_uri = http://localhost:5000/
+admin_tenant_name = service
+admin_user = swift
+admin_password = password
+cache = swift.cache
+
+[filter:authtoken]
+paste.filter_factory = keystoneclient.middleware.auth_token:filter_factory
+auth_host = localhost
+auth_port = 35357
+auth_protocol = http
+auth_uri = http://localhost:5000/
+admin_tenant_name = service
+admin_user = swift
+admin_password = password
+cache = swift.cache
+
+[filter:keystoneauth]
+use = egg:swift#keystoneauth
+operator_roles = admin, swiftoperator
+reseller_admin_role = ResellerAdmin
