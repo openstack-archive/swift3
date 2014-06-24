@@ -18,6 +18,5 @@ class Controller(object):
     """
     Base WSGI controller class for the middleware
     """
-    def __init__(self, app, conf, **kwargs):
+    def __init__(self, app, **kwargs):
         self.app = app
-        self.conf = conf
