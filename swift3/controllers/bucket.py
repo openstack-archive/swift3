@@ -21,8 +21,7 @@ from swift3.controllers.base import Controller
 from swift3.controllers.acl import add_canonical_user, swift_acl_translate
 from swift3.etree import Element, SubElement, tostring
 from swift3.response import HTTPOk, S3NotImplemented, InvalidArgument
-
-MAX_BUCKET_LISTING = 1000
+from swift3.cfg import CONF
 
 
 class BucketController(Controller):
@@ -43,8 +42,8 @@ class BucketController(Controller):
             if req.params.get('max-keys').isdigit() is False:
                 raise InvalidArgument('max-keys', req.params['max-keys'])
 
-        max_keys = min(int(req.params.get('max-keys', MAX_BUCKET_LISTING)),
-                       MAX_BUCKET_LISTING)
+        max_keys = int(req.params.get('max-keys', CONF.max_bucket_listing))
+        max_keys = min(max_keys, CONF.max_bucket_listing)
 
         query = {
             'format': 'json',

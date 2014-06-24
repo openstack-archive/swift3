@@ -16,6 +16,7 @@
 from swift3.controllers.base import Controller
 from swift3.etree import Element, tostring
 from swift3.response import HTTPOk
+from swift3.cfg import CONF
 
 
 class LocationController(Controller):
@@ -30,8 +31,8 @@ class LocationController(Controller):
         req.get_response(self.app, method='HEAD')
 
         elem = Element('LocationConstraint')
-        if self.conf['location'] != 'US':
-            elem.text = self.conf['location']
+        if CONF.location != 'US':
+            elem.text = CONF.location
         body = tostring(elem)
 
         return HTTPOk(body=body, content_type='application/xml')
