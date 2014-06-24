@@ -256,9 +256,8 @@ class TestSwift3Middleware(Swift3TestCase):
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac'},
                             body=xml)
-        # FIXME: swift3 should handle invalid xml file
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InternalError')
+        self.assertEquals(self._get_error_code(body), 'MalformedACLError')
 
     def _test_unsupported_resource(self, resource):
         req = Request.blank('/error?' + resource,

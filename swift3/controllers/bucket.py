@@ -61,16 +61,16 @@ class BucketController(Controller):
         objects = loads(resp.body)
 
         elem = Element('ListBucketResult')
+        SubElement(elem, 'Name').text = req.container_name
         SubElement(elem, 'Prefix').text = req.params.get('prefix')
         SubElement(elem, 'Marker').text = req.params.get('marker')
+        SubElement(elem, 'MaxKeys').text = str(max_keys)
         SubElement(elem, 'Delimiter').text = req.params.get('delimiter')
         if max_keys > 0 and len(objects) == max_keys + 1:
             is_truncated = 'true'
         else:
             is_truncated = 'false'
         SubElement(elem, 'IsTruncated').text = is_truncated
-        SubElement(elem, 'MaxKeys').text = str(max_keys)
-        SubElement(elem, 'Name').text = req.container_name
 
         for o in objects[:max_keys]:
             if 'subdir' not in o:
@@ -81,6 +81,7 @@ class BucketController(Controller):
                 SubElement(contents, 'ETag').text = o['hash']
                 SubElement(contents, 'Size').text = str(o['bytes'])
                 add_canonical_user(contents, 'Owner', req.user_id)
+                SubElement(contents, 'StorageClass').text = 'STANDARD'
 
         for o in objects[:max_keys]:
             if 'subdir' in o:

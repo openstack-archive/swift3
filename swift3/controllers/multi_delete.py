@@ -14,8 +14,10 @@
 # limitations under the License.
 
 from swift3.controllers.base import Controller
-from swift3.etree import Element, SubElement, fromstring, tostring
-from swift3.response import HTTPOk, S3NotImplemented, NoSuchKey, ErrorResponse
+from swift3.etree import Element, SubElement, fromstring, tostring, \
+    DocumentInvalid
+from swift3.response import HTTPOk, S3NotImplemented, NoSuchKey, \
+    ErrorResponse, MalformedXML
 
 
 class MultiObjectDeleteController(Controller):
@@ -28,7 +30,11 @@ class MultiObjectDeleteController(Controller):
         Handles Delete Multiple Objects.
         """
         def object_key_iter(xml):
-            elem = fromstring(xml)
+            try:
+                elem = fromstring(xml, 'Delete')
+            except DocumentInvalid:
+                raise MalformedXML()
+
             for obj in elem.iterchildren('Object'):
                 key = obj.find('./Key').text
                 version = obj.find('./VersionId')

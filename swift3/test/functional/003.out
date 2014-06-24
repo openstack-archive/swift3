@@ -14,12 +14,12 @@ X-Trans-Id: TXID
 
 <?xml version='1.0' encoding='UTF-8'?>
 <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Name>bucket</Name>
   <Prefix>photos/2006/</Prefix>
   <Marker/>
+  <MaxKeys>1000</MaxKeys>
   <Delimiter>/</Delimiter>
   <IsTruncated>false</IsTruncated>
-  <MaxKeys>1000</MaxKeys>
-  <Name>bucket</Name>
   <CommonPrefixes>
     <Prefix>photos/2006/February/</Prefix>
   </CommonPrefixes>
