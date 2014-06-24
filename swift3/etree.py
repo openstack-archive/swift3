@@ -15,6 +15,9 @@
 
 import lxml.etree
 from copy import deepcopy
+from pkg_resources import resource_stream
+
+from swift3.utils import camel_to_snake
 
 XMLNS_S3 = 'http://s3.amazonaws.com/doc/2006-03-01/'
 
@@ -36,9 +39,15 @@ def cleanup_namespaces(elem):
         cleanup_namespaces(e)
 
 
-def fromstring(text):
+def fromstring(text, root_tag=None):
     elem = lxml.etree.fromstring(text)
     cleanup_namespaces(elem)
+
+    if root_tag is not None:
+        # validate XML
+        path = 'schema/%s.rng' % camel_to_snake(root_tag)
+        rng = resource_stream(__name__, path)
+        lxml.etree.RelaxNG(file=rng).assertValid(elem)
 
     return elem
 

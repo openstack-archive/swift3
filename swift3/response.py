@@ -19,6 +19,7 @@ from functools import partial
 
 from swift.common import swob
 
+from swift3.utils import snake_to_camel
 from swift3.etree import Element, SubElement, tostring
 
 
@@ -167,8 +168,7 @@ class ErrorResponse(swob.HTTPException):
 
     def _dict_to_etree(self, parent, d):
         for key, value in d.items():
-            tag = key.title().replace('_', '')
-            tag = re.sub('\W', '', tag)
+            tag = re.sub('\W', '', snake_to_camel(key))
             elem = SubElement(parent, tag)
 
             if isinstance(value, (dict, DictMixin)):

@@ -97,7 +97,7 @@ def swift_acl_translate(acl, group='', user='', xml=False):
                             ['HTTP_X_CONTAINER_READ', '.']]
     if xml:
         # We are working with XML and need to parse it
-        elem = fromstring(acl)
+        elem = fromstring(acl, 'AccessControlPolicy')
         acl = 'unknown'
         for grant in elem.findall('./AccessControlList/Grant'):
             permission = grant.find('./Permission').text

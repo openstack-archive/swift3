@@ -59,8 +59,7 @@ class TestSwift3Service(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
-        elem = fromstring(body)
-        self.assertEquals(elem.tag, 'ListAllMyBucketsResult')
+        elem = fromstring(body, 'ListAllMyBucketsResult')
 
         all_buckets = elem.find('./Buckets')
         buckets = all_buckets.iterchildren('Bucket')
