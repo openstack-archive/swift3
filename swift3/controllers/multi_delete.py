@@ -28,7 +28,7 @@ class MultiObjectDeleteController(Controller):
         Handles Delete Multiple Objects.
         """
         def object_key_iter(xml):
-            elem = fromstring(xml)
+            elem = fromstring(xml, 'Delete')
             for obj in elem.iterchildren('Object'):
                 key = obj.find('./Key').text
                 version = obj.find('./VersionId')
