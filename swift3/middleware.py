@@ -59,6 +59,7 @@ from swift.common.utils import get_logger
 from swift3.exception import NotS3Request
 from swift3.request import Request
 from swift3.response import ErrorResponse, InternalError, MethodNotAllowed
+from swift3.cfg import CONF
 
 MAX_BUCKET_LISTING = 1000
 
@@ -99,10 +100,9 @@ def validate_bucket_name(name):
 
 class Swift3Middleware(object):
     """Swift3 S3 compatibility midleware"""
-    def __init__(self, app, conf, *args, **kwargs):
+    def __init__(self, app, *args, **kwargs):
         self.app = app
-        self.conf = conf
-        self.logger = get_logger(self.conf, log_route='swift3')
+        self.logger = get_logger(CONF, log_route='swift3')
 
     def __call__(self, env, start_response):
         try:
@@ -123,7 +123,7 @@ class Swift3Middleware(object):
         self.logger.debug('Calling Swift3 Middleware')
         self.logger.debug(req.__dict__)
 
-        controller = req.controller(self.app, self.conf)
+        controller = req.controller(self.app)
 
         if hasattr(controller, req.method):
             res = getattr(controller, req.method)(req)
@@ -135,10 +135,7 @@ class Swift3Middleware(object):
 
 def filter_factory(global_conf, **local_conf):
     """Standard filter factory to use the middleware with paste.deploy"""
-    conf = global_conf.copy()
-    conf.update(local_conf)
+    CONF.update(global_conf)
+    CONF.update(local_conf)
 
-    def swift3_filter(app):
-        return Swift3Middleware(app, conf)
-
-    return swift3_filter
+    return Swift3Middleware
