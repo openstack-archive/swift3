@@ -66,8 +66,7 @@ class TestSwift3Bucket(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
-        elem = fromstring(body)
-        self.assertEquals(elem.tag, 'ListBucketResult')
+        elem = fromstring(body, 'ListBucketResult')
         name = elem.find('./Name').text
         self.assertEquals(name, bucket_name)
 
@@ -90,7 +89,7 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'QUERY_STRING': 'max-keys=5'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        elem = fromstring(body)
+        elem = fromstring(body, 'ListBucketResult')
         self.assertEquals(elem.find('./IsTruncated').text, 'false')
 
         req = Request.blank('/%s' % bucket_name,
@@ -98,7 +97,7 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'QUERY_STRING': 'max-keys=4'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        elem = fromstring(body)
+        elem = fromstring(body, 'ListBucketResult')
         self.assertEquals(elem.find('./IsTruncated').text, 'true')
 
     def test_bucket_GET_max_keys(self):
@@ -109,7 +108,7 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'QUERY_STRING': 'max-keys=5'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        elem = fromstring(body)
+        elem = fromstring(body, 'ListBucketResult')
         self.assertEquals(elem.find('./MaxKeys').text, '5')
         _, path = self.swift.calls[-1]
         _, query_string = path.split('?')
@@ -121,7 +120,7 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'QUERY_STRING': 'max-keys=5000'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        elem = fromstring(body)
+        elem = fromstring(body, 'ListBucketResult')
         self.assertEquals(elem.find('./MaxKeys').text, '1000')
         _, path = self.swift.calls[-1]
         _, query_string = path.split('?')
@@ -135,7 +134,7 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'delimiter=a&marker=b&prefix=c'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        elem = fromstring(body)
+        elem = fromstring(body, 'ListBucketResult')
         self.assertEquals(elem.find('./Prefix').text, 'c')
         self.assertEquals(elem.find('./Marker').text, 'b')
         self.assertEquals(elem.find('./Delimiter').text, 'a')

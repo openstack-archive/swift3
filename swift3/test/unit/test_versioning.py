@@ -31,8 +31,7 @@ class TestSwift3Versioning(Swift3TestCase):
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        elem = fromstring(body)
-        self.assertEquals(elem.tag, 'VersioningConfiguration')
+        fromstring(body, 'VersioningConfiguration')
 
 if __name__ == '__main__':
     unittest.main()

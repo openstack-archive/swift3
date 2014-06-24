@@ -10,6 +10,10 @@ X-Trans-Id: TXID
 
 <?xml version='1.0' encoding='UTF-8'?>
 <ListAllMyBucketsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Owner>
+    <ID>TESTER</ID>
+    <DisplayName>TESTER</DisplayName>
+  </Owner>
   <Buckets>
     <Bucket>
       <Name>5ABCDEFGHIJKLMNOPQRSTUVWXYZ.5-6789</Name>

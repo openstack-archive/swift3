@@ -15,8 +15,20 @@
 
 import lxml.etree
 from copy import deepcopy
+from pkg_resources import resource_stream
+
+from swift.common.utils import get_logger
+
+from swift3.exception import S3Exception
+from swift3.utils import camel_to_snake
+from swift3.cfg import CONF
 
 XMLNS_S3 = 'http://s3.amazonaws.com/doc/2006-03-01/'
+
+LOGGER = get_logger(CONF, log_route='swift3')
+
+class DocumentInvalid(S3Exception, lxml.etree.DocumentInvalid):
+    pass
 
 
 def cleanup_namespaces(elem):
@@ -36,9 +48,23 @@ def cleanup_namespaces(elem):
         cleanup_namespaces(e)
 
 
-def fromstring(text):
+def fromstring(text, root_tag=None):
     elem = lxml.etree.fromstring(text)
     cleanup_namespaces(elem)
+
+    if root_tag is not None:
+        # validate XML
+        try:
+            path = 'schema/%s.rng' % camel_to_snake(root_tag)
+            rng = resource_stream(__name__, path)
+            lxml.etree.RelaxNG(file=rng).assertValid(elem)
+        except IOError as e:
+            # Probably, the schema file doesn't exist.
+            LOGGER.error(e)
+            raise
+        except lxml.etree.DocumentInvalid as e:
+            LOGGER.debug(e)
+            raise DocumentInvalid(e)
 
     return elem
 

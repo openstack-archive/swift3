@@ -29,8 +29,7 @@ class TestSwift3Acl(Swift3TestCase):
         super(TestSwift3Acl, self).setUp()
 
     def _check_acl(self, owner, body):
-        elem = fromstring(body)
-        self.assertEquals(elem.tag, 'AccessControlPolicy')
+        elem = fromstring(body, 'AccessControlPolicy')
         permission = elem.find('./AccessControlList/Grant/Permission').text
         self.assertEquals(permission, 'FULL_CONTROL')
         name = elem.find('./AccessControlList/Grant/Grantee/ID').text
