@@ -18,7 +18,8 @@ from swift.common.middleware.acl import parse_acl, referrer_allowed
 
 from swift3.controllers.base import Controller
 from swift3.response import HTTPOk, S3NotImplemented, MalformedACLError
-from swift3.etree import Element, SubElement, fromstring, tostring
+from swift3.etree import Element, SubElement, fromstring, tostring, \
+    DocumentInvalid
 
 XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
 
@@ -97,7 +98,10 @@ def swift_acl_translate(acl, group='', user='', xml=False):
                             ['HTTP_X_CONTAINER_READ', '.']]
     if xml:
         # We are working with XML and need to parse it
-        elem = fromstring(acl)
+        try:
+            elem = fromstring(acl, 'AccessControlPolicy')
+        except DocumentInvalid:
+            raise MalformedACLError()
         acl = 'unknown'
         for grant in elem.findall('./AccessControlList/Grant'):
             permission = grant.find('./Permission').text
