@@ -76,8 +76,7 @@ class Swift3TestCase(unittest.TestCase):
                             swob.HTTPNoContent, {}, None)
 
     def _get_error_code(self, body):
-        elem = fromstring(body)
-        self.assertEquals(elem.tag, 'Error')
+        elem = fromstring(body, 'Error')
         return elem.find('./Code').text
 
     def _test_method_error(self, method, path, response_class, headers={}):
