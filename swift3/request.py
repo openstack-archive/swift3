@@ -76,7 +76,7 @@ class Request(swob.Request):
             raise AccessDenied()
 
         if keyword != 'AWS':
-            raise AccessDenied()
+            raise NotS3Request
 
         try:
             access_key, signature = info.rsplit(':', 1)
