@@ -52,6 +52,7 @@ class Swift3TestCase(unittest.TestCase):
         unittest.TestCase.__init__(self, name)
         self.conf = {
             'log_level': 'debug',
+            'pretty_print_xml': True,
         }
 
     def setUp(self):
