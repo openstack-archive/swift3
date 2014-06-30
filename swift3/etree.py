@@ -16,6 +16,8 @@
 import lxml.etree
 from copy import deepcopy
 
+from swift3.cfg import CONF
+
 XMLNS_S3 = 'http://s3.amazonaws.com/doc/2006-03-01/'
 
 
@@ -53,7 +55,8 @@ def tostring(tree, use_s3ns=True):
         root.extend(deepcopy(tree.getchildren()))
         tree = root
 
-    return lxml.etree.tostring(tree, xml_declaration=True, encoding='UTF-8')
+    return lxml.etree.tostring(tree, xml_declaration=True, encoding='UTF-8',
+                               pretty_print=CONF.pretty_print_xml)
 
 
 Element = lxml.etree.Element
