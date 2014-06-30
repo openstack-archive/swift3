@@ -71,12 +71,12 @@ class Request(swob.Request):
             raise NotS3Request
 
         try:
-            keyword, info = self.headers['Authorization'].split(' ')
+            keyword, info = self.headers['Authorization'].split(' ', 1)
         except Exception:
             raise AccessDenied()
 
         if keyword != 'AWS':
-            raise AccessDenied()
+            raise NotS3Request
 
         try:
             access_key, signature = info.rsplit(':', 1)
