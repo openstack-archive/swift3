@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from swift3.controllers.base import Controller
+from swift3.controllers.base import Controller, UnsupportedController
 from swift3.controllers.service import ServiceController
 from swift3.controllers.bucket import BucketController
 from swift3.controllers.obj import ObjectController
@@ -40,4 +40,6 @@ __all__ = [
     'LocationController',
     'LoggingStatusController',
     'VersioningController',
+
+    'UnsupportedController',
 ]
