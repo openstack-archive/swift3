@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from swift3.response import S3NotImplemented
+
 
 class Controller(object):
     """
@@ -21,3 +23,11 @@ class Controller(object):
     def __init__(self, app, conf, **kwargs):
         self.app = app
         self.conf = conf
+
+
+class UnsupportedController(Controller):
+    """
+    Handles unsupported requests.
+    """
+    def __init__(self, app, conf, **kwargs):
+        raise S3NotImplemented('The requested resource is not implemented')

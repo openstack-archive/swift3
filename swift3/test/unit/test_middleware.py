@@ -247,5 +247,36 @@ class TestSwift3Middleware(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InternalError')
 
+    def _test_unsupported_resource(self, resource):
+        req = Request.blank('/error?' + resource,
+                            environ={'REQUEST_METHOD': 'GET',
+                                     'HTTP_AUTHORIZATION': 'AWS X:Y:Z'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'NotImplemented')
+
+    def test_notification(self):
+        self._test_unsupported_resource('notification')
+
+    def test_policy(self):
+        self._test_unsupported_resource('policy')
+
+    def test_request_payment(self):
+        self._test_unsupported_resource('requestPayment')
+
+    def test_torrent(self):
+        self._test_unsupported_resource('torrent')
+
+    def test_website(self):
+        self._test_unsupported_resource('website')
+
+    def test_cors(self):
+        self._test_unsupported_resource('cors')
+
+    def test_tagging(self):
+        self._test_unsupported_resource('tagging')
+
+    def test_restore(self):
+        self._test_unsupported_resource('restore')
+
 if __name__ == '__main__':
     unittest.main()

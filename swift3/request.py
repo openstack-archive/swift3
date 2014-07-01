@@ -29,7 +29,8 @@ from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
 from swift3.controllers import ServiceController, BucketController, \
     ObjectController, AclController, MultiObjectDeleteController, \
     LocationController, LoggingStatusController, PartController, \
-    UploadController, UploadsController, VersioningController
+    UploadController, UploadsController, VersioningController, \
+    UnsupportedController
 from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     RequestTimeTooSkewed, Response, SignatureDoesNotMatch, \
     ServiceUnavailable, BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
@@ -192,6 +193,11 @@ class Request(swob.Request):
             return UploadsController
         if 'versioning' in self.params:
             return VersioningController
+
+        unsupported = ('notification', 'policy', 'requestPayment', 'torrent',
+                       'website', 'cors', 'tagging', 'restore')
+        if set(unsupported) & set(self.params):
+            return UnsupportedController
 
         if self.container_name and self.object_name:
             return ObjectController
