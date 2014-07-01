@@ -131,6 +131,19 @@ class TestSwift3Middleware(Swift3TestCase):
                {'Content-Type': None,
                 'Date': 'Tue, 12 Jul 2011 10:52:57 +0000'})
 
+        verify('41ecd87e7329c33fea27826c1c9a6f91', '/bucket/object?cors', {})
+
+        verify('d91b062f375d8fab407d6dab41fd154e', '/bucket/object?tagging',
+               {})
+
+        verify('ebab878a96814b30eb178e27efb3973f', '/bucket/object?restore',
+               {})
+
+        verify('f6bf1b2d92b054350d3679d28739fc69', '/bucket/object?'
+               'response-cache-control&response-content-disposition&'
+               'response-content-encoding&response-content-language&'
+               'response-content-type&response-expires', {})
+
         str1 = canonical_string('/', headers=
                                 {'Content-Type': None,
                                  'X-Amz-Something': 'test'})
