@@ -110,20 +110,10 @@ class Response(swob.Response):
         return resp
 
 
-class StatusMap(object):
-    """
-    Similar to the StatusMap class in Swift, but returns swift3.Response
-    subclasses instead of swob.HTTPException.
-    """
-    def __getitem__(self, key):
-        return partial(Response, status=key)
-
-status_map = StatusMap()
-
-HTTPOk = status_map[200]
-HTTPCreated = status_map[201]
-HTTPAccepted = status_map[202]
-HTTPNoContent = status_map[204]
+HTTPOk = partial(Response, status=200)
+HTTPCreated = partial(Response, status=201)
+HTTPAccepted = partial(Response, status=202)
+HTTPNoContent = partial(Response, status=204)
 
 
 class ErrorResponse(swob.HTTPException):
