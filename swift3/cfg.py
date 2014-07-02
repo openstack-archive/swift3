@@ -14,4 +14,6 @@
 # limitations under the License.
 
 # Global config dictionary.
-CONF = {}
+CONF = {
+    'storage_domain': None,
+}
