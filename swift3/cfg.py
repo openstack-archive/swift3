@@ -53,4 +53,5 @@ class Config(dict):
 CONF = Config({
     'location': 'US',
     'max_bucket_listing': 1000,
+    'storage_domain': None,
 })
