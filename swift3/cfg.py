@@ -54,4 +54,5 @@ CONF = Config({
     'pretty_print_xml': False,
     'location': 'US',
     'max_bucket_listing': 1000,
+    'storage_domain': None,
 })
