@@ -22,9 +22,6 @@ user_test_tester2 = testing2 .admin
 
 [filter:swift3]
 use = egg:swift3#swift3
-#location = 'jp'
-storage_domain = localhost
-pretty_print_xml = true
 
 [filter:catch_errors]
 use = egg:swift#catch_errors
