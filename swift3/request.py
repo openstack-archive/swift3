@@ -43,7 +43,10 @@ from swift3.exception import NotS3Request, BadSwiftRequest
 ALLOWED_SUB_RESOURCES = sorted([
     'acl', 'delete', 'lifecycle', 'location', 'logging', 'notification',
     'partNumber', 'policy', 'requestPayment', 'torrent', 'uploads', 'uploadId',
-    'versionId', 'versioning', 'versions ', 'website'
+    'versionId', 'versioning', 'versions', 'website',
+    'response-cache-control', 'response-content-disposition',
+    'response-content-encoding', 'response-content-language',
+    'response-content-type', 'response-expires', 'cors', 'tagging', 'restore'
 ])
 
 
