@@ -33,7 +33,9 @@ class BucketController(Controller):
         """
         Handle HEAD Bucket (Get Metadata) request
         """
-        return req.get_response(self.app)
+        resp = req.get_response(self.app)
+
+        return HTTPOk(headers=resp.headers)
 
     def GET(self, req):
         """
