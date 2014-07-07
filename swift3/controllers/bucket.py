@@ -81,7 +81,7 @@ class BucketController(Controller):
                     o['last_modified'] + 'Z'
                 SubElement(contents, 'ETag').text = o['hash']
                 SubElement(contents, 'Size').text = str(o['bytes'])
-                add_canonical_user(contents, 'Owner', req.access_key)
+                add_canonical_user(contents, 'Owner', req.user_id)
 
         for o in objects[:max_keys]:
             if 'subdir' in o:
