@@ -277,6 +277,40 @@ class TestSwift3Middleware(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'MalformedACLError')
 
+    def test_invalid_metadata_directive(self):
+        req = Request.blank('/',
+                            environ={'REQUEST_METHOD': 'GET',
+                                     'HTTP_AUTHORIZATION': 'AWS X:Y:Z',
+                                     'HTTP_X_AMZ_METADATA_DIRECTIVE':
+                                     'invalid'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+
+    def test_invalid_storage_class(self):
+        req = Request.blank('/',
+                            environ={'REQUEST_METHOD': 'GET',
+                                     'HTTP_AUTHORIZATION': 'AWS X:Y:Z',
+                                     'HTTP_X_AMZ_STORAGE_CLASS': 'INVALID'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidStorageClass')
+
+    def _test_unsupported_header(self, header):
+        req = Request.blank('/error',
+                            environ={'REQUEST_METHOD': 'GET',
+                                     'HTTP_AUTHORIZATION': 'AWS X:Y:Z'},
+                            headers={'x-amz-' + header: 'value'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'NotImplemented')
+
+    def test_mfa(self):
+        self._test_unsupported_header('mfa')
+
+    def test_server_side_encryption(self):
+        self._test_unsupported_header('server-side-encryption')
+
+    def test_website_redirect_location(self):
+        self._test_unsupported_header('website-redirect-location')
+
     def _test_unsupported_resource(self, resource):
         req = Request.blank('/error?' + resource,
                             environ={'REQUEST_METHOD': 'GET',
