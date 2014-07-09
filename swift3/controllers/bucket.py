@@ -15,7 +15,7 @@
 
 from simplejson import loads
 
-from swift.common.http import HTTP_OK
+from swift.common.http import HTTP_OK, HTTP_NO_CONTENT
 
 from swift3.controllers.base import Controller
 from swift3.controllers.acl import add_canonical_user, swift_acl_translate
@@ -33,7 +33,11 @@ class BucketController(Controller):
         """
         Handle HEAD Bucket (Get Metadata) request
         """
-        return req.get_response(self.app)
+        resp = req.get_response(self.app)
+        if int(resp.status.split(' ')[0]) == HTTP_NO_CONTENT:
+            resp.status = HTTP_OK
+
+        return resp
 
     def GET(self, req):
         """
