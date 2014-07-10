@@ -34,6 +34,11 @@ class ServiceController(Controller):
         # we don't keep the creation time of a backet (s3cmd doesn't
         # work without that) so we use something bogus.
         elem = Element('ListAllMyBucketsResult')
+
+        owner = SubElement(elem, 'Owner')
+        SubElement(owner, 'ID').text = req.user_id
+        SubElement(owner, 'DisplayName').text = req.user_id
+
         buckets = SubElement(elem, 'Buckets')
         for c in containers:
             bucket = SubElement(buckets, 'Bucket')
