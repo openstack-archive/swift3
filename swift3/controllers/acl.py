@@ -138,7 +138,7 @@ class AclController(Controller):
         """
         resp = req.get_response(self.app, method='HEAD')
 
-        return get_acl(req.access_key, resp.headers)
+        return get_acl(req.user_id, resp.headers)
 
     def PUT(self, req):
         """

@@ -61,6 +61,7 @@ class Request(swob.Request):
         self.container_name, self.object_name = self.split_path(0, 2, True)
         self._validate_headers()
         self.token = base64.urlsafe_b64encode(self._canonical_string())
+        self.user_id = None
 
     def _parse_authorization(self):
         if 'AWSAccessKeyId' in self.params:
@@ -371,6 +372,16 @@ class Request(swob.Request):
         sw_resp = sw_req.get_response(app)
         resp = Response.from_swift_resp(sw_resp)
         status = resp.status_int  # pylint: disable-msg=E1101
+
+        if 'HTTP_X_USER_NAME' in sw_resp.environ:
+            # keystone
+            self.user_id = "%s:%s" % (sw_resp.environ['HTTP_X_TENANT_NAME'],
+                                      sw_resp.environ['HTTP_X_USER_NAME'])
+            if isinstance(self.user_id, unicode):
+                self.user_id = self.user_id.encode('utf8')
+        else:
+            # tempauth
+            self.user_id = self.access_key
 
         success_codes = self._swift_success_codes(method)
         error_codes = self._swift_error_codes(method)
