@@ -277,6 +277,13 @@ class TestSwift3Middleware(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'MalformedACLError')
 
+    def test_invalid_uri(self):
+        req = Request.blank('/bucket/invalid\xffname',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidURI')
+
     def _test_unsupported_resource(self, resource):
         req = Request.blank('/error?' + resource,
                             environ={'REQUEST_METHOD': 'GET',

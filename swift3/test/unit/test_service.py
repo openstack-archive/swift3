@@ -45,11 +45,11 @@ class TestSwift3Service(Swift3TestCase):
         self.setup_buckets()
 
     def test_service_GET_error(self):
-        code = self._test_method_error('GET', '', swob.HTTPUnauthorized)
+        code = self._test_method_error('GET', '/', swob.HTTPUnauthorized)
         self.assertEquals(code, 'SignatureDoesNotMatch')
-        code = self._test_method_error('GET', '', swob.HTTPForbidden)
+        code = self._test_method_error('GET', '/', swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
-        code = self._test_method_error('GET', '', swob.HTTPServerError)
+        code = self._test_method_error('GET', '/', swob.HTTPServerError)
         self.assertEquals(code, 'InternalError')
 
     def test_service_GET(self):
