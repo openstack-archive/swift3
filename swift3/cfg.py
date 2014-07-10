@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2014 OpenStack Foundation.
+# Copyright (c) 2014 OpenStack Foundation.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,20 +13,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from swift3.response import S3NotImplemented
-
-
-class Controller(object):
-    """
-    Base WSGI controller class for the middleware
-    """
-    def __init__(self, app, **kwargs):
-        self.app = app
-
-
-class UnsupportedController(Controller):
-    """
-    Handles unsupported requests.
-    """
-    def __init__(self, app, **kwargs):
-        raise S3NotImplemented('The requested resource is not implemented')
+# Global config dictionary.
+CONF = {}
