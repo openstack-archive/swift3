@@ -48,6 +48,13 @@ class TestSwift3Bucket(Swift3TestCase):
 
         self.setup_objects()
 
+    def test_bucket_HEAD(self):
+        req = Request.blank('/junk',
+                            environ={'REQUEST_METHOD': 'HEAD'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+
     def test_bucket_GET_error(self):
         code = self._test_method_error('GET', '/bucket', swob.HTTPUnauthorized)
         self.assertEquals(code, 'SignatureDoesNotMatch')
