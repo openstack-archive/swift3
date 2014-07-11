@@ -40,6 +40,8 @@ class TestSwift3Bucket(Swift3TestCase):
         object_list = '[' + ','.join(json_out) + ']'
         self.swift.register('HEAD', '/v1/AUTH_test/junk', swob.HTTPNoContent,
                             {}, None)
+        self.swift.register('HEAD', '/v1/AUTH_test/nojunk', swob.HTTPNotFound,
+                            {}, None)
         self.swift.register('GET', '/v1/AUTH_test/junk', swob.HTTPOk, {},
                             object_list)
 
@@ -54,6 +56,27 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
+
+    def test_bucket_HEAD_error(self):
+        req = Request.blank('/nojunk',
+                            environ={'REQUEST_METHOD': 'HEAD'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '404')
+
+    def test_bucket_HEAD_slash(self):
+        req = Request.blank('/junk/',
+                            environ={'REQUEST_METHOD': 'HEAD'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+
+    def test_bucket_HEAD_slash_error(self):
+        req = Request.blank('/nojunk/',
+                            environ={'REQUEST_METHOD': 'HEAD'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '404')
 
     def test_bucket_GET_error(self):
         code = self._test_method_error('GET', '/bucket', swob.HTTPUnauthorized)
