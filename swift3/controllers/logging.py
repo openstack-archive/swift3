@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from swift3.controllers.base import Controller
+from swift3.controllers.base import Controller, bucket_operation
 from swift3.etree import Element, tostring
 from swift3.response import HTTPOk, S3NotImplemented
 
@@ -27,6 +27,7 @@ class LoggingStatusController(Controller):
 
     Those APIs are logged as LOGGING_STATUS operations in the S3 server log.
     """
+    @bucket_operation
     def GET(self, req):
         """
         Handles GET Bucket logging.
@@ -39,6 +40,7 @@ class LoggingStatusController(Controller):
 
         return HTTPOk(body=body, content_type='application/xml')
 
+    @bucket_operation
     def PUT(self, req):
         """
         Handles PUT Bucket logging.
