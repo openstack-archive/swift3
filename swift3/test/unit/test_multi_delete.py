@@ -28,6 +28,20 @@ class TestSwift3MultiDelete(Swift3TestCase):
     def setUp(self):
         super(TestSwift3MultiDelete, self).setUp()
 
+    def test_object_multi_DELETE_to_object(self):
+        elem = Element('Delete')
+        obj = SubElement(elem, 'Object')
+        SubElement(obj, 'Key').text = 'object'
+        body = tostring(elem, use_s3ns=False)
+
+        req = Request.blank('/bucket/object?delete',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            body=body)
+
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+
     def test_object_multi_DELETE(self):
         self.swift.register('DELETE', '/v1/AUTH_test/bucket/Key1',
                             swob.HTTPNoContent, {}, None)
