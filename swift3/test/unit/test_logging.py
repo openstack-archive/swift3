@@ -18,35 +18,27 @@ import unittest
 from swift.common.swob import Request
 
 from swift3.test.unit import Swift3TestCase
-from swift3.etree import fromstring
 
 
-class TestSwift3Versioning(Swift3TestCase):
+class TestSwift3Logging(Swift3TestCase):
 
     def setUp(self):
-        super(TestSwift3Versioning, self).setUp()
+        super(TestSwift3Logging, self).setUp()
 
-    def test_object_versioning_GET(self):
-        req = Request.blank('/bucket/object?versioning',
+
+    def test_object_logging_GET(self):
+        req = Request.blank('/bucket/object?logging',
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
-        fromstring(body, 'VersioningConfiguration')
+        self.assertEquals(self._get_error_code(body), 'NoLoggingStatusForKey')
 
-    def test_object_versioning_PUT(self):
-        req = Request.blank('/bucket/object?versioning',
+    def test_object_logging_PUT(self):
+        req = Request.blank('/bucket/object?logging',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'NotImplemented')
-
-    def test_bucket_versioning_GET(self):
-        req = Request.blank('/bucket?versioning',
-                            environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
-        status, headers, body = self.call_swift3(req)
-        fromstring(body, 'VersioningConfiguration')
+        self.assertEquals(self._get_error_code(body), 'NoLoggingStatusForKey')
 
 if __name__ == '__main__':
     unittest.main()
