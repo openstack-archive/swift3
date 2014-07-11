@@ -13,7 +13,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from swift3.response import S3NotImplemented
+import functools
+
+from swift3.response import S3NotImplemented, InvalidRequest
+
+def bucket_operation(func):
+    """
+    A decorator to ensure that the request is a bucket operation.
+    """
+    @functools.wraps(func)
+    def wrapped(self, req):
+        if not req.is_bucket_request:
+            raise InvalidRequest('The requested sub-resource is not allowed '
+                                 'for a key.')
+
+        return func(self, req)
+
+    return wrapped
+
+def object_operation(func):
+    """
+    A decorator to ensure that the request is an object operation.
+    """
+    @functools.wraps(func)
+    def wrapped(self, req):
+        if not req.is_object_request:
+            raise InvalidRequest('A key is not expected for the requested '
+                                 'sub-resource.')
+
+        return func(self, req)
+
+    return wrapped
 
 
 class Controller(object):
