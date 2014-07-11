@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from swift3.controllers.base import Controller
+from swift3.controllers.base import Controller, bucket_operation, \
+    object_operation
 
 
 class PartController(Controller):
@@ -25,6 +26,7 @@ class PartController(Controller):
 
     Those APIs are logged as PART operations in the S3 server log.
     """
+    @object_operation
     def PUT(self, req):
         """
         Handles Upload Part and Upload Part Copy.
@@ -42,6 +44,7 @@ class UploadsController(Controller):
 
     Those APIs are logged as UPLOADS operations in the S3 server log.
     """
+    @bucket_operation
     def GET(self, req):
         """
         Handles List Multipart Uploads
@@ -49,6 +52,7 @@ class UploadsController(Controller):
         # Pass it through, the s3multi upload helper will handle it.
         return req.get_response(self.app)
 
+    @object_operation
     def POST(self, req):
         """
         Handles Initiate Multipart Upload.
@@ -67,6 +71,7 @@ class UploadController(Controller):
 
     Those APIs are logged as UPLOAD operations in the S3 server log.
     """
+    @object_operation
     def GET(self, req):
         """
         Handles List Parts.
@@ -74,6 +79,7 @@ class UploadController(Controller):
         # Pass it through, the s3multi upload helper will handle it.
         return req.get_response(self.app)
 
+    @object_operation
     def DELETE(self, req):
         """
         Handles Abort Multipart Upload.
@@ -81,6 +87,7 @@ class UploadController(Controller):
         # Pass it through, the s3multi upload helper will handle it.
         return req.get_response(self.app)
 
+    @object_operation
     def POST(self, req):
         """
         Handles Complete Multipart Upload.
