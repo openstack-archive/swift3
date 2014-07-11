@@ -37,6 +37,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
     MissingContentLength
 from swift3.exception import NotS3Request, BadSwiftRequest
+from swift3.cfg import CONF
 
 # List of sub-resources that must be maintained as part of the HMAC
 # signature string.
@@ -58,10 +59,41 @@ class Request(swob.Request):
         swob.Request.__init__(self, env)
 
         self.access_key, self.signature = self._parse_authorization()
-        self.container_name, self.object_name = self.split_path(0, 2, True)
+        self.bucket_in_host = self._parse_host()
+        self.container_name, self.object_name = self._parse_uri()
         self._validate_headers()
         self.token = base64.urlsafe_b64encode(self._canonical_string())
         self.user_id = None
+
+    def _parse_host(self):
+        storage_domain = CONF.get('storage_domain')
+        if not storage_domain:
+            return None
+
+        if not storage_domain.startswith('.'):
+            storage_domain = '.' + storage_domain
+
+        if 'HTTP_HOST' in self.environ:
+            given_domain = self.environ['HTTP_HOST']
+        elif 'SERVER_NAME' in self.environ:
+            given_domain = self.environ['SERVER_NAME']
+        else:
+            return None
+
+        port = ''
+        if ':' in given_domain:
+            given_domain, port = given_domain.rsplit(':', 1)
+        if given_domain.endswith(storage_domain):
+            return given_domain[:-len(storage_domain)]
+
+        return None
+
+    def _parse_uri(self):
+        if self.bucket_in_host:
+            obj = self.environ['PATH_INFO'][1:] or None
+            return self.bucket_in_host, obj
+
+        return self.split_path(0, 2, True)
 
     def _parse_authorization(self):
         if 'AWSAccessKeyId' in self.params:
@@ -143,6 +175,12 @@ class Request(swob.Request):
             if self.headers['ETag'] == '':
                 raise SignatureDoesNotMatch()
 
+    def _canonical_uri(self):
+        raw_path_info = self.environ.get('RAW_PATH_INFO', self.path)
+        if self.bucket_in_host:
+            raw_path_info = '/' + self.bucket_in_host + raw_path_info
+        return raw_path_info
+
     def _canonical_string(self):
         """
         Canonicalize a request to a token that can be signed.
@@ -165,7 +203,7 @@ class Request(swob.Request):
         for k in sorted(key.lower() for key in amz_headers):
             buf += "%s:%s\n" % (k, amz_headers[k])
 
-        path = self.environ.get('RAW_PATH_INFO', self.path)
+        path = self._canonical_uri()
         if self.query_string:
             path += '?' + self.query_string
         if '?' in path:

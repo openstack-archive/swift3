@@ -189,6 +189,24 @@ class TestSwift3Middleware(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'AccessDenied')
 
+    def test_bucket_virtual_hosted_style(self):
+        req = Request.blank('/',
+                            environ={'HTTP_HOST': 'bucket.localhost:80',
+                                     'REQUEST_METHOD': 'HEAD',
+                                     'HTTP_AUTHORIZATION':
+                                     'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+
+    def test_object_virtual_hosted_style(self):
+        req = Request.blank('/object',
+                            environ={'HTTP_HOST': 'bucket.localhost:80',
+                                     'REQUEST_METHOD': 'HEAD',
+                                     'HTTP_AUTHORIZATION':
+                                     'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+
     def test_token_generation(self):
         req = Request.blank('/bucket/object?uploadId=123456789abcdef'
                             '&partNumber=1',
