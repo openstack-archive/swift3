@@ -35,7 +35,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     RequestTimeTooSkewed, Response, SignatureDoesNotMatch, \
     ServiceUnavailable, BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
-    MissingContentLength
+    MissingContentLength, InvalidStorageClass, S3NotImplemented
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.cfg import CONF
 
@@ -174,6 +174,27 @@ class Request(swob.Request):
                 raise InvalidDigest()
             if self.headers['ETag'] == '':
                 raise SignatureDoesNotMatch()
+
+        if 'x-amz-metadata-directive' in self.headers:
+            value = self.headers['x-amz-metadata-directive']
+            if value not in ('COPY', 'REPLACE'):
+                err_msg = 'Unknown metadata directive.'
+                raise InvalidArgument('x-amz-metadata-directive', value,
+                                      err_msg)
+
+        if 'x-amz-storage-class' in self.headers:
+            # Only STANDARD is supported now.
+            if self.headers['x-amz-storage-class'] != 'STANDARD':
+                raise InvalidStorageClass()
+
+        if 'x-amz-mfa' in self.headers:
+            raise S3NotImplemented('MFA Delete is not supported.')
+
+        if 'x-amz-server-side-encryption' in self.headers:
+            raise S3NotImplemented('Server-side encryption is not supported.')
+
+        if 'x-amz-website-redirect-location' in self.headers:
+            raise S3NotImplemented('Website redirection is not supported.')
 
     def _canonical_uri(self):
         raw_path_info = self.environ.get('RAW_PATH_INFO', self.path)

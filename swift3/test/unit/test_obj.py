@@ -111,7 +111,7 @@ class TestSwift3Obj(Swift3TestCase):
             '/bucket/object',
             environ={'REQUEST_METHOD': 'PUT'},
             headers={'Authorization': 'AWS test:tester:hmac',
-                     'x-amz-storage-class': 'REDUCED_REDUNDANCY',
+                     'x-amz-storage-class': 'STANDARD',
                      'Content-MD5': 'Gyz1NfJ3Mcl0NDZFo5hTKA=='})
         req.date = datetime.now()
         req.content_type = 'text/plain'
@@ -126,7 +126,7 @@ class TestSwift3Obj(Swift3TestCase):
             '/bucket/object',
             environ={'REQUEST_METHOD': 'PUT'},
             headers={'Authorization': 'AWS test:tester:hmac',
-                     'X-Amz-Storage-Class': 'REDUCED_REDUNDANCY',
+                     'X-Amz-Storage-Class': 'STANDARD',
                      'X-Amz-Meta-Something': 'oh hai',
                      'X-Amz-Copy-Source': '/some/source',
                      'Content-MD5': 'ffoHqOWd280dyE1MT4KuoQ=='})
