@@ -29,6 +29,12 @@ class ObjectController(Controller):
         if req.method == 'HEAD':
             resp.app_iter = None
 
+        for key in ('content-type', 'content-language', 'expires',
+                    'cache-control', 'content-disposition',
+                    'content-encoding'):
+            if 'response-' + key in req.params:
+                resp.headers[key] = req.params['response-' + key]
+
         return resp
 
     def HEAD(self, req):
