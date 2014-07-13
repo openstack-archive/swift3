@@ -14,4 +14,7 @@
 # limitations under the License.
 
 # Global config dictionary.
-CONF = {}
+CONF = {
+    'location': 'US',
+    'storage_domain': '',
+}
