@@ -26,6 +26,8 @@ from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_REQUESTED_RANGE_NOT_SATISFIABLE, HTTP_LENGTH_REQUIRED, \
     HTTP_BAD_REQUEST, HTTP_SERVICE_UNAVAILABLE
 
+from swift.common.constraints import check_utf8
+
 from swift3.controllers import ServiceController, BucketController, \
     ObjectController, AclController, MultiObjectDeleteController, \
     LocationController, LoggingStatusController, PartController, \
@@ -35,7 +37,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     RequestTimeTooSkewed, Response, SignatureDoesNotMatch, \
     ServiceUnavailable, BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
-    MissingContentLength, InvalidStorageClass, S3NotImplemented
+    MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.cfg import CONF
 
@@ -89,6 +91,9 @@ class Request(swob.Request):
         return None
 
     def _parse_uri(self):
+        if not check_utf8(self.environ['PATH_INFO']):
+            raise InvalidURI(self.path)
+
         if self.bucket_in_host:
             obj = self.environ['PATH_INFO'][1:] or None
             return self.bucket_in_host, obj
