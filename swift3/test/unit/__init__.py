@@ -81,8 +81,14 @@ class Swift3TestCase(unittest.TestCase):
         return elem.find('./Code').text
 
     def _test_method_error(self, method, path, response_class, headers={}):
-        self.swift.register(method, '/v1/AUTH_test' + path, response_class,
-                            headers, None)
+        if not path.startswith('/'):
+            path = '/' + path  # add a missing slash before the path
+
+        uri = '/v1/AUTH_test'
+        if path != '/':
+            uri += path
+
+        self.swift.register(method, uri, response_class, headers, None)
         headers.update({'Authorization': 'AWS test:tester:hmac'})
         req = swob.Request.blank(path, environ={'REQUEST_METHOD': method},
                                  headers=headers)
