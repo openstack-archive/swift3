@@ -66,7 +66,7 @@ class Request(swob.Request):
         self.user_id = None
 
     def _parse_host(self):
-        storage_domain = CONF.get('storage_domain')
+        storage_domain = CONF['storage_domain']
         if not storage_domain:
             return None
 
