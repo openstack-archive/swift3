@@ -20,7 +20,7 @@ from swift.common import swob
 from swift.common.swob import Request
 
 from swift3.test.unit import Swift3TestCase
-from swift3.etree import fromstring
+from swift3.etree import Element, SubElement, fromstring, tostring
 
 
 class TestSwift3Bucket(Swift3TestCase):
@@ -197,6 +197,39 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
+
+    def test_bucket_PUT_with_location(self):
+        elem = Element('CreateBucketConfiguration')
+        SubElement(elem, 'LocationConstraint').text = 'US'
+        xml = tostring(elem)
+
+        req = Request.blank('/bucket',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            body=xml)
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+
+    def test_bucket_PUT_with_location_error(self):
+        elem = Element('CreateBucketConfiguration')
+        SubElement(elem, 'LocationConstraint').text = 'XXX'
+        xml = tostring(elem)
+
+        req = Request.blank('/bucket',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            body=xml)
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body),
+                          'InvalidLocationConstraint')
+
+    def test_bucket_PUT_with_location_invalid_xml(self):
+        req = Request.blank('/bucket',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            body='invalid_xml')
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'MalformedXML')
 
     def test_bucket_DELETE_error(self):
         code = self._test_method_error('DELETE', '/bucket',
