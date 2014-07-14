@@ -6,6 +6,8 @@ HTTP/1.1 200 OK
 Content-Length: LENGTH
 Content-Type: application/xml
 Date: DATE
+x-amz-id-2: TXID
+x-amz-request-id: TXID
 X-Trans-Id: TXID
 
 <?xml version='1.0' encoding='UTF-8'?>

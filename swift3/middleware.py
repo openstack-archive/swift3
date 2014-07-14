@@ -55,6 +55,7 @@ following for an SAIO setup::
 import re
 
 from swift.common.utils import get_logger
+from swift.common import swob
 
 from swift3.exception import NotS3Request
 from swift3.request import Request
@@ -117,6 +118,11 @@ class Swift3Middleware(object):
         except Exception, e:
             self.logger.exception(e)
             resp = InternalError(reason=e)
+
+        if isinstance(resp, swob.Response) and 'swift.trans_id' in env:
+            resp.headers['x-amz-id-2'] = env['swift.trans_id']
+            resp.headers['x-amz-request-id'] = env['swift.trans_id']
+
         return resp(env, start_response)
 
     def handle_request(self, req):
