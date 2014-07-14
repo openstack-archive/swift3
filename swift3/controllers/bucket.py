@@ -16,13 +16,18 @@
 from simplejson import loads
 
 from swift.common.http import HTTP_OK
+from swift.common.utils import get_logger
 
 from swift3.controllers.base import Controller
 from swift3.controllers.acl import add_canonical_user, swift_acl_translate
-from swift3.etree import Element, SubElement, tostring
-from swift3.response import HTTPOk, S3NotImplemented, InvalidArgument
+from swift3.etree import Element, SubElement, tostring, fromstring
+from swift3.response import HTTPOk, S3NotImplemented, InvalidArgument, \
+    MalformedXML, InvalidLocationConstraint
+from swift3.cfg import CONF
 
 MAX_BUCKET_LISTING = 1000
+
+LOGGER = get_logger(CONF, log_route='swift3')
 
 
 class BucketController(Controller):
@@ -116,6 +121,19 @@ class BucketController(Controller):
 
             for header, acl in translated_acl:
                 req.headers[header] = acl
+
+        if req.body:
+            # check location
+            try:
+                elem = fromstring(req.body, 'CreateBucketConfiguration')
+                location = elem.find('./LocationConstraint').text
+            except Exception as e:
+                LOGGER.debug(e)
+                raise MalformedXML()
+
+            if location != CONF.get('location'):
+                # Swift3 cannot support multiple reagions now.
+                raise InvalidLocationConstraint()
 
         resp = req.get_response(self.app)
         resp.status = HTTP_OK
