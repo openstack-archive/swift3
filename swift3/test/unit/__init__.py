@@ -52,6 +52,7 @@ class Swift3TestCase(unittest.TestCase):
         unittest.TestCase.__init__(self, name)
         self.conf = {
             'log_level': 'debug',
+            'location': 'US',
             'storage_domain': 'localhost',
         }
 
