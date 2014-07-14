@@ -64,7 +64,14 @@ class HeaderKeyDict(swob.HeaderKeyDict):
         return swob.HeaderKeyDict.pop(self, HeaderKey(key), default)
 
 
-class Response(swob.Response):
+class ResponseBase(object):
+    """
+    Base class for swift3 responses.
+    """
+    pass
+
+
+class Response(ResponseBase, swob.Response):
     """
     Similar to the Response class in Swift, but uses our HeaderKeyDict for
     headers instead of Swift's HeaderKeyDict.  This also translates Swift
@@ -117,7 +124,7 @@ HTTPAccepted = partial(Response, status=202)
 HTTPNoContent = partial(Response, status=204)
 
 
-class ErrorResponse(swob.HTTPException):
+class ErrorResponse(ResponseBase, swob.HTTPException):
     """
     S3 error object.
 
