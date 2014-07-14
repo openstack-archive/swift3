@@ -172,8 +172,6 @@ class Request(swob.Request):
                 self.headers['ETag'] = value.decode('base64').encode('hex')
             except Exception:
                 raise InvalidDigest()
-            if self.headers['ETag'] == '':
-                raise SignatureDoesNotMatch()
 
         if 'x-amz-metadata-directive' in self.headers:
             value = self.headers['x-amz-metadata-directive']
