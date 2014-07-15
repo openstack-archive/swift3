@@ -320,7 +320,7 @@ class Request(swob.Request):
                     HTTP_OK,
                 ],
             }
-        elif self.object_name is None:
+        elif self.object_name in [None, '']:
             # Swift container access.
             code_map = {
                 'HEAD': [
@@ -374,7 +374,7 @@ class Request(swob.Request):
                 'GET': {
                 },
             }
-        elif self.object_name is None:
+        elif self.object_name in [None, '']:
             # Swift container access.
             code_map = {
                 'HEAD': {
