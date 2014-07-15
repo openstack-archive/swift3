@@ -238,6 +238,9 @@ class Request(swob.Request):
 
     @property
     def controller(self):
+        if not self.container_name:
+            return ServiceController
+
         if 'acl' in self.params:
             return AclController
         if 'delete' in self.params:
@@ -262,10 +265,7 @@ class Request(swob.Request):
 
         if self.container_name and self.object_name:
             return ObjectController
-        elif self.container_name:
-            return BucketController
-
-        return ServiceController
+        return BucketController
 
     def to_swift_req(self, method, query=None):
         """
