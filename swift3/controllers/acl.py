@@ -148,7 +148,7 @@ class AclController(Controller):
         """
         Handles PUT Bucket acl and PUT Object acl.
         """
-        if req.object_name:
+        if req.is_object_request:
             # Handle Object ACL
             raise S3NotImplemented()
         else:

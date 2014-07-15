@@ -238,7 +238,7 @@ class Request(swob.Request):
 
     @property
     def controller(self):
-        if not self.container_name:
+        if self.is_service_request:
             return ServiceController
 
         if 'acl' in self.params:
@@ -263,9 +263,21 @@ class Request(swob.Request):
         if set(unsupported) & set(self.params):
             return UnsupportedController
 
-        if self.container_name and self.object_name:
+        if self.is_object_request:
             return ObjectController
         return BucketController
+
+    @property
+    def is_service_request(self):
+        return not self.container_name
+
+    @property
+    def is_bucket_request(self):
+        return self.container_name and not self.object_name
+
+    @property
+    def is_object_request(self):
+        return self.container_name and self.object_name
 
     def to_swift_req(self, method, query=None):
         """
@@ -287,10 +299,10 @@ class Request(swob.Request):
             env['REQUEST_METHOD'] = method
         env['HTTP_X_AUTH_TOKEN'] = self.token
 
-        if self.object_name:
+        if self.is_object_request:
             path = '/v1/%s/%s/%s' % (self.access_key, self.container_name,
                                      self.object_name)
-        elif self.container_name:
+        elif self.is_bucket_request:
             path = '/v1/%s/%s' % (self.access_key, self.container_name)
         else:
             path = '/v1/%s' % (self.access_key)
@@ -313,14 +325,14 @@ class Request(swob.Request):
         """
         Returns a list of expected success codes from Swift.
         """
-        if self.container_name is None:
+        if self.is_service_request:
             # Swift account access.
             code_map = {
                 'GET': [
                     HTTP_OK,
                 ],
             }
-        elif self.object_name in [None, '']:
+        elif self.is_bucket_request:
             # Swift container access.
             code_map = {
                 'HEAD': [
@@ -368,13 +380,13 @@ class Request(swob.Request):
         Returns a dict from expected Swift error codes to the corresponding S3
         error responses.
         """
-        if self.container_name is None:
+        if self.is_service_request:
             # Swift account access.
             code_map = {
                 'GET': {
                 },
             }
-        elif self.object_name in [None, '']:
+        elif self.is_bucket_request:
             # Swift container access.
             code_map = {
                 'HEAD': {
