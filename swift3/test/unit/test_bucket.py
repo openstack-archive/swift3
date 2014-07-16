@@ -197,6 +197,7 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
+        self.assertEquals(headers['Location'], '/bucket')
 
     def test_bucket_DELETE_error(self):
         code = self._test_method_error('DELETE', '/bucket',
