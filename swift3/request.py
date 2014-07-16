@@ -64,6 +64,7 @@ class Request(swob.Request):
         self._validate_headers()
         self.token = base64.urlsafe_b64encode(self._canonical_string())
         self.user_id = None
+        self.environ['swift.leave_relative_location'] = True
 
     def _parse_host(self):
         storage_domain = CONF.get('storage_domain')

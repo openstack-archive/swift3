@@ -119,7 +119,8 @@ class BucketController(Controller):
 
         resp = req.get_response(self.app)
         resp.status = HTTP_OK
-        resp.headers.update({'Location': req.container_name})
+        resp.headers.update({'Location': '/' + req.container_name})
+        print resp.headers
 
         return resp
 
