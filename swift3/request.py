@@ -67,6 +67,10 @@ class Request(swob.Request):
         self.token = base64.urlsafe_b64encode(self._canonical_string())
         self.user_id = None
 
+        # Avoids that swift.swob.Response replaces Location header value
+        # by full URL when absolute path given. See swift.swob for more detail.
+        self.environ['swift.leave_relative_location'] = True
+
     def _parse_host(self):
         storage_domain = CONF['storage_domain']
         if not storage_domain:
