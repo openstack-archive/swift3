@@ -89,6 +89,39 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertTrue('content-range' in headers)
         self.assertTrue(headers['content-range'].startswith('bytes 0-3'))
 
+    def test_object_GET_Response(self):
+        req = Request.blank('/bucket/object',
+                            environ={'REQUEST_METHOD': 'GET',
+                                     'QUERY_STRING':
+                                     'response-content-type=%s&'
+                                     'response-content-language=%s&'
+                                     'response-expires=%s&'
+                                     'response-cache-control=%s&'
+                                     'response-content-disposition=%s&'
+                                     'response-content-encoding=%s&'
+                                     % ('text/plain', 'en',
+                                        'Fri, 01 Apr 2014 12:00:00 GMT',
+                                        'no-cache',
+                                        'attachment',
+                                        'gzip')},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+
+        self.assertTrue('content-type' in headers)
+        self.assertEquals(headers['content-type'], 'text/plain')
+        self.assertTrue('content-language' in headers)
+        self.assertEquals(headers['content-language'], 'en')
+        self.assertTrue('expires' in headers)
+        self.assertEquals(headers['expires'], 'Fri, 01 Apr 2014 12:00:00 GMT')
+        self.assertTrue('cache-control' in headers)
+        self.assertEquals(headers['cache-control'], 'no-cache')
+        self.assertTrue('content-disposition' in headers)
+        self.assertEquals(headers['content-disposition'],
+                          'attachment')
+        self.assertTrue('content-encoding' in headers)
+        self.assertEquals(headers['content-encoding'], 'gzip')
+
     def test_object_PUT_error(self):
         code = self._test_method_error('PUT', '/bucket/object',
                                        swob.HTTPUnauthorized)
