@@ -128,7 +128,8 @@ class Swift3Middleware(object):
         if hasattr(controller, req.method):
             res = getattr(controller, req.method)(req)
         else:
-            raise MethodNotAllowed()
+            raise MethodNotAllowed(req.method,
+                                   req.controller.resource_type)
 
         return res
 
