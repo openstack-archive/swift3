@@ -13,5 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Global config dictionary.
-CONF = {}
+# Global config dictionary.  The default values can be defined here.
+CONF = {
+    'location': 'US',
+    'storage_domain': '',
+}

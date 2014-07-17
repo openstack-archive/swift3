@@ -1,0 +1,81 @@
+[DEFAULT]
+
+[pipeline:main]
+# This is the minimum pipeline for Swift3.  See swift manual if you want to add
+# more middleware.
+#
+# Keystone pipeline
+pipeline = proxy-logging cache swift3 s3token authtoken keystoneauth bulk slo proxy-logging proxy-server
+
+# Tempauth pipeline
+# pipeline = proxy-logging cache swift3 tempauth bulk slo proxy-logging proxy-server
+
+[app:proxy-server]
+use = egg:swift#proxy
+
+[filter:tempauth]
+# See swift manual for more details.
+use = egg:swift#tempauth
+user_admin_admin = admin .admin .reseller_admin
+user_test_tester = testing .admin
+user_test2_tester2 = testing2 .admin
+user_test_tester3 = testing3
+
+[filter:swift3]
+use = egg:swift3#swift3
+
+# Set a region name of your Swift cluster.  Note that Swift3 doesn't choose a
+# region of the newly created bucket actually.  This value is used only for the
+# GET Bucket location API.
+# location = US
+#
+# Specify a host name of your Swift cluster.  This enables virtual-hosted style
+# requests.
+# storage_domain =
+
+[filter:catch_errors]
+use = egg:swift#catch_errors
+
+[filter:proxy-logging]
+use = egg:swift#proxy_logging
+
+[filter:bulk]
+use = egg:swift#bulk
+
+[filter:slo]
+use = egg:swift#slo
+
+[filter:dlo]
+use = egg:swift#dlo
+
+[filter:cache]
+use = egg:swift#memcache
+
+[filter:s3token]
+# See swift manual for more details.
+paste.filter_factory = keystone.middleware.s3_token:filter_factory
+auth_host = keystonehost
+auth_port = 35357
+auth_protocol = http
+auth_uri = http://keystonehost:5000/
+admin_tenant_name = service
+admin_user = swift
+admin_password = password
+cache = swift.cache
+
+[filter:authtoken]
+# See swift manual for more details.
+paste.filter_factory = keystoneclient.middleware.auth_token:filter_factory
+auth_host = keystonehost
+auth_port = 35357
+auth_protocol = http
+auth_uri = http://keystonehost:5000/
+admin_tenant_name = service
+admin_user = swift
+admin_password = password
+cache = swift.cache
+
+[filter:keystoneauth]
+# See swift manual for more details.
+use = egg:swift#keystoneauth
+operator_roles = admin, swiftoperator
