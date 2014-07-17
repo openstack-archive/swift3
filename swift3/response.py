@@ -427,8 +427,9 @@ class MethodNotAllowed(ErrorResponse):
     _status = '405 Method Not Allowed'
     _msg = 'The specified method is not allowed against this resource.'
 
-    def __init__(self, method=None, msg=None, *args, **kwargs):
-        ErrorResponse.__init__(self, msg, method=method, *args, **kwargs)
+    def __init__(self, method, resource_type, msg=None, *args, **kwargs):
+        ErrorResponse.__init__(self, msg, method=method,
+                               resource_type=resource_type, *args, **kwargs)
 
 
 class MissingContentLength(ErrorResponse):

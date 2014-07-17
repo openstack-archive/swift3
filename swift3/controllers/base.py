@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from swift3.response import S3NotImplemented
-
+from swift3.utils import camel_to_snake
 
 class Controller(object):
     """
@@ -22,6 +22,14 @@ class Controller(object):
     """
     def __init__(self, app, **kwargs):
         self.app = app
+
+    @classmethod
+    def resource_type(cls):
+        """
+        Returns the target resource type of this controller.
+        """
+        name = cls.__name__[:-len('Controller')]
+        return camel_to_snake(name).upper()
 
 
 class UnsupportedController(Controller):
