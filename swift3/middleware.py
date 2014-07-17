@@ -61,8 +61,6 @@ from swift3.request import Request
 from swift3.response import ErrorResponse, InternalError, MethodNotAllowed
 from swift3.cfg import CONF
 
-MAX_BUCKET_LISTING = 1000
-
 # List of  sub-resources that must be maintained as part of the HMAC
 # signature string.
 ALLOWED_SUB_RESOURCES = sorted([
