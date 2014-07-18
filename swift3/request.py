@@ -463,6 +463,8 @@ class Request(swob.Request):
         if status in success_codes:
             return resp
 
+        err_msg = resp.body
+
         if status in error_codes:
             err_resp = error_codes[sw_resp.status_int]
             if isinstance(err_resp, tuple):
@@ -471,7 +473,7 @@ class Request(swob.Request):
                 raise err_resp()
 
         if status == HTTP_BAD_REQUEST:
-            raise BadSwiftRequest(resp.body)
+            raise BadSwiftRequest(err_msg)
         if status == HTTP_UNAUTHORIZED:
             raise SignatureDoesNotMatch()
         if status == HTTP_FORBIDDEN:
