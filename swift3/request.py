@@ -479,4 +479,4 @@ class Request(swob.Request):
         if status == HTTP_SERVICE_UNAVAILABLE:
             raise ServiceUnavailable()
 
-        raise InternalError('unexpteted status code %d' % status)
+        raise InternalError('unexpected status code %d' % status)
