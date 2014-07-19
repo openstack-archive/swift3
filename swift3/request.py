@@ -37,7 +37,8 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     RequestTimeTooSkewed, Response, SignatureDoesNotMatch, \
     ServiceUnavailable, BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
-    MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI
+    MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
+    MalformedXML
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.cfg import CONF
 
@@ -202,6 +203,32 @@ class Request(swob.Request):
 
         if 'x-amz-website-redirect-location' in self.headers:
             raise S3NotImplemented('Website redirection is not supported.')
+
+    @property
+    def body(self):
+        """
+        swob.Request.body is not secure against malicious input.  It consumes
+        too much memory without any check when the request body is excessively
+        large.  Use xml() instead.
+        """
+        raise AttributeError("No attribute 'body'")
+
+    def xml(self, max_length):
+        """
+        Similar to swob.Request.body, but it checks the content length before
+        creating a body string.
+        """
+        if self.headers.get('transfer-encoding'):
+            # FIXME: Raise error only when the input body is larger than
+            # 'max_length'.
+            raise S3NotImplemented('A header you provided implies '
+                                   'functionality that is not implemented',
+                                   header='Transfer-Encoding')
+
+        if self.message_length() > max_length:
+            raise MalformedXML()
+
+        return swob.Request.body.fget(self)
 
     def _canonical_uri(self):
         raw_path_info = self.environ.get('RAW_PATH_INFO', self.path)

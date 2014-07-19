@@ -19,6 +19,8 @@ from swift3.etree import Element, SubElement, fromstring, tostring, \
 from swift3.response import HTTPOk, S3NotImplemented, NoSuchKey, \
     ErrorResponse, MalformedXML
 
+MAX_MULTI_DELETE_BODY_SIZE = 61365
+
 
 class MultiObjectDeleteController(Controller):
     """
@@ -45,7 +47,8 @@ class MultiObjectDeleteController(Controller):
 
         elem = Element('DeleteResult')
 
-        for key, version in object_key_iter(req.body):
+        xml = req.xml(MAX_MULTI_DELETE_BODY_SIZE)
+        for key, version in object_key_iter(xml):
             if version is not None:
                 # TODO: delete the specific version of the object
                 raise S3NotImplemented()
