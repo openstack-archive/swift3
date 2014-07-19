@@ -23,6 +23,7 @@ from swift3.etree import Element, SubElement, fromstring, tostring, \
 
 XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
 
+MAX_ACL_BODY_SIZE = 200 * 1024
 
 def add_canonical_user(parent, tag, user, nsmap=None):
     """
@@ -155,7 +156,8 @@ class AclController(Controller):
             # Handle Bucket ACL
 
             # We very likely have an XML-based ACL request.
-            translated_acl = swift_acl_translate(req.body, xml=True)
+            translated_acl = swift_acl_translate(req.xml(MAX_ACL_BODY_SIZE),
+                                                 xml=True)
             if translated_acl == 'NotImplemented':
                 raise S3NotImplemented()
             elif translated_acl == 'InvalidArgument':
