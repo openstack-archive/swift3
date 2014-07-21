@@ -14,6 +14,8 @@
 # limitations under the License.
 
 import re
+import uuid
+import base64
 
 
 from swift.common.utils import get_logger
@@ -29,3 +31,7 @@ def camel_to_snake(camel):
 
 def snake_to_camel(snake):
     return snake.title().replace('_', '')
+
+
+def unique_id():
+    return base64.urlsafe_b64encode(str(uuid.uuid4()))
