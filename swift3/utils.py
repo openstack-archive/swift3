@@ -14,6 +14,8 @@
 # limitations under the License.
 
 import re
+import uuid
+import base64
 
 def camel_to_snake(camel):
     return re.sub('(.)([A-Z])', r'\1_\2', camel).lower()
@@ -21,3 +23,6 @@ def camel_to_snake(camel):
 
 def snake_to_camel(snake):
     return snake.title().replace('_', '')
+
+def unique_id():
+    return base64.urlsafe_b64encode(str(uuid.uuid4()))
