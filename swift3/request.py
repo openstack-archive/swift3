@@ -315,7 +315,8 @@ class Request(swob.Request):
     def is_object_request(self):
         return self.container_name and self.object_name
 
-    def to_swift_req(self, method, query=None):
+    def to_swift_req(self, method, container, obj, query=None,
+                     body=None):
         """
         Create a Swift request based on this request's environment.
         """
@@ -335,11 +336,10 @@ class Request(swob.Request):
             env['REQUEST_METHOD'] = method
         env['HTTP_X_AUTH_TOKEN'] = self.token
 
-        if self.is_object_request:
-            path = '/v1/%s/%s/%s' % (self.access_key, self.container_name,
-                                     self.object_name)
-        elif self.is_bucket_request:
-            path = '/v1/%s/%s' % (self.access_key, self.container_name)
+        if obj:
+            path = '/v1/%s/%s/%s' % (self.access_key, container, obj)
+        elif container:
+            path = '/v1/%s/%s' % (self.access_key, container)
         else:
             path = '/v1/%s' % (self.access_key)
         env['PATH_INFO'] = path
@@ -355,20 +355,20 @@ class Request(swob.Request):
             query_string = '&'.join(params)
         env['QUERY_STRING'] = query_string
 
-        return swob.Request.blank(quote(path), environ=env)
+        return swob.Request.blank(quote(path), environ=env, body=body)
 
-    def _swift_success_codes(self, method):
+    def _swift_success_codes(self, method, container, obj):
         """
         Returns a list of expected success codes from Swift.
         """
-        if self.is_service_request:
+        if not container:
             # Swift account access.
             code_map = {
                 'GET': [
                     HTTP_OK,
                 ],
             }
-        elif self.is_bucket_request:
+        elif not obj:
             # Swift container access.
             code_map = {
                 'HEAD': [
@@ -411,34 +411,34 @@ class Request(swob.Request):
 
         return code_map[method]
 
-    def _swift_error_codes(self, method):
+    def _swift_error_codes(self, method, container, obj):
         """
         Returns a dict from expected Swift error codes to the corresponding S3
         error responses.
         """
-        if self.is_service_request:
+        if not container:
             # Swift account access.
             code_map = {
                 'GET': {
                 },
             }
-        elif self.is_bucket_request:
+        elif not obj:
             # Swift container access.
             code_map = {
                 'HEAD': {
-                    HTTP_NOT_FOUND: (NoSuchBucket, self.container_name),
+                    HTTP_NOT_FOUND: (NoSuchBucket, container),
                 },
                 'GET': {
-                    HTTP_NOT_FOUND: (NoSuchBucket, self.container_name),
+                    HTTP_NOT_FOUND: (NoSuchBucket, container),
                 },
                 'PUT': {
-                    HTTP_ACCEPTED: (BucketAlreadyExists, self.container_name),
+                    HTTP_ACCEPTED: (BucketAlreadyExists, container),
                 },
                 'POST': {
-                    HTTP_NOT_FOUND: (NoSuchBucket, self.container_name),
+                    HTTP_NOT_FOUND: (NoSuchBucket, container),
                 },
                 'DELETE': {
-                    HTTP_NOT_FOUND: (NoSuchBucket, self.container_name),
+                    HTTP_NOT_FOUND: (NoSuchBucket, container),
                     HTTP_CONFLICT: BucketNotEmpty,
                 },
             }
@@ -446,34 +446,41 @@ class Request(swob.Request):
             # Swift object access.
             code_map = {
                 'HEAD': {
-                    HTTP_NOT_FOUND: (NoSuchKey, self.object_name),
+                    HTTP_NOT_FOUND: (NoSuchKey, obj),
                     HTTP_PRECONDITION_FAILED: PreconditionFailed,
                 },
                 'GET': {
-                    HTTP_NOT_FOUND: (NoSuchKey, self.object_name),
+                    HTTP_NOT_FOUND: (NoSuchKey, obj),
                     HTTP_PRECONDITION_FAILED: PreconditionFailed,
                     HTTP_REQUESTED_RANGE_NOT_SATISFIABLE: InvalidRange,
                 },
                 'PUT': {
-                    HTTP_NOT_FOUND: (NoSuchBucket, self.container_name),
+                    HTTP_NOT_FOUND: (NoSuchBucket, container),
                     HTTP_UNPROCESSABLE_ENTITY: InvalidDigest,
                     HTTP_REQUEST_ENTITY_TOO_LARGE: EntityTooLarge,
                     HTTP_LENGTH_REQUIRED: MissingContentLength,
                 },
                 'DELETE': {
-                    HTTP_NOT_FOUND: (NoSuchKey, self.object_name),
+                    HTTP_NOT_FOUND: (NoSuchKey, obj),
                 },
             }
 
         return code_map[method]
 
-    def get_response(self, app, method=None, query=None):
+    def get_response(self, app, method=None, container=None, obj=None,
+                     body=None, query=None):
         """
         Calls the application with this request's environment.  Returns a
         Response object that wraps up the application's result.
         """
         method = method or self.environ['REQUEST_METHOD']
-        sw_req = self.to_swift_req(method=method, query=query)
+        if container is None:
+            container = self.container_name
+        if obj is None:
+            obj = self.object_name
+
+        sw_req = self.to_swift_req(method, container, obj, query=query,
+                                   body=body)
         sw_resp = sw_req.get_response(app)
         resp = Response.from_swift_resp(sw_resp)
         status = resp.status_int  # pylint: disable-msg=E1101
@@ -488,8 +495,8 @@ class Request(swob.Request):
             # tempauth
             self.user_id = self.access_key
 
-        success_codes = self._swift_success_codes(method)
-        error_codes = self._swift_error_codes(method)
+        success_codes = self._swift_success_codes(method, container, obj)
+        error_codes = self._swift_error_codes(method, container, obj)
 
         if status in success_codes:
             return resp
