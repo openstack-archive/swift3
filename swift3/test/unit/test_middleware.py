@@ -24,6 +24,7 @@ from swift.common.swob import Request
 
 from swift3.test.unit import Swift3TestCase
 from swift3.request import Request as S3Request
+from swift3.etree import fromstring
 
 
 class TestSwift3Middleware(Swift3TestCase):
@@ -339,6 +340,16 @@ class TestSwift3Middleware(Swift3TestCase):
 
     def test_restore(self):
         self._test_unsupported_resource('restore')
+
+    def test_unsupported_method(self):
+        req = Request.blank('/bucket?acl',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        elem = fromstring(body, 'Error')
+        self.assertEquals(elem.find('./Code').text, 'MethodNotAllowed')
+        self.assertEquals(elem.find('./Method').text, 'POST')
+        self.assertEquals(elem.find('./ResourceType').text, 'ACL')
 
 if __name__ == '__main__':
     unittest.main()
