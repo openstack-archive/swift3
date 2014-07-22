@@ -47,13 +47,16 @@ class TestSwift3Obj(Swift3TestCase):
 
         for key, val in self.response_headers.iteritems():
             if key in ('content-length', 'content-type', 'content-encoding',
-                       'etag', 'last-modified'):
+                       'last-modified'):
                 self.assertTrue(key in headers)
                 self.assertEquals(headers[key], val)
 
             elif key.startswith('x-object-meta-'):
                 self.assertTrue('x-amz-meta-' + key[14:] in headers)
                 self.assertEquals(headers['x-amz-meta-' + key[14:]], val)
+
+        self.assertEquals(headers['etag'],
+                          '"%s"' % self.response_headers['etag'])
 
         if method == 'GET':
             self.assertEquals(body, self.object_body)
