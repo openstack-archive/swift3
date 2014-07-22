@@ -13,9 +13,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from swift.common.utils import config_true_value
+
+
+class Config(dict):
+    def __init__(self, base=None):
+        if base is not None:
+            self.update(base)
+
+    def update(self, other):
+        if hasattr(other, 'keys'):
+            for key in other.keys():
+                self[key] = other[key]
+        else:
+            for key, value in other:
+                self[key] = value
+
+    def __setitem__(self, key, value):
+        if isinstance(self.get(key), bool):
+            dict.__setitem__(self, key, config_true_value(value))
+        elif isinstance(self.get(key), int):
+            dict.__setitem__(self, key, int(value))
+        else:
+            dict.__setitem__(self, key, value)
+
 # Global config dictionary.  The default values can be defined here.
-CONF = {
+CONF = Config({
     'location': 'US',
     'max_bucket_listing': 1000,
     'storage_domain': '',
-}
+})
