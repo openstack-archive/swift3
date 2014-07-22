@@ -29,6 +29,10 @@ use = egg:swift3#swift3
 # GET Bucket location API.
 # location = US
 #
+# Set the default maximum number of objects returned in the GET Bucket
+# response.
+# max_bucket_listing = 1000
+#
 # Specify a host name of your Swift cluster.  This enables virtual-hosted style
 # requests.
 # storage_domain =

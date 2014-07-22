@@ -16,5 +16,6 @@
 # Global config dictionary.  The default values can be defined here.
 CONF = {
     'location': 'US',
+    'max_bucket_listing': 1000,
     'storage_domain': '',
 }
