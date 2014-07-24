@@ -21,32 +21,18 @@ from swift3.test.unit import Swift3TestCase
 from swift3.etree import fromstring
 
 
-class TestSwift3Versioning(Swift3TestCase):
+class TestSwift3Location(Swift3TestCase):
 
     def setUp(self):
-        super(TestSwift3Versioning, self).setUp()
+        super(TestSwift3Location, self).setUp()
 
-    def test_object_versioning_GET(self):
-        req = Request.blank('/bucket/object?versioning',
+    def test_object_location(self):
+        req = Request.blank('/bucket/object?location',
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
-        fromstring(body, 'VersioningConfiguration')
-
-    def test_object_versioning_PUT(self):
-        req = Request.blank('/bucket/object?versioning',
-                            environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
-        status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'NotImplemented')
-
-    def test_bucket_versioning_GET(self):
-        req = Request.blank('/bucket?versioning',
-                            environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
-        status, headers, body = self.call_swift3(req)
-        fromstring(body, 'VersioningConfiguration')
+        fromstring(body, 'LocationConstraint')
 
 if __name__ == '__main__':
     unittest.main()

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from swift3.controllers.base import Controller
+from swift3.controllers.base import Controller, bucket_operation
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     DocumentInvalid
 from swift3.response import HTTPOk, S3NotImplemented, NoSuchKey, \
@@ -27,6 +27,7 @@ class MultiObjectDeleteController(Controller):
     Handles Delete Multiple Objects, which is logged as a MULTI_OBJECT_DELETE
     operation in the S3 server log.
     """
+    @bucket_operation
     def POST(self, req):
         """
         Handles Delete Multiple Objects.
