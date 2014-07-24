@@ -7,5 +7,7 @@ Content-Length: LENGTH
 Content-Type: text/html; charset=UTF-8
 Date: DATE
 Location: /bucket
+x-amz-id-2: TXID
+x-amz-request-id: TXID
 X-Trans-Id: TXID
 
