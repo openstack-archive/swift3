@@ -51,7 +51,7 @@ class BucketController(Controller):
                 raise InvalidArgument('max-keys', req.params['max-keys'])
 
         max_keys = int(req.params.get('max-keys', CONF['max_bucket_listing']))
-        max_keys = min(max_keys, CONF['max_bucket_listing'])
+        max_keys = min(max_keys, int(CONF['max_bucket_listing']))
 
         query = {
             'format': 'json',
