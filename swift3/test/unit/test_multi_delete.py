@@ -15,6 +15,7 @@
 
 import unittest
 from datetime import datetime
+from hashlib import md5
 
 from swift.common import swob
 from swift.common.swob import Request
@@ -33,10 +34,12 @@ class TestSwift3MultiDelete(Swift3TestCase):
         obj = SubElement(elem, 'Object')
         SubElement(obj, 'Key').text = 'object'
         body = tostring(elem, use_s3ns=False)
+        content_md5 = md5(body).digest().encode('base64').strip()
 
         req = Request.blank('/bucket/object?delete',
                             environ={'REQUEST_METHOD': 'POST'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Content-MD5': content_md5},
                             body=body)
 
         status, headers, body = self.call_swift3(req)
@@ -53,15 +56,46 @@ class TestSwift3MultiDelete(Swift3TestCase):
             obj = SubElement(elem, 'Object')
             SubElement(obj, 'Key').text = key
         body = tostring(elem, use_s3ns=False)
+        content_md5 = md5(body).digest().encode('base64').strip()
 
         req = Request.blank('/bucket?delete',
                             environ={'REQUEST_METHOD': 'POST'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Content-MD5': content_md5},
                             body=body)
         req.date = datetime.now()
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
+
+    def test_object_multi_DELETE_with_invalid_md5(self):
+        elem = Element('Delete')
+        for key in ['Key1', 'Key2']:
+            obj = SubElement(elem, 'Object')
+            SubElement(obj, 'Key').text = key
+        body = tostring(elem, use_s3ns=False)
+
+        req = Request.blank('/bucket?delete',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Content-MD5': 'XXXX'},
+                            body=body)
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidDigest')
+
+    def test_object_multi_DELETE_without_md5(self):
+        elem = Element('Delete')
+        for key in ['Key1', 'Key2']:
+            obj = SubElement(elem, 'Object')
+            SubElement(obj, 'Key').text = key
+        body = tostring(elem, use_s3ns=False)
+
+        req = Request.blank('/bucket?delete',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            body=body)
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidRequest')
 
 if __name__ == '__main__':
     unittest.main()

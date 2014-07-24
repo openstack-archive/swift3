@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import md5
 from urllib import quote
 import base64
 import email.utils
@@ -38,7 +39,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     ServiceUnavailable, BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
-    MalformedXML
+    MalformedXML, InvalidRequest
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.cfg import CONF
 
@@ -213,7 +214,7 @@ class Request(swob.Request):
         """
         raise AttributeError("No attribute 'body'")
 
-    def xml(self, max_length):
+    def xml(self, max_length, check_md5=False):
         """
         Similar to swob.Request.body, but it checks the content length before
         creating a body string.
@@ -228,7 +229,21 @@ class Request(swob.Request):
         if self.message_length() > max_length:
             raise MalformedXML()
 
-        return swob.Request.body.fget(self)
+        body = swob.Request.body.fget(self)
+
+        if check_md5:
+            self.check_md5(body)
+
+        return body
+
+    def check_md5(self, body):
+        if 'HTTP_CONTENT_MD5' not in self.environ:
+            raise InvalidRequest('Missing required header for this request: '
+                                 'Content-MD5')
+
+        digest = md5.new(body).digest().encode('base64').strip()
+        if self.environ['HTTP_CONTENT_MD5'] != digest:
+            raise InvalidDigest(content_md5=self.environ['HTTP_CONTENT_MD5'])
 
     def _canonical_uri(self):
         raw_path_info = self.environ.get('RAW_PATH_INFO', self.path)
