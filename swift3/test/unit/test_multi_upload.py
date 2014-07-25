@@ -50,6 +50,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
                             swob.HTTPOk, {}, None)
         self.swift.register('PUT', segment_bucket + '/object/X',
                             swob.HTTPCreated, {}, None)
+        self.swift.register('PUT', segment_bucket + '/\xef\xbc\xa1/X',
+                            swob.HTTPCreated, {}, None)
         self.swift.register('DELETE', segment_bucket + '/object/X',
                             swob.HTTPNoContent, {}, None)
         self.swift.register('GET', segment_bucket + '/object/invalid',
@@ -114,6 +116,16 @@ class TestSwift3MultiUpload(Swift3TestCase):
     @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
     def test_object_multipart_upload_initiate(self):
         req = Request.blank('/bucket/object?uploads',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization':
+                                     'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        fromstring(body, 'InitiateMultipartUploadResult')
+        self.assertEquals(status.split()[0], '200')
+
+    @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
+    def test_object_multipart_upload_initiate_unicode(self):
+        req = Request.blank('/bucket/%ef%bc%a1?uploads',
                             environ={'REQUEST_METHOD': 'POST'},
                             headers={'Authorization':
                                      'AWS test:tester:hmac'})
