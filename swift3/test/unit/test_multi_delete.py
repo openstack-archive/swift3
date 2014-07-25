@@ -51,9 +51,11 @@ class TestSwift3MultiDelete(Swift3TestCase):
                             swob.HTTPNoContent, {}, None)
         self.swift.register('DELETE', '/v1/AUTH_test/bucket/Key2',
                             swob.HTTPNotFound, {}, None)
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket/\xef\xbc\xa1',
+                            swob.HTTPNoContent, {}, None)
 
         elem = Element('Delete')
-        for key in ['Key1', 'Key2']:
+        for key in ['Key1', 'Key2', '\xef\xbc\xa1']:
             obj = SubElement(elem, 'Object')
             SubElement(obj, 'Key').text = key
         body = tostring(elem, use_s3ns=False)
