@@ -80,6 +80,10 @@ class Response(ResponseBase, swob.Response):
     def __init__(self, *args, **kwargs):
         swob.Response.__init__(self, *args, **kwargs)
 
+        if self.etag:
+            # add double quotes to the etag header
+            self.etag = self.etag
+
         headers = HeaderKeyDict()
         for key, val in self.headers.iteritems():
             _key = key.lower()

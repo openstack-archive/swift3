@@ -15,6 +15,7 @@
 
 import unittest
 from datetime import datetime
+import hashlib
 
 from swift.common import swob
 from swift.common.swob import Request
@@ -28,10 +29,12 @@ class TestSwift3Obj(Swift3TestCase):
         super(TestSwift3Obj, self).setUp()
 
         self.object_body = 'hello'
+        etag = hashlib.md5(self.object_body).hexdigest()
+
         self.response_headers = {'Content-Type': 'text/html',
                                  'Content-Length': len(self.object_body),
                                  'x-object-meta-test': 'swift',
-                                 'etag': '1b2cf535f27731c974343645a3985328',
+                                 'etag': etag,
                                  'last-modified': '2011-01-05T02:19:14.275290'}
 
         self.swift.register('GET', '/v1/AUTH_test/bucket/object',
@@ -47,13 +50,16 @@ class TestSwift3Obj(Swift3TestCase):
 
         for key, val in self.response_headers.iteritems():
             if key in ('content-length', 'content-type', 'content-encoding',
-                       'etag', 'last-modified'):
+                       'last-modified'):
                 self.assertTrue(key in headers)
                 self.assertEquals(headers[key], val)
 
             elif key.startswith('x-object-meta-'):
                 self.assertTrue('x-amz-meta-' + key[14:] in headers)
                 self.assertEquals(headers['x-amz-meta-' + key[14:]], val)
+
+        self.assertEquals(headers['etag'],
+                          '"%s"' % self.response_headers['etag'])
 
         if method == 'GET':
             self.assertEquals(body, self.object_body)
@@ -140,21 +146,35 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEquals(code, 'InternalError')
 
     def test_object_PUT(self):
+        etag = self.response_headers['etag']
+        content_md5 = etag.decode('hex').encode('base64').strip()
+
         req = Request.blank(
             '/bucket/object',
             environ={'REQUEST_METHOD': 'PUT'},
             headers={'Authorization': 'AWS test:tester:hmac',
                      'x-amz-storage-class': 'STANDARD',
-                     'Content-MD5': 'Gyz1NfJ3Mcl0NDZFo5hTKA=='})
+                     'Content-MD5': content_md5},
+            body=self.object_body)
         req.date = datetime.now()
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
+        # Check that swift3 returns an etag header.
+        self.assertEquals(headers['etag'], '"%s"' % etag)
 
         _, _, headers = self.swift.calls_with_headers[-1]
-        self.assertEquals(headers['etag'], self.response_headers['etag'])
+        # Check that swift3 converts a Content-MD5 header into an etag.
+        self.assertEquals(headers['etag'], etag)
 
     def test_object_PUT_headers(self):
+        etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
+        content_md5 = etag.decode('hex').encode('base64').strip()
+
+        self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPCreated,
+                            {'etag': etag},
+                            None)
         req = Request.blank(
             '/bucket/object',
             environ={'REQUEST_METHOD': 'PUT'},
@@ -162,13 +182,16 @@ class TestSwift3Obj(Swift3TestCase):
                      'X-Amz-Storage-Class': 'STANDARD',
                      'X-Amz-Meta-Something': 'oh hai',
                      'X-Amz-Copy-Source': '/some/source',
-                     'Content-MD5': 'ffoHqOWd280dyE1MT4KuoQ=='})
+                     'Content-MD5': content_md5})
         req.date = datetime.now()
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
+        # Check that swift3 returns an etag header.
+        self.assertEquals(headers['etag'], '"%s"' % etag)
+
         _, _, headers = self.swift.calls_with_headers[-1]
-        self.assertEquals(headers['ETag'],
-                          '7dfa07a8e59ddbcd1dc84d4c4f82aea1')
+        # Check that swift3 converts a Content-MD5 header into an etag.
+        self.assertEquals(headers['ETag'], etag)
         self.assertEquals(headers['X-Object-Meta-Something'], 'oh hai')
         self.assertEquals(headers['X-Copy-From'], '/some/source')
 
