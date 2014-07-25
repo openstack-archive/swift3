@@ -15,6 +15,8 @@
 
 import lxml.etree
 from copy import deepcopy
+from itertools import imap
+from functools import partial
 from pkg_resources import resource_stream
 
 from swift.common.utils import get_logger
@@ -30,6 +32,40 @@ LOGGER = get_logger(CONF, log_route='swift3')
 
 class DocumentInvalid(S3Exception, lxml.etree.DocumentInvalid):
     pass
+
+
+def patch(func):
+    """
+    A decorator to use swift3.etree.Element instead of lxml.etree._Element.  If
+    func is callable, this translates its arguments into lxml.etree._Element
+    instances, calls the function in lxml.etree._Element, and translates the
+    return value into a swift3.etree.Element instance.  If func is not
+    callable, this only wraps it with swift3.etree.Element.
+    """
+    def recursive_map(f, arg):
+        """
+        Apply f recursively to a nested list.
+        """
+        if isinstance(arg, (list, tuple)):
+            return map(partial(recursive_map, f), arg)
+        elif arg.__class__.__name__.lower().endswith('iterator') or \
+                arg.__class__.__name__.lower().endswith('generator'):
+            # XXX: The above check is not a generic way to find iterables but
+            # works well for lxml.etree._Element instances.
+            return imap(partial(recursive_map, f), arg)
+        else:
+            return f(arg)
+
+    if callable(func):
+        def _patch(*args, **kwargs):
+            args = recursive_map(Element.unwraps, args)
+            # XXX: kwargs doesn't contain swift3.etree.Element instances for
+            # our use cases.
+            return patch(func(*args, **kwargs))
+
+        return _patch
+    else:
+        return recursive_map(Element.wraps, func)
 
 
 def cleanup_namespaces(elem):
@@ -49,6 +85,7 @@ def cleanup_namespaces(elem):
         cleanup_namespaces(e)
 
 
+@patch
 def fromstring(text, root_tag=None):
     elem = lxml.etree.fromstring(text)
     cleanup_namespaces(elem)
@@ -70,6 +107,7 @@ def fromstring(text, root_tag=None):
     return elem
 
 
+@patch
 def tostring(tree, use_s3ns=True):
     if use_s3ns:
         nsmap = tree.nsmap.copy()
@@ -83,5 +121,65 @@ def tostring(tree, use_s3ns=True):
     return lxml.etree.tostring(tree, xml_declaration=True, encoding='UTF-8')
 
 
-Element = lxml.etree.Element
-SubElement = lxml.etree.SubElement
+class Element(object):
+    """
+    A wrapper class for lxml.etree._Element.  We cannot override a method in
+    lxml.etree._Element directly since it is not a pure python class.  Override
+    a method in this class instead.
+    """
+
+    def __init__(self, tag, *args, **kwargs):
+        if isinstance(tag, lxml.etree._Element):
+            self._element = tag
+        else:
+            self._element = lxml.etree.Element(tag, *args, **kwargs)
+
+    @classmethod
+    def wraps(cls, element):
+        """
+        Wrap the element with swift3.etree.Element if it is instance of
+        lxml.etree._Element.
+        """
+        if isinstance(element, lxml.etree._Element):
+            return cls(element)
+        else:
+            return element
+
+    @classmethod
+    def unwraps(cls, element):
+        """
+        Unwrap the element if is is instance of swift3.etree.Element.
+        """
+        if isinstance(element, cls):
+            return element._element
+        else:
+            return element
+
+    # Inherit some fundamental attributes.
+    __getattr__ = patch(lxml.etree._Element.__getattribute__)
+    __item__ = patch(lxml.etree._Element.__iter__)
+    __getitem__ = patch(lxml.etree._Element.__getitem__)
+
+    @property
+    def text(self):
+        """
+        Similar to lxml.etree._Element.text but this returns a utf8-encoded
+        string always.
+        """
+        text = self._element.text
+        if isinstance(text, unicode):
+            text = text.encode('utf8')
+
+        return text
+
+    @text.setter
+    def text(self, value):
+        """
+        Sets a unicode string to lxml.etree._Element.text.
+        """
+        if isinstance(value, str):
+            value = value.decode('utf8')
+
+        self._element.text = value
+
+SubElement = patch(lxml.etree.SubElement)
