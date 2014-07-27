@@ -45,24 +45,19 @@ upload information:
 from simplejson import loads, dumps
 import os
 
-from swift.common.utils import split_path, get_logger
-
 from swift3.controllers.base import Controller, bucket_operation, \
     object_operation
 from swift3.response import InvalidArgument, ErrorResponse, MalformedXML, \
     InvalidPart, BucketAlreadyExists, EntityTooSmall, InvalidPartOrder, \
     InvalidRequest, HTTPOk, HTTPNoContent, NoSuchKey, NoSuchUpload
 from swift3.exception import BadSwiftRequest
-from swift3.utils import unique_id
+from swift3.utils import LOGGER, unique_id
 from swift3.etree import Element, SubElement, fromstring, tostring
-from swift3.cfg import CONF
 
 DEFAULT_MAX_PARTS = 1000
 DEFAULT_MAX_UPLOADS = 1000
 
 MAX_COMPLETE_UPLOAD_BODY_SIZE = 2048 * 1024
-
-LOGGER = get_logger(CONF, log_route='swift3')
 
 def _check_upload_info(req, app, upload_id):
     container = req.container_name + '+segments'

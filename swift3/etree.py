@@ -17,15 +17,10 @@ import lxml.etree
 from copy import deepcopy
 from pkg_resources import resource_stream
 
-from swift.common.utils import get_logger
-
 from swift3.exception import S3Exception
-from swift3.utils import camel_to_snake
-from swift3.cfg import CONF
+from swift3.utils import LOGGER, camel_to_snake
 
 XMLNS_S3 = 'http://s3.amazonaws.com/doc/2006-03-01/'
-
-LOGGER = get_logger(CONF, log_route='swift3')
 
 class DocumentInvalid(S3Exception, lxml.etree.DocumentInvalid):
     pass
