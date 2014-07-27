@@ -54,13 +54,12 @@ following for an SAIO setup::
 
 import re
 
-from swift.common.utils import get_logger
-
 from swift3.exception import NotS3Request
 from swift3.request import Request
 from swift3.response import ErrorResponse, InternalError, MethodNotAllowed, \
     ResponseBase
 from swift3.cfg import CONF
+from swift3.utils import LOGGER
 
 
 def validate_bucket_name(name):
@@ -93,7 +92,6 @@ class Swift3Middleware(object):
     """Swift3 S3 compatibility midleware"""
     def __init__(self, app, *args, **kwargs):
         self.app = app
-        self.logger = get_logger(CONF, log_route='swift3')
 
     def __call__(self, env, start_response):
         try:
@@ -103,10 +101,10 @@ class Swift3Middleware(object):
             resp = self.app
         except ErrorResponse as err_resp:
             if isinstance(err_resp, InternalError):
-                self.logger.exception(err_resp)
+                LOGGER.exception(err_resp)
             resp = err_resp
         except Exception as e:
-            self.logger.exception(e)
+            LOGGER.exception(e)
             resp = InternalError(reason=e)
 
         if isinstance(resp, ResponseBase) and 'swift.trans_id' in env:
@@ -116,8 +114,8 @@ class Swift3Middleware(object):
         return resp(env, start_response)
 
     def handle_request(self, req):
-        self.logger.debug('Calling Swift3 Middleware')
-        self.logger.debug(req.__dict__)
+        LOGGER.debug('Calling Swift3 Middleware')
+        LOGGER.debug(req.__dict__)
 
         controller = req.controller(self.app)
 

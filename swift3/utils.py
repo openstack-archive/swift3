@@ -16,6 +16,13 @@
 import re
 
 
+from swift.common.utils import get_logger
+
+from swift3.cfg import CONF
+
+LOGGER = get_logger(CONF, log_route='swift3')
+
+
 def camel_to_snake(camel):
     return re.sub('(.)([A-Z])', r'\1_\2', camel).lower()
 
