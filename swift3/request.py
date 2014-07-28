@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 import md5
 from urllib import quote
 import base64
@@ -177,12 +178,13 @@ class Request(swob.Request):
 
         if 'Content-MD5' in self.headers:
             value = self.headers['Content-MD5']
-            if value == '':
-                raise InvalidDigest()
+            if not re.match('^[A-Za-z0-9+/]+={0,2}$', value):
+                # Non-base64-alphabet characters in value.
+                raise InvalidDigest(content_md5=value)
             try:
                 self.headers['ETag'] = value.decode('base64').encode('hex')
             except Exception:
-                raise InvalidDigest()
+                raise InvalidDigest(conent_md5=value)
 
         if 'x-amz-metadata-directive' in self.headers:
             value = self.headers['x-amz-metadata-directive']
@@ -241,9 +243,15 @@ class Request(swob.Request):
             raise InvalidRequest('Missing required header for this request: '
                                  'Content-MD5')
 
+        content_md5 = self.environ['HTTP_CONTENT_MD5']
+
+        if not re.match('^[A-Za-z0-9+/]+={0,2}$', content_md5):
+            # Non-base64-alphabet characters in content_md5.
+            raise InvalidDigest(content_md5=content_md5)
+
         digest = md5.new(body).digest().encode('base64').strip()
-        if self.environ['HTTP_CONTENT_MD5'] != digest:
-            raise InvalidDigest(content_md5=self.environ['HTTP_CONTENT_MD5'])
+        if content_md5 != digest:
+            raise InvalidDigest(content_md5=content_md5)
 
     def _canonical_uri(self):
         raw_path_info = self.environ.get('RAW_PATH_INFO', self.path)

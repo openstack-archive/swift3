@@ -276,6 +276,14 @@ class TestSwift3Middleware(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidURI')
 
+    def test_object_create_bad_md5_unreadable(self):
+        req = Request.blank('/bucket/object',
+                            environ={'REQUEST_METHOD': 'PUT',
+                                     'HTTP_AUTHORIZATION': 'AWS X:Y:Z',
+                                     'HTTP_CONTENT_MD5': '#'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidDigest')
+
     def test_invalid_metadata_directive(self):
         req = Request.blank('/',
                             environ={'REQUEST_METHOD': 'GET',
