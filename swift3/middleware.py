@@ -62,15 +62,6 @@ from swift3.response import ErrorResponse, InternalError, MethodNotAllowed, \
     ResponseBase
 from swift3.cfg import CONF
 
-# List of  sub-resources that must be maintained as part of the HMAC
-# signature string.
-ALLOWED_SUB_RESOURCES = sorted([
-    'acl', 'delete', 'lifecycle', 'location', 'logging', 'notification',
-    'partNumber', 'policy', 'requestPayment', 'torrent', 'uploads', 'uploadId',
-    'versionId', 'versioning', 'versions ', 'website'
-])
-
-
 def validate_bucket_name(name):
     """
     Validates the name of the bucket against S3 criteria,
