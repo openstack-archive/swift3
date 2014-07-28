@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 import md5
 from urllib import quote
 import base64
@@ -177,12 +178,13 @@ class Request(swob.Request):
 
         if 'Content-MD5' in self.headers:
             value = self.headers['Content-MD5']
-            if value == '':
-                raise InvalidDigest()
+            if not re.match('^[A-Za-z0-9+/]+={0,2}$', value):
+                # Non-base64-alphabet characters in value.
+                raise InvalidDigest(content_md5=value)
             try:
                 self.headers['ETag'] = value.decode('base64').encode('hex')
             except Exception:
-                raise InvalidDigest()
+                raise InvalidDigest(content_md5=value)
 
         if 'x-amz-metadata-directive' in self.headers:
             value = self.headers['x-amz-metadata-directive']
