@@ -34,7 +34,7 @@ from swift3.controllers import ServiceController, BucketController, \
     ObjectController, AclController, MultiObjectDeleteController, \
     LocationController, LoggingStatusController, PartController, \
     UploadController, UploadsController, VersioningController, \
-    UnsupportedController
+    UnsupportedController, S3AclController
 from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     RequestTimeTooSkewed, Response, SignatureDoesNotMatch, \
     ServiceUnavailable, BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
@@ -43,6 +43,8 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     MalformedXML, InvalidRequest
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.cfg import CONF
+from swift3.subresource import decode_acl, encode_acl
+from swift3.utils import sysmeta_header
 
 # List of sub-resources that must be maintained as part of the HMAC
 # signature string.
@@ -56,10 +58,31 @@ ALLOWED_SUB_RESOURCES = sorted([
 ])
 
 
+def _header_acl_property(resource):
+    """
+    Set and retrieve the acl in self.headers
+    """
+    def getter(self):
+        return decode_acl(resource, self.headers)
+
+    def setter(self, value):
+        self.headers.update(encode_acl(resource, value))
+
+    def deleter(self):
+        self.headers[sysmeta_header(resource, 'acl')] = ''
+
+    return property(getter, setter, deleter,
+                    doc='Get and set the %s acl property' % resource)
+
+
 class Request(swob.Request):
     """
     S3 request object.
     """
+
+    bucket_acl = _header_acl_property('container')
+    object_acl = _header_acl_property('object')
+
     def __init__(self, env):
         swob.Request.__init__(self, env)
 
@@ -295,7 +318,10 @@ class Request(swob.Request):
             return ServiceController
 
         if 'acl' in self.params:
-            return AclController
+            if CONF.s3_acl:
+                return S3AclController
+            else:
+                return AclController
         if 'delete' in self.params:
             return MultiObjectDeleteController
         if 'location' in self.params:
@@ -333,7 +359,7 @@ class Request(swob.Request):
         return self.container_name and self.object_name
 
     def to_swift_req(self, method, container, obj, query=None,
-                     body=None):
+                     body=None, headers=None):
         """
         Create a Swift request based on this request's environment.
         """
@@ -372,7 +398,8 @@ class Request(swob.Request):
             query_string = '&'.join(params)
         env['QUERY_STRING'] = query_string
 
-        return swob.Request.blank(quote(path), environ=env, body=body)
+        return swob.Request.blank(quote(path), environ=env, body=body,
+                                  headers=headers)
 
     def _swift_success_codes(self, method, container, obj):
         """
@@ -420,6 +447,9 @@ class Request(swob.Request):
                 ],
                 'PUT': [
                     HTTP_CREATED,
+                ],
+                'POST': [
+                    HTTP_ACCEPTED,
                 ],
                 'DELETE': [
                     HTTP_NO_CONTENT,
@@ -477,6 +507,10 @@ class Request(swob.Request):
                     HTTP_REQUEST_ENTITY_TOO_LARGE: EntityTooLarge,
                     HTTP_LENGTH_REQUIRED: MissingContentLength,
                 },
+                'POST': {
+                    HTTP_NOT_FOUND: (NoSuchKey, obj),
+                    HTTP_PRECONDITION_FAILED: PreconditionFailed,
+                },
                 'DELETE': {
                     HTTP_NOT_FOUND: (NoSuchKey, obj),
                 },
@@ -485,7 +519,7 @@ class Request(swob.Request):
         return code_map[method]
 
     def get_response(self, app, method=None, container=None, obj=None,
-                     body=None, query=None):
+                     headers=None, body=None, query=None):
         """
         Calls the application with this request's environment.  Returns a
         Response object that wraps up the application's result.
@@ -496,8 +530,8 @@ class Request(swob.Request):
         if obj is None:
             obj = self.object_name
 
-        sw_req = self.to_swift_req(method, container, obj, query=query,
-                                   body=body)
+        sw_req = self.to_swift_req(method, container, obj, headers=headers,
+                                   body=body, query=query)
         sw_resp = sw_req.get_response(app)
         resp = Response.from_swift_resp(sw_resp)
         status = resp.status_int  # pylint: disable-msg=E1101

@@ -26,6 +26,9 @@ class ObjectController(Controller):
     """
     def GETorHEAD(self, req):
         resp = req.get_response(self.app)
+
+        resp.object_acl.check_permission(req.user_id, 'READ')
+
         if req.method == 'HEAD':
             resp.app_iter = None
 
@@ -53,6 +56,9 @@ class ObjectController(Controller):
         """
         Handle PUT Object and PUT Object (Copy) request
         """
+        b_resp = req.get_response(self.app, 'HEAD', obj='')
+        b_resp.bucket_acl.check_permission(req.user_id, 'WRITE')
+
         resp = req.get_response(self.app)
 
         if 'HTTP_X_COPY_FROM' in req.environ:
@@ -72,4 +78,7 @@ class ObjectController(Controller):
         """
         Handle DELETE Object request
         """
+        b_resp = req.get_response(self.app, 'HEAD', obj='')
+        b_resp.bucket_acl.check_permission(req.user_id, 'WRITE')
+
         return req.get_response(self.app)
