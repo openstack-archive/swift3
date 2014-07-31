@@ -19,6 +19,7 @@ from swift.common.http import HTTP_OK
 
 from swift3.controllers.base import Controller
 from swift3.controllers.acl import handle_acl_header
+from swift3.subresource import ACL, ACLPrivate
 from swift3.etree import Element, SubElement, tostring, fromstring, \
     XMLSyntaxError, DocumentInvalid
 from swift3.response import HTTPOk, S3NotImplemented, InvalidArgument, \
@@ -38,6 +39,7 @@ class BucketController(Controller):
         Handle HEAD Bucket (Get Metadata) request
         """
         resp = req.get_response(self.app)
+        resp.bucket_acl.check_permission(req.user_id, 'READ')
 
         return HTTPOk(headers=resp.headers)
 
@@ -69,6 +71,7 @@ class BucketController(Controller):
             query.update({'delimiter': req.params['delimiter']})
 
         resp = req.get_response(self.app, query=query)
+        resp.bucket_acl.check_permission(req.user_id, 'READ')
 
         objects = loads(resp.body)
 
@@ -116,9 +119,6 @@ class BucketController(Controller):
         """
         Handle PUT Bucket request
         """
-        if 'HTTP_X_AMZ_ACL' in req.environ:
-            handle_acl_header(req)
-
         xml = req.xml(MAX_PUT_BUCKET_BODY_SIZE)
         if xml:
             # check location
@@ -135,7 +135,26 @@ class BucketController(Controller):
                 # Swift3 cannot support multiple reagions now.
                 raise InvalidLocationConstraint()
 
-        resp = req.get_response(self.app)
+        if CONF.s3_acl:
+            acl = ACL.from_headers(req.headers, req.user_id)
+            if acl is None:
+                # The default acl is private.
+                acl = ACLPrivate(req.user_id)
+
+            # To avoid overwriting the existing bucket's ACL, we send PUT
+            # request first before setting the ACL to make sure that the target
+            # container does not exist.
+            req.get_response(self.app)
+
+            # update metadata
+            req.bucket_acl = acl
+            req.get_response(self.app, 'POST')
+        else:
+            if 'HTTP_X_AMZ_ACL' in req.environ:
+                handle_acl_header(req)
+
+            resp = req.get_response(self.app)
+
         resp.status = HTTP_OK
         resp.location = '/' + req.container_name
 
@@ -145,6 +164,9 @@ class BucketController(Controller):
         """
         Handle DELETE Bucket request
         """
+        resp = req.get_response(self.app, 'HEAD')
+        resp.bucket_acl.check_owner(req.user_id)
+
         return req.get_response(self.app)
 
     def POST(self, req):

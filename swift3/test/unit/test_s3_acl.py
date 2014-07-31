@@ -14,12 +14,15 @@
 # limitations under the License.
 
 import unittest
+import simplejson as json
 
 from swift.common import swob
 from swift.common.swob import Request
 
-from swift3.subresource import ACL, ACLPrivate, User, encode_acl
+from swift3.subresource import ACL, ACLPrivate, User, encode_acl, \
+    AuthenticatedUsers, AllUsers
 from swift3.test.unit.test_middleware import Swift3TestCase
+from swift3.utils import sysmeta_header
 from swift3.cfg import CONF
 
 XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
@@ -300,6 +303,305 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'x-amz-grant-read': 'key=value'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+
+    def _test_bucket(self, method, owner, permission):
+        acl = _gen_test_acl(owner, permission)
+
+        self.swift.register('HEAD', '/v1/AUTH_test/acltest',
+                            swob.HTTPNoContent,
+                            encode_acl('container', acl),
+                            None)
+        self.swift.register('GET', '/v1/AUTH_test/acltest', swob.HTTPNoContent,
+                            encode_acl('container', acl),
+                            json.dumps([]))
+        self.swift.register('DELETE', '/v1/AUTH_test/acltest',
+                            swob.HTTPNoContent, {}, None)
+
+        req = Request.blank('/acltest',
+                            environ={'REQUEST_METHOD': method},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+
+        status, headers, body = self.call_swift3(req)
+        try:
+            return self._get_error_code(body)
+        except Exception:
+            return status.split()[0]
+
+    def test_bucket_GET_without_permission(self):
+        result = self._test_bucket('GET', 'test:other', None)
+        self.assertEquals(result, 'AccessDenied')
+
+    def test_bucket_GET_with_read_permission(self):
+        result = self._test_bucket('GET', 'test:other', 'READ')
+        self.assertEquals(result, '200')
+
+    def test_bucket_GET_with_fullcontrol_permission(self):
+        result = self._test_bucket('GET', 'test:other', 'FULL_CONTROL')
+        self.assertEquals(result, '200')
+
+    def test_bucket_GET_with_owner_permission(self):
+        result = self._test_bucket('GET', 'test:tester', None)
+        self.assertEquals(result, '200')
+
+    def test_bucket_DELETE_without_permission(self):
+        result = self._test_bucket('DELETE', 'test:other', None)
+        self.assertEquals(result, 'AccessDenied')
+
+    def test_bucket_DELETE_with_write_permission(self):
+        result = self._test_bucket('DELETE', 'test:other', 'WRITE')
+        self.assertEquals(result, 'AccessDenied')
+
+    def test_bucket_DELETE_with_fullcontrol_permission(self):
+        result = self._test_bucket('DELETE', 'test:other', 'FULL_CONTROL')
+        self.assertEquals(result, 'AccessDenied')
+
+    def test_bucket_DELETE_with_owner_permission(self):
+        result = self._test_bucket('DELETE', 'test:tester', None)
+        self.assertEquals(result, '204')
+
+    def _test_bucket_GET_acl(self, owner, permission):
+        acl = _gen_test_acl(owner, permission)
+
+        self.swift.register('GET', '/v1/AUTH_test/acltest', swob.HTTPNoContent,
+                            encode_acl('container', acl),
+                            json.dumps([]))
+        req = Request.blank('/acltest?acl',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+
+        status, headers, body = self.call_swift3(req)
+        try:
+            return self._get_error_code(body)
+        except Exception:
+            return status.split()[0]
+
+    def test_bucket_GET_acl_without_permission(self):
+        result = self._test_bucket_GET_acl('test:other', None)
+        self.assertEquals(result, 'AccessDenied')
+
+    def test_bucket_GET_acl_with_read_acp_permission(self):
+        result = self._test_bucket_GET_acl('test:other', 'READ_ACP')
+        self.assertEquals(result, '200')
+
+    def test_bucket_GET_acl_with_fullcontrol_permission(self):
+        result = self._test_bucket_GET_acl('test:other', 'FULL_CONTROL')
+        self.assertEquals(result, '200')
+
+    def test_bucket_GET_acl_with_owner_permission(self):
+        result = self._test_bucket_GET_acl('test:tester', None)
+        self.assertEquals(result, '200')
+
+    def _test_bucket_PUT_acl(self, owner, permission):
+        acl = _gen_test_acl(owner, permission)
+
+        self.swift.register('GET', '/v1/AUTH_test/acltest', swob.HTTPNoContent,
+                            encode_acl('container', acl),
+                            json.dumps([]))
+        self.swift.register('POST', '/v1/AUTH_test/acltest',
+                            swob.HTTPNoContent, {}, None)
+        req = Request.blank('/acltest?acl',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            body=acl.xml)
+
+        status, headers, body = self.call_swift3(req)
+        try:
+            return self._get_error_code(body)
+        except Exception:
+            return status.split()[0]
+
+    def test_bucket_PUT_acl_without_permission(self):
+        result = self._test_bucket_PUT_acl('test:other', None)
+        self.assertEquals(result, 'AccessDenied')
+
+    def test_bucket_PUT_acl_with_write_acp_permission(self):
+        result = self._test_bucket_PUT_acl('test:other', 'WRITE_ACP')
+        self.assertEquals(result, '200')
+
+    def test_bucket_PUT_acl_with_fullcontrol_permission(self):
+        result = self._test_bucket_PUT_acl('test:other', 'FULL_CONTROL')
+        self.assertEquals(result, '200')
+
+    def test_bucket_PUT_acl_with_owner_permission(self):
+        result = self._test_bucket_PUT_acl('test:tester', None)
+        self.assertEquals(result, '200')
+
+    def _test_object(self, method, owner, permission):
+        acl = _gen_test_acl(owner, permission)
+
+        self.swift.register('HEAD', '/v1/AUTH_test/acltest',
+                            swob.HTTPNoContent,
+                            encode_acl('container', acl),
+                            None)
+        self.swift.register('HEAD', '/v1/AUTH_test/acltest/acltest',
+                            swob.HTTPOk,
+                            {sysmeta_header('object', 'acl'):
+                             '["test:tester"]'},
+                            None)
+        self.swift.register('GET', '/v1/AUTH_test/acltest/acltest',
+                            swob.HTTPOk,
+                            encode_acl('object', acl),
+                            '')
+        self.swift.register('PUT', '/v1/AUTH_test/acltest/acltest',
+                            swob.HTTPCreated, {}, None)
+        self.swift.register('DELETE', '/v1/AUTH_test/acltest/acltest',
+                            swob.HTTPNoContent, {}, None)
+
+        req = Request.blank('/acltest/acltest',
+                            environ={'REQUEST_METHOD': method},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+
+        status, headers, body = self.call_swift3(req)
+        try:
+            return self._get_error_code(body)
+        except Exception:
+            return status.split()[0]
+
+    def test_object_GET_without_permission(self):
+        result = self._test_object('GET', 'test:other', None)
+        self.assertEquals(result, 'AccessDenied')
+
+    def test_object_GET_with_read_permission(self):
+        result = self._test_object('GET', 'test:other', 'READ')
+        self.assertEquals(result, '200')
+
+    def test_object_GET_with_fullcontrol_permission(self):
+        result = self._test_object('GET', 'test:other', 'FULL_CONTROL')
+        self.assertEquals(result, '200')
+
+    def test_object_GET_with_owner_permission(self):
+        result = self._test_object('GET', 'test:tester', None)
+        self.assertEquals(result, '200')
+
+    def test_object_PUT_without_permission(self):
+        result = self._test_object('PUT', 'test:other', None)
+        self.assertEquals(result, 'AccessDenied')
+
+    def test_object_PUT_with_write_permission(self):
+        result = self._test_object('PUT', 'test:other', 'WRITE')
+        self.assertEquals(result, '200')
+
+    def test_object_PUT_with_fullcontrol_permission(self):
+        result = self._test_object('PUT', 'test:other', 'FULL_CONTROL')
+        self.assertEquals(result, '200')
+
+    def test_object_PUT_with_owner_permission(self):
+        result = self._test_object('PUT', 'test:tester', None)
+        self.assertEquals(result, '200')
+
+    def test_object_DELETE_without_permission(self):
+        result = self._test_object('DELETE', 'test:other', None)
+        self.assertEquals(result, 'AccessDenied')
+
+    def test_object_DELETE_with_write_permission(self):
+        result = self._test_object('DELETE', 'test:other', 'WRITE')
+        self.assertEquals(result, '204')
+
+    def test_object_DELETE_with_fullcontrol_permission(self):
+        result = self._test_object('DELETE', 'test:other', 'FULL_CONTROL')
+        self.assertEquals(result, '204')
+
+    def test_object_DELETE_with_owner_permission(self):
+        result = self._test_object('DELETE', 'test:tester', None)
+        self.assertEquals(result, '204')
+
+    def _test_object_GET_acl(self, owner, permission):
+        acl = _gen_test_acl(owner, permission)
+
+        self.swift.register('HEAD', '/v1/AUTH_test/acltest/acltest',
+                            swob.HTTPOk,
+                            encode_acl('object', acl),
+                            None)
+        req = Request.blank('/acltest/acltest?acl',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+
+        status, headers, body = self.call_swift3(req)
+        try:
+            return self._get_error_code(body)
+        except Exception:
+            return status.split()[0]
+
+    def test_object_GET_acl_without_permission(self):
+        result = self._test_object_GET_acl('test:other', None)
+        self.assertEquals(result, 'AccessDenied')
+
+    def test_object_GET_acl_with_read_acp_permission(self):
+        result = self._test_object_GET_acl('test:other', 'READ_ACP')
+        self.assertEquals(result, '200')
+
+    def test_object_GET_acl_with_fullcontrol_permission(self):
+        result = self._test_object_GET_acl('test:other', 'FULL_CONTROL')
+        self.assertEquals(result, '200')
+
+    def test_object_GET_acl_with_owner_permission(self):
+        result = self._test_object_GET_acl('test:tester', None)
+        self.assertEquals(result, '200')
+
+    def _test_object_PUT_acl(self, owner, permission):
+        acl = _gen_test_acl(owner, permission)
+
+        self.swift.register('HEAD', '/v1/AUTH_test/acltest',
+                            swob.HTTPNoContent,
+                            {sysmeta_header('container', 'acl'):
+                             '["test:tester"]'},
+                            None)
+        self.swift.register('HEAD', '/v1/AUTH_test/acltest/acltest',
+                            swob.HTTPOk,
+                            encode_acl('object', acl),
+                            None)
+        self.swift.register('POST', '/v1/AUTH_test/acltest/acltest',
+                            swob.HTTPAccepted, {}, None)
+        req = Request.blank('/acltest/acltest?acl',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            body=acl.xml)
+
+        status, headers, body = self.call_swift3(req)
+        try:
+            return self._get_error_code(body)
+        except Exception:
+            return status.split()[0]
+
+    def test_object_PUT_acl_without_permission(self):
+        result = self._test_object_PUT_acl('test:other', None)
+        self.assertEquals(result, 'AccessDenied')
+
+    def test_object_PUT_acl_with_write_acp_permission(self):
+        result = self._test_object_PUT_acl('test:other', 'WRITE_ACP')
+        self.assertEquals(result, '200')
+
+    def test_object_PUT_acl_with_fullcontrol_permission(self):
+        result = self._test_object_PUT_acl('test:other', 'FULL_CONTROL')
+        self.assertEquals(result, '200')
+
+    def test_object_PUT_acl_with_owner_permission(self):
+        result = self._test_object_PUT_acl('test:tester', None)
+        self.assertEquals(result, '200')
+
+    def _test_bucket_GET_canned_acl(self, group):
+        acl = _gen_test_acl('test:other', 'READ', group)
+
+        self.swift.register('GET', '/v1/AUTH_test/acltest', swob.HTTPNoContent,
+                            encode_acl('container', acl),
+                            json.dumps([]))
+        req = Request.blank('/acltest',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+
+        status, headers, body = self.call_swift3(req)
+        try:
+            return self._get_error_code(body)
+        except Exception:
+            return status.split()[0]
+
+    def test_bucket_GET_authenticated_users(self):
+        result = self._test_bucket_GET_canned_acl(AuthenticatedUsers())
+        self.assertEquals(result, '200')
+
+    def test_bucket_GET_all_users(self):
+        result = self._test_bucket_GET_canned_acl(AllUsers())
+        self.assertEquals(result, '200')
 
 if __name__ == '__main__':
     unittest.main()
