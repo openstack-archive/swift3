@@ -74,7 +74,7 @@ class Request(swob.Request):
         self.environ['swift.leave_relative_location'] = True
 
     def _parse_host(self):
-        storage_domain = CONF['storage_domain']
+        storage_domain = CONF.storage_domain
         if not storage_domain:
             return None
 
