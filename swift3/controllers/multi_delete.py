@@ -15,7 +15,7 @@
 
 from swift3.controllers.base import Controller, bucket_operation
 from swift3.etree import Element, SubElement, fromstring, tostring, \
-    DocumentInvalid
+    XMLSyntaxError, DocumentInvalid
 from swift3.response import HTTPOk, S3NotImplemented, NoSuchKey, \
     ErrorResponse, MalformedXML
 
@@ -35,7 +35,7 @@ class MultiObjectDeleteController(Controller):
         def object_key_iter(xml):
             try:
                 elem = fromstring(xml, 'Delete')
-            except DocumentInvalid:
+            except (XMLSyntaxError, DocumentInvalid):
                 raise MalformedXML()
 
             for obj in elem.iterchildren('Object'):
