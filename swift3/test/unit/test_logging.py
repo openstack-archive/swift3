@@ -25,7 +25,6 @@ class TestSwift3Logging(Swift3TestCase):
     def setUp(self):
         super(TestSwift3Logging, self).setUp()
 
-
     def test_object_logging_GET(self):
         req = Request.blank('/bucket/object?logging',
                             environ={'REQUEST_METHOD': 'GET'},

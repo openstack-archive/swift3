@@ -27,6 +27,7 @@ XMLNS_S3 = 'http://s3.amazonaws.com/doc/2006-03-01/'
 
 LOGGER = get_logger(CONF, log_route='swift3')
 
+
 class DocumentInvalid(S3Exception, lxml.etree.DocumentInvalid):
     pass
 

@@ -136,12 +136,10 @@ class TestSwift3Middleware(Swift3TestCase):
                'response-content-encoding&response-content-language&'
                'response-content-type&response-expires', {})
 
-        str1 = canonical_string('/', headers=
-                                {'Content-Type': None,
-                                 'X-Amz-Something': 'test'})
-        str2 = canonical_string('/', headers=
-                                {'Content-Type': '',
-                                 'X-Amz-Something': 'test'})
+        str1 = canonical_string('/', headers={'Content-Type': None,
+                                              'X-Amz-Something': 'test'})
+        str2 = canonical_string('/', headers={'Content-Type': '',
+                                              'X-Amz-Something': 'test'})
         str3 = canonical_string('/', headers={'X-Amz-Something': 'test'})
 
         self.assertEquals(str1, str2)

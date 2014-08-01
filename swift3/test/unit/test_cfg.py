@@ -17,6 +17,7 @@ import unittest
 
 from swift3.cfg import Config
 
+
 class TestSwift3Cfg(unittest.TestCase):
     def test_config(self):
         conf = Config(
