@@ -25,6 +25,7 @@ XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
 
 MAX_ACL_BODY_SIZE = 200 * 1024
 
+
 def add_canonical_user(parent, tag, user, nsmap=None):
     """
     Create an element for cannonical user.
@@ -91,10 +92,11 @@ def swift_acl_translate(acl, group='', user='', xml=False):
                                       ['HTTP_X_CONTAINER_READ',
                                        '.r:*,.rlistings']]
 
-    #TODO: if there's a way to get group and user, this should work for
+    # TODO: if there's a way to get group and user, this should work for
     # private:
-    #swift_acl['private'] = [['HTTP_X_CONTAINER_WRITE',  group + ':' + user], \
-    #                  ['HTTP_X_CONTAINER_READ', group + ':' + user]]
+    # swift_acl['private'] = \
+    #     [['HTTP_X_CONTAINER_WRITE',  group + ':' + user], \
+    #      ['HTTP_X_CONTAINER_READ', group + ':' + user]]
     swift_acl['private'] = [['HTTP_X_CONTAINER_WRITE', '.'],
                             ['HTTP_X_CONTAINER_READ', '.']]
     if xml:

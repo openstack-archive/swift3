@@ -15,6 +15,7 @@
 
 import re
 
+
 def camel_to_snake(camel):
     return re.sub('(.)([A-Z])', r'\1_\2', camel).lower()
 

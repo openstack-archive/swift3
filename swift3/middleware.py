@@ -62,6 +62,7 @@ from swift3.response import ErrorResponse, InternalError, MethodNotAllowed, \
     ResponseBase
 from swift3.cfg import CONF
 
+
 def validate_bucket_name(name):
     """
     Validates the name of the bucket against S3 criteria,
@@ -104,7 +105,7 @@ class Swift3Middleware(object):
             if isinstance(err_resp, InternalError):
                 self.logger.exception(err_resp)
             resp = err_resp
-        except Exception, e:
+        except Exception as e:
             self.logger.exception(e)
             resp = InternalError(reason=e)
 
