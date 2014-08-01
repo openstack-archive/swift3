@@ -32,8 +32,8 @@ class LocationController(Controller):
         req.get_response(self.app, method='HEAD')
 
         elem = Element('LocationConstraint')
-        if CONF['location'] != 'US':
-            elem.text = CONF['location']
+        if CONF.location != 'US':
+            elem.text = CONF.location
         body = tostring(elem)
 
         return HTTPOk(body=body, content_type='application/xml')

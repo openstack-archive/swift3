@@ -21,6 +21,18 @@ class Config(dict):
         if base is not None:
             self.update(base)
 
+    def __getattr__(self, name):
+        if name not in self:
+            raise AttributeError("No attribute '%s'" % name)
+
+        return self[name]
+
+    def __setattr__(self, name, value):
+        self[name] = value
+
+    def __delattr__(self, name):
+        del self[name]
+
     def update(self, other):
         if hasattr(other, 'keys'):
             for key in other.keys():

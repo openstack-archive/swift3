@@ -50,8 +50,8 @@ class BucketController(Controller):
             if req.params.get('max-keys').isdigit() is False:
                 raise InvalidArgument('max-keys', req.params['max-keys'])
 
-        max_keys = int(req.params.get('max-keys', CONF['max_bucket_listing']))
-        max_keys = min(max_keys, CONF['max_bucket_listing'])
+        max_keys = int(req.params.get('max-keys', CONF.max_bucket_listing))
+        max_keys = min(max_keys, CONF.max_bucket_listing)
 
         query = {
             'format': 'json',
@@ -132,7 +132,7 @@ class BucketController(Controller):
                 LOGGER.debug(e)
                 raise MalformedXML()
 
-            if location != CONF.get('location'):
+            if location != CONF.location:
                 # Swift3 cannot support multiple reagions now.
                 raise InvalidLocationConstraint()
 
