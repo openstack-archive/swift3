@@ -69,5 +69,13 @@ class TestSwift3Acl(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self._check_acl('test:tester', body)
 
+    def test_invalid_xml(self):
+        req = Request.blank('/bucket?acl',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            body='invalid')
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'MalformedACLError')
+
 if __name__ == '__main__':
     unittest.main()
