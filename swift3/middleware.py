@@ -62,6 +62,7 @@ from swift3.response import ErrorResponse, InternalError, MethodNotAllowed, \
     ResponseBase
 from swift3.cfg import CONF
 
+
 def validate_bucket_name(name):
     """
     Validates the name of the bucket against S3 criteria,

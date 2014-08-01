@@ -23,6 +23,7 @@ from swift3.cfg import CONF
 
 LOGGER = get_logger(CONF, log_route='swift3')
 
+
 def bucket_operation(func=None, err_resp=None, err_msg=None):
     """
     A decorator to ensure that the request is a bucket operation.  If the
@@ -48,6 +49,7 @@ def bucket_operation(func=None, err_resp=None, err_msg=None):
         return _bucket_operation(func)
     else:
         return _bucket_operation
+
 
 def object_operation(func):
     """
