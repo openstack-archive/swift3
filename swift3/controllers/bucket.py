@@ -20,7 +20,8 @@ from swift.common.utils import get_logger
 
 from swift3.controllers.base import Controller
 from swift3.controllers.acl import add_canonical_user, swift_acl_translate
-from swift3.etree import Element, SubElement, tostring, fromstring
+from swift3.etree import Element, SubElement, tostring, fromstring, \
+    XMLSyntaxError, DocumentInvalid
 from swift3.response import HTTPOk, S3NotImplemented, InvalidArgument, \
     MalformedXML, InvalidLocationConstraint
 from swift3.cfg import CONF
@@ -128,9 +129,11 @@ class BucketController(Controller):
             try:
                 elem = fromstring(xml, 'CreateBucketConfiguration')
                 location = elem.find('./LocationConstraint').text
-            except Exception as e:
-                LOGGER.debug(e)
+            except (XMLSyntaxError, DocumentInvalid):
                 raise MalformedXML()
+            except Exception as e:
+                LOGGER.error(e)
+                raise
 
             if location != CONF.location:
                 # Swift3 cannot support multiple reagions now.

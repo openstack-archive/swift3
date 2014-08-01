@@ -269,6 +269,14 @@ class TestSwift3Middleware(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'MalformedACLError')
 
+    def test_invalid_xml(self):
+        req = Request.blank('/bucket?acl',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            body='invalid')
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'MalformedACLError')
+
     def test_invalid_uri(self):
         req = Request.blank('/bucket/invalid\xffname',
                             environ={'REQUEST_METHOD': 'GET'},

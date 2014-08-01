@@ -27,7 +27,11 @@ XMLNS_S3 = 'http://s3.amazonaws.com/doc/2006-03-01/'
 
 LOGGER = get_logger(CONF, log_route='swift3')
 
-class DocumentInvalid(S3Exception, lxml.etree.DocumentInvalid):
+class XMLSyntaxError(S3Exception):
+    pass
+
+
+class DocumentInvalid(S3Exception):
     pass
 
 
@@ -49,7 +53,12 @@ def cleanup_namespaces(elem):
 
 
 def fromstring(text, root_tag=None):
-    elem = lxml.etree.fromstring(text)
+    try:
+        elem = lxml.etree.fromstring(text)
+    except lxml.etree.XMLSyntaxError as e:
+        LOGGER.debug(e)
+        raise XMLSyntaxError(e)
+
     cleanup_namespaces(elem)
 
     if root_tag is not None:
