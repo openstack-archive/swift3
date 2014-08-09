@@ -16,7 +16,6 @@
 from simplejson import loads
 
 from swift.common.http import HTTP_OK
-from swift.common.utils import get_logger
 
 from swift3.controllers.base import Controller
 from swift3.controllers.acl import add_canonical_user, swift_acl_translate
@@ -24,10 +23,9 @@ from swift3.etree import Element, SubElement, tostring, fromstring
 from swift3.response import HTTPOk, S3NotImplemented, InvalidArgument, \
     MalformedXML, InvalidLocationConstraint
 from swift3.cfg import CONF
+from swift3.utils import LOGGER
 
 MAX_PUT_BUCKET_BODY_SIZE = 10240
-
-LOGGER = get_logger(CONF, log_route='swift3')
 
 
 class BucketController(Controller):
