@@ -97,6 +97,28 @@ class TestSwift3MultiDelete(Swift3TestCase):
         elem = fromstring(body)
         self.assertEquals(len(elem.findall('Deleted')), 0)
 
+    def test_object_multi_DELETE_no_key(self):
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket/Key1',
+                            swob.HTTPNoContent, {}, None)
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket/Key2',
+                            swob.HTTPNotFound, {}, None)
+
+        elem = Element('Delete')
+        SubElement(elem, 'Quiet').text = 'true'
+        for key in ['Key1', 'Key2']:
+            obj = SubElement(elem, 'Object')
+            SubElement(obj, 'Key')
+        body = tostring(elem, use_s3ns=False)
+        content_md5 = md5(body).digest().encode('base64').strip()
+
+        req = Request.blank('/bucket?delete',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Content-MD5': content_md5},
+                            body=body)
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'UserKeyMustBeSpecified')
+
     def test_object_multi_DELETE_with_invalid_md5(self):
         elem = Element('Delete')
         for key in ['Key1', 'Key2']:
