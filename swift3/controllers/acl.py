@@ -26,31 +26,23 @@ XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
 MAX_ACL_BODY_SIZE = 200 * 1024
 
 
-def add_canonical_user(parent, tag, user, nsmap=None):
-    """
-    Create an element for cannonical user.
-    """
-    elem = SubElement(parent, tag, nsmap=nsmap)
-    SubElement(elem, 'ID').text = user
-    SubElement(elem, 'DisplayName').text = user
-
-    return elem
-
-
 def get_acl(account_name, headers):
     """
     Attempts to construct an S3 ACL based on what is found in the swift headers
     """
 
     elem = Element('AccessControlPolicy')
-    add_canonical_user(elem, 'Owner', account_name)
+    owner = SubElement(elem, 'Owner')
+    SubElement(owner, 'ID').text = account_name
+    SubElement(owner, 'DisplayName').text = account_name
     access_control_list = SubElement(elem, 'AccessControlList')
 
     # grant FULL_CONTROL to myself by default
     grant = SubElement(access_control_list, 'Grant')
-    grantee = add_canonical_user(grant, 'Grantee', account_name,
-                                 nsmap={'xsi': XMLNS_XSI})
+    grantee = SubElement(grant, 'Grantee', nsmap={'xsi': XMLNS_XSI})
     grantee.set('{%s}type' % XMLNS_XSI, 'CanonicalUser')
+    SubElement(grantee, 'ID').text = account_name
+    SubElement(grantee, 'DisplayName').text = account_name
     SubElement(grant, 'Permission').text = 'FULL_CONTROL'
 
     referrers, _ = parse_acl(headers.get('x-container-read'))
