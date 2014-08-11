@@ -37,6 +37,10 @@ class MultiObjectDeleteController(Controller):
         def object_key_iter(xml):
             elem = fromstring(xml, 'Delete')
 
+            quiet = elem.find('./Quiet')
+            if quiet is not None and quiet.text.lower() == 'true':
+                self.quiet = True
+
             for obj in elem.iterchildren('Object'):
                 key = obj.find('./Key').text
                 version = obj.find('./VersionId')
@@ -44,6 +48,8 @@ class MultiObjectDeleteController(Controller):
                     version = version.text
 
                 yield (key, version)
+
+        self.quiet = False
 
         elem = Element('DeleteResult')
 
@@ -78,8 +84,9 @@ class MultiObjectDeleteController(Controller):
                 SubElement(error, 'Message').text = e._msg
                 continue
 
-            deleted = SubElement(elem, 'Deleted')
-            SubElement(deleted, 'Key').text = key
+            if not self.quiet:
+                deleted = SubElement(elem, 'Deleted')
+                SubElement(deleted, 'Key').text = key
 
         body = tostring(elem)
 
