@@ -72,7 +72,10 @@ class BucketController(Controller):
         SubElement(elem, 'Prefix').text = req.params.get('prefix')
         SubElement(elem, 'Marker').text = req.params.get('marker')
         SubElement(elem, 'MaxKeys').text = str(max_keys)
-        SubElement(elem, 'Delimiter').text = req.params.get('delimiter')
+
+        if 'delimiter' in req.params:
+            SubElement(elem, 'Delimiter').text = req.params['delimiter']
+
         if max_keys > 0 and len(objects) == max_keys + 1:
             is_truncated = 'true'
         else:
