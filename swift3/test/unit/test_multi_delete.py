@@ -22,6 +22,7 @@ from swift.common.swob import Request
 
 from swift3.test.unit import Swift3TestCase
 from swift3.etree import tostring, Element, SubElement
+from swift3.cfg import CONF
 
 
 class TestSwift3MultiDelete(Swift3TestCase):
@@ -96,6 +97,22 @@ class TestSwift3MultiDelete(Swift3TestCase):
                             body=body)
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidRequest')
+
+    def test_object_multi_DELETE_too_many_keys(self):
+        elem = Element('Delete')
+        for i in range(CONF.max_multi_delete_objects + 1):
+            obj = SubElement(elem, 'Object')
+            SubElement(obj, 'Key').text = str(i)
+        body = tostring(elem, use_s3ns=False)
+        content_md5 = md5(body).digest().encode('base64').strip()
+
+        req = Request.blank('/bucket?delete',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Content-MD5': content_md5},
+                            body=body)
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'MalformedXML')
 
 if __name__ == '__main__':
     unittest.main()
