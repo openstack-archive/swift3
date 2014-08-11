@@ -217,56 +217,6 @@ class TestSwift3Middleware(Swift3TestCase):
             headers['X-Auth-Token']),
             'PUT\n\n\n/bucket/object?partNumber=1&uploadId=123456789abcdef')
 
-    def test_xml_namespace(self):
-        def test_xml(ns, prefix):
-            return \
-                '<AccessControlPolicy %(ns)s>' \
-                '<Owner><ID>id</ID></Owner>' \
-                '<AccessControlList>' \
-                '<Grant>' \
-                '<Grantee ' \
-                ' xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"' \
-                ' xsi:type="Group">' \
-                '<URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>' \
-                '</Grantee>' \
-                '<%(prefix)sPermission>READ</%(prefix)sPermission>' \
-                '</Grant>' \
-                '</AccessControlList>' \
-                '</AccessControlPolicy>' % ({'ns': ns, 'prefix': prefix})
-
-        xml = test_xml('', '')
-        req = Request.blank('/bucket?acl',
-                            environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
-                            body=xml)
-        status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
-
-        xml = test_xml('xmlns="http://example.com/"', '')
-        req = Request.blank('/bucket?acl',
-                            environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
-                            body=xml)
-        status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
-
-        xml = test_xml('xmlns:s3="http://s3.amazonaws.com/doc/2006-03-01/"',
-                       's3:')
-        req = Request.blank('/bucket?acl',
-                            environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
-                            body=xml)
-        status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
-
-        xml = test_xml('xmlns:s3="http://example.com/"', 's3:')
-        req = Request.blank('/bucket?acl',
-                            environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
-                            body=xml)
-        status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'MalformedACLError')
-
     def test_invalid_uri(self):
         req = Request.blank('/bucket/invalid\xffname',
                             environ={'REQUEST_METHOD': 'GET'},
