@@ -34,22 +34,26 @@ class MultiObjectDeleteController(Controller):
         """
         Handles Delete Multiple Objects.
         """
-        def object_key_iter(xml):
-            elem = fromstring(xml, 'Delete')
-
+        def object_key_iter(elem):
             for obj in elem.iterchildren('Object'):
                 key = obj.find('./Key').text
                 version = obj.find('./VersionId')
                 if version is not None:
                     version = version.text
 
-                yield (key, version)
-
-        elem = Element('DeleteResult')
+                yield key, version
 
         try:
             xml = req.xml(MAX_MULTI_DELETE_BODY_SIZE, check_md5=True)
-            delete_list = list(object_key_iter(xml))
+            elem = fromstring(xml, 'Delete')
+
+            quiet = elem.find('./Quiet')
+            if quiet is not None and quiet.text.lower() == 'true':
+                self.quiet = True
+            else:
+                self.quiet = False
+
+            delete_list = list(object_key_iter(elem))
             if len(delete_list) > CONF.max_multi_delete_objects:
                 raise MalformedXML()
         except (XMLSyntaxError, DocumentInvalid):
@@ -59,6 +63,8 @@ class MultiObjectDeleteController(Controller):
         except Exception as e:
             LOGGER.error(e)
             raise
+
+        elem = Element('DeleteResult')
 
         for key, version in delete_list:
             if version is not None:
@@ -78,8 +84,9 @@ class MultiObjectDeleteController(Controller):
                 SubElement(error, 'Message').text = e._msg
                 continue
 
-            deleted = SubElement(elem, 'Deleted')
-            SubElement(deleted, 'Key').text = key
+            if not self.quiet:
+                deleted = SubElement(elem, 'Deleted')
+                SubElement(deleted, 'Key').text = key
 
         body = tostring(elem)
 
