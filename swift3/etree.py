@@ -14,11 +14,12 @@
 # limitations under the License.
 
 import lxml.etree
+from urllib import quote
 from copy import deepcopy
 from pkg_resources import resource_stream
 
 from swift3.exception import S3Exception
-from swift3.utils import LOGGER, camel_to_snake
+from swift3.utils import LOGGER, camel_to_snake, utf8encode
 
 XMLNS_S3 = 'http://s3.amazonaws.com/doc/2006-03-01/'
 
@@ -78,7 +79,7 @@ def fromstring(text, root_tag=None):
     return elem
 
 
-def tostring(tree, use_s3ns=True):
+def tostring(tree, encoding_type=None, use_s3ns=True):
     if use_s3ns:
         nsmap = tree.nsmap.copy()
         nsmap[None] = XMLNS_S3
@@ -87,6 +88,16 @@ def tostring(tree, use_s3ns=True):
         root.text = tree.text
         root.extend(deepcopy(tree.getchildren()))
         tree = root
+
+    if encoding_type == 'url':
+        tree = deepcopy(tree)
+        for e in tree.iter():
+            # Some elements are not url-encoded even when we specify
+            # encoding_type=url.
+            blacklist = ['LastModified', 'ID', 'DisplayName', 'Initiated']
+            if e.tag not in blacklist:
+                if isinstance(e.text, (str, unicode)):
+                    e.text = quote(utf8encode(e.text))
 
     return lxml.etree.tostring(tree, xml_declaration=True, encoding='UTF-8')
 
