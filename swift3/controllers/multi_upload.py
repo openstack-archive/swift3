@@ -131,6 +131,11 @@ class UploadsController(Controller):
         """
         Handles List Multipart Uploads
         """
+        encoding_type = req.params.get('encoding-type')
+        if encoding_type is not None and encoding_type != 'url':
+            err_msg = 'Invalid Encoding Method specified in Request'
+            raise InvalidArgument('encoding-type', encoding_type, err_msg)
+
         # TODO: add support for prefix, key-marker, upload-id-marker, and
         # max-uploads queries.
         query = {
@@ -167,7 +172,10 @@ class UploadsController(Controller):
         SubElement(result_elem, 'NextUploadIdMarker').text = nextuploadmarker
 
         SubElement(result_elem, 'MaxUploads').text = str(DEFAULT_MAX_UPLOADS)
-        # TODO: add support for EncodingType
+
+        if encoding_type is not None:
+            SubElement(result_elem, 'EncodingType').text = encoding_type
+
         SubElement(result_elem, 'IsTruncated').text = 'false'
 
         # TODO: don't show uploads which are initiated before this bucket is
@@ -186,7 +194,7 @@ class UploadsController(Controller):
             SubElement(upload_elem, 'Initiated').text = \
                 u['last_modified'][:-3] + 'Z'
 
-        body = tostring(result_elem)
+        body = tostring(result_elem, encoding_type=encoding_type)
 
         return HTTPOk(body=body, content_type='application/xml')
 
@@ -233,6 +241,11 @@ class UploadController(Controller):
         """
         Handles List Parts.
         """
+        encoding_type = req.params.get('encoding-type')
+        if encoding_type is not None and encoding_type != 'url':
+            err_msg = 'Invalid Encoding Method specified in Request'
+            raise InvalidArgument('encoding-type', encoding_type, err_msg)
+
         upload_id = req.params['uploadId']
         _check_upload_info(req, self.app, upload_id)
 
@@ -286,7 +299,7 @@ class UploadController(Controller):
             SubElement(part_elem, 'ETag').text = i['hash']
             SubElement(part_elem, 'Size').text = str(i['bytes'])
 
-        body = tostring(result_elem)
+        body = tostring(result_elem, encoding_type=encoding_type)
 
         return HTTPOk(body=body, content_type='application/xml')
 

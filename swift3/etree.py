@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import lxml.etree
+from urllib import quote
 from copy import deepcopy
 from itertools import imap
 from functools import partial
@@ -116,7 +117,7 @@ def fromstring(text, root_tag=None):
 
 
 @patch
-def tostring(tree, use_s3ns=True):
+def tostring(tree, encoding_type=None, use_s3ns=True):
     if use_s3ns:
         nsmap = tree.nsmap.copy()
         nsmap[None] = XMLNS_S3
@@ -125,6 +126,16 @@ def tostring(tree, use_s3ns=True):
         root.text = tree.text
         root.extend(deepcopy(tree.getchildren()))
         tree = root
+
+    if encoding_type == 'url':
+        tree = deepcopy(tree)
+        for e in tree.iter():
+            # Some elements are not url-encoded even when we specify
+            # encoding_type=url.
+            blacklist = ['LastModified', 'ID', 'DisplayName', 'Initiated']
+            if e.tag not in blacklist:
+                if isinstance(e.text, (str, unicode)):
+                    e.text = quote(utf8encode(e.text))
 
     return lxml.etree.tostring(tree, xml_declaration=True, encoding='UTF-8')
 
