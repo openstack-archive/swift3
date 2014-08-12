@@ -18,7 +18,7 @@ from copy import deepcopy
 from pkg_resources import resource_stream
 
 from swift3.exception import S3Exception
-from swift3.utils import LOGGER, camel_to_snake
+from swift3.utils import LOGGER, camel_to_snake, utf8encode, utf8decode
 
 XMLNS_S3 = 'http://s3.amazonaws.com/doc/2006-03-01/'
 
@@ -111,16 +111,11 @@ class _Element(lxml.etree.ElementBase):
         """
         utf-8 wrapper property of lxml.etree.Element.text
         """
-        text = lxml.etree.ElementBase.text.__get__(self)
-        if isinstance(text, unicode):
-            text = text.encode('utf-8')
-        return text
+        return utf8encode(lxml.etree.ElementBase.text.__get__(self))
 
     @text.setter
     def text(self, value):
-        if isinstance(value, str):
-            value = value.decode('utf-8')
-        lxml.etree.ElementBase.text.__set__(self, value)
+        lxml.etree.ElementBase.text.__set__(self, utf8decode(value))
 
 
 parser_lookup = lxml.etree.ElementDefaultClassLookup(element=_Element)
