@@ -52,6 +52,11 @@ class BucketController(Controller):
         max_keys = int(req.params.get('max-keys', CONF.max_bucket_listing))
         max_keys = min(max_keys, CONF.max_bucket_listing)
 
+        encoding_type = req.params.get('encoding-type')
+        if encoding_type is not None and encoding_type != 'url':
+            err_msg = 'Invalid Encoding Method specified in Request'
+            raise InvalidArgument('encoding-type', encoding_type, err_msg)
+
         query = {
             'format': 'json',
             'limit': max_keys + 1,
@@ -75,6 +80,9 @@ class BucketController(Controller):
 
         if 'delimiter' in req.params:
             SubElement(elem, 'Delimiter').text = req.params['delimiter']
+
+        if encoding_type is not None:
+            SubElement(elem, 'EncodingType').text = encoding_type
 
         if max_keys > 0 and len(objects) == max_keys + 1:
             is_truncated = 'true'
@@ -100,7 +108,7 @@ class BucketController(Controller):
                 common_prefixes = SubElement(elem, 'CommonPrefixes')
                 SubElement(common_prefixes, 'Prefix').text = o['subdir']
 
-        body = tostring(elem)
+        body = tostring(elem, encoding_type=encoding_type)
 
         return HTTPOk(body=body, content_type='application/xml')
 
