@@ -20,7 +20,7 @@ from functools import partial
 from pkg_resources import resource_stream
 
 from swift3.exception import S3Exception
-from swift3.utils import LOGGER, camel_to_snake
+from swift3.utils import LOGGER, camel_to_snake, utf8encode, utf8decode
 
 XMLNS_S3 = 'http://s3.amazonaws.com/doc/2006-03-01/'
 
@@ -174,20 +174,13 @@ class Element(object):
         Similar to lxml.etree._Element.text but this returns a utf8-encoded
         string always.
         """
-        text = self._element.text
-        if isinstance(text, unicode):
-            text = text.encode('utf8')
-
-        return text
+        return utf8encode(self._element.text)
 
     @text.setter
     def text(self, value):
         """
         Sets a unicode string to lxml.etree._Element.text.
         """
-        if isinstance(value, str):
-            value = value.decode('utf8')
-
-        self._element.text = value
+        self._element.text = utf8decode(value)
 
 SubElement = patch(lxml.etree.SubElement)
