@@ -42,6 +42,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
     MalformedXML, InvalidRequest
 from swift3.exception import NotS3Request, BadSwiftRequest
+from swift3.utils import utf8encode
 from swift3.cfg import CONF
 
 # List of sub-resources that must be maintained as part of the HMAC
@@ -504,10 +505,9 @@ class Request(swob.Request):
 
         if 'HTTP_X_USER_NAME' in sw_resp.environ:
             # keystone
-            self.user_id = "%s:%s" % (sw_resp.environ['HTTP_X_TENANT_NAME'],
-                                      sw_resp.environ['HTTP_X_USER_NAME'])
-            if isinstance(self.user_id, unicode):
-                self.user_id = self.user_id.encode('utf8')
+            self.user_id = utf8encode("%s:%s" %
+                                      (sw_resp.environ['HTTP_X_TENANT_NAME'],
+                                       sw_resp.environ['HTTP_X_USER_NAME']))
         else:
             # tempauth
             self.user_id = self.access_key

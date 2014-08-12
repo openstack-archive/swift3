@@ -35,3 +35,15 @@ def snake_to_camel(snake):
 
 def unique_id():
     return base64.urlsafe_b64encode(str(uuid.uuid4()))
+
+
+def utf8encode(s):
+    if isinstance(s, unicode):
+        s = s.encode('utf8')
+    return s
+
+
+def utf8decode(s):
+    if isinstance(s, str):
+        s = s.decode('utf8')
+    return s
