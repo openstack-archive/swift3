@@ -18,7 +18,7 @@ from simplejson import loads
 from swift.common.http import HTTP_OK
 
 from swift3.controllers.base import Controller
-from swift3.controllers.acl import add_canonical_user, swift_acl_translate
+from swift3.controllers.acl import swift_acl_translate
 from swift3.etree import Element, SubElement, tostring, fromstring, \
     XMLSyntaxError, DocumentInvalid
 from swift3.response import HTTPOk, S3NotImplemented, InvalidArgument, \
@@ -87,7 +87,9 @@ class BucketController(Controller):
                     o['last_modified'] + 'Z'
                 SubElement(contents, 'ETag').text = o['hash']
                 SubElement(contents, 'Size').text = str(o['bytes'])
-                add_canonical_user(contents, 'Owner', req.user_id)
+                owner = SubElement(contents, 'Owner')
+                SubElement(owner, 'ID').text = req.user_id
+                SubElement(owner, 'DisplayName').text = req.user_id
                 SubElement(contents, 'StorageClass').text = 'STANDARD'
 
         for o in objects[:max_keys]:
