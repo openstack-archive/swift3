@@ -18,6 +18,8 @@ from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
 from swift3.response import HTTPOk, S3NotImplemented, NoSuchKey, \
     ErrorResponse, MalformedXML
+from swift3.cfg import CONF
+from swift3.utils import LOGGER
 
 MAX_MULTI_DELETE_BODY_SIZE = 61365
 
@@ -33,10 +35,7 @@ class MultiObjectDeleteController(Controller):
         Handles Delete Multiple Objects.
         """
         def object_key_iter(xml):
-            try:
-                elem = fromstring(xml, 'Delete')
-            except (XMLSyntaxError, DocumentInvalid):
-                raise MalformedXML()
+            elem = fromstring(xml, 'Delete')
 
             for obj in elem.iterchildren('Object'):
                 key = obj.find('./Key').text
@@ -48,8 +47,20 @@ class MultiObjectDeleteController(Controller):
 
         elem = Element('DeleteResult')
 
-        xml = req.xml(MAX_MULTI_DELETE_BODY_SIZE, check_md5=True)
-        for key, version in object_key_iter(xml):
+        try:
+            xml = req.xml(MAX_MULTI_DELETE_BODY_SIZE, check_md5=True)
+            delete_list = list(object_key_iter(xml))
+            if len(delete_list) > CONF.max_multi_delete_objects:
+                raise MalformedXML()
+        except (XMLSyntaxError, DocumentInvalid):
+            raise MalformedXML()
+        except ErrorResponse:
+            raise
+        except Exception as e:
+            LOGGER.error(e)
+            raise
+
+        for key, version in delete_list:
             if version is not None:
                 # TODO: delete the specific version of the object
                 raise S3NotImplemented()
