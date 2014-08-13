@@ -17,7 +17,8 @@ from swift.common.http import HTTP_OK
 from swift.common.middleware.acl import parse_acl, referrer_allowed
 
 from swift3.controllers.base import Controller
-from swift3.response import HTTPOk, S3NotImplemented, MalformedACLError
+from swift3.response import HTTPOk, S3NotImplemented, MalformedACLError, \
+    InvalidArgument
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
 
@@ -120,6 +121,28 @@ def swift_acl_translate(acl, group='', user='', xml=False):
     return swift_acl[acl]
 
 
+def handle_acl_header(req):
+    """
+    Handle the x-amz-acl header.
+    """
+    amz_acl = req.environ['HTTP_X_AMZ_ACL']
+    # Translate the Amazon ACL to something that can be
+    # implemented in Swift, 501 otherwise. Swift uses POST
+    # for ACLs, whereas S3 uses PUT.
+    del req.environ['HTTP_X_AMZ_ACL']
+    if req.query_string:
+        req.query_string = ''
+
+    translated_acl = swift_acl_translate(amz_acl)
+    if translated_acl == 'NotImplemented':
+        raise S3NotImplemented()
+    elif translated_acl == 'InvalidArgument':
+        raise InvalidArgument('x-amz-acl', amz_acl)
+
+    for header, acl in translated_acl:
+        req.headers[header] = acl
+
+
 class AclController(Controller):
     """
     Handles the following APIs:
@@ -148,6 +171,8 @@ class AclController(Controller):
             raise S3NotImplemented()
         else:
             # Handle Bucket ACL
+            if 'HTTP_X_AMZ_ACL' in req.environ:
+                handle_acl_header(req)
 
             # We very likely have an XML-based ACL request.
             translated_acl = swift_acl_translate(req.xml(MAX_ACL_BODY_SIZE),

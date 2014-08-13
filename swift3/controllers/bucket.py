@@ -18,7 +18,7 @@ from simplejson import loads
 from swift.common.http import HTTP_OK
 
 from swift3.controllers.base import Controller
-from swift3.controllers.acl import swift_acl_translate
+from swift3.controllers.acl import handle_acl_header
 from swift3.etree import Element, SubElement, tostring, fromstring, \
     XMLSyntaxError, DocumentInvalid
 from swift3.response import HTTPOk, S3NotImplemented, InvalidArgument, \
@@ -106,22 +106,7 @@ class BucketController(Controller):
         Handle PUT Bucket request
         """
         if 'HTTP_X_AMZ_ACL' in req.environ:
-            amz_acl = req.environ['HTTP_X_AMZ_ACL']
-            # Translate the Amazon ACL to something that can be
-            # implemented in Swift, 501 otherwise. Swift uses POST
-            # for ACLs, whereas S3 uses PUT.
-            del req.environ['HTTP_X_AMZ_ACL']
-            if req.query_string:
-                req.query_string = ''
-
-            translated_acl = swift_acl_translate(amz_acl)
-            if translated_acl == 'NotImplemented':
-                raise S3NotImplemented()
-            elif translated_acl == 'InvalidArgument':
-                raise InvalidArgument('x-amz-acl', amz_acl)
-
-            for header, acl in translated_acl:
-                req.headers[header] = acl
+            handle_acl_header(req)
 
         xml = req.xml(MAX_PUT_BUCKET_BODY_SIZE)
         if xml:
