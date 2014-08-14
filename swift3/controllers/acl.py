@@ -16,6 +16,7 @@
 from swift.common.http import HTTP_OK
 from swift.common.middleware.acl import parse_acl, referrer_allowed
 
+from swift3.exception import ACLError
 from swift3.controllers.base import Controller
 from swift3.response import HTTPOk, S3NotImplemented, MalformedACLError, \
     InvalidArgument
@@ -114,9 +115,9 @@ def swift_acl_translate(acl, group='', user='', xml=False):
                 acl = 'unsupported'
 
     if acl == 'authenticated-read':
-        return "NotImplemented"
+        raise S3NotImplemented()
     elif acl not in swift_acl:
-        return "InvalidArgument"
+        raise ACLError()
 
     return swift_acl[acl]
 
@@ -133,10 +134,9 @@ def handle_acl_header(req):
     if req.query_string:
         req.query_string = ''
 
-    translated_acl = swift_acl_translate(amz_acl)
-    if translated_acl == 'NotImplemented':
-        raise S3NotImplemented()
-    elif translated_acl == 'InvalidArgument':
+    try:
+        translated_acl = swift_acl_translate(amz_acl)
+    except ACLError:
         raise InvalidArgument('x-amz-acl', amz_acl)
 
     for header, acl in translated_acl:
@@ -175,12 +175,12 @@ class AclController(Controller):
                 handle_acl_header(req)
 
             # We very likely have an XML-based ACL request.
-            translated_acl = swift_acl_translate(req.xml(MAX_ACL_BODY_SIZE),
-                                                 xml=True)
-            if translated_acl == 'NotImplemented':
-                raise S3NotImplemented()
-            elif translated_acl == 'InvalidArgument':
+            try:
+                translated_acl = swift_acl_translate(
+                    req.xml(MAX_ACL_BODY_SIZE), xml=True)
+            except ACLError:
                 raise MalformedACLError()
+
             for header, acl in translated_acl:
                 req.headers[header] = acl
 
