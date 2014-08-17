@@ -1,0 +1,8 @@
+Verified+2: Jenkins
+Code-Review+2: MORITA Kazutaka <morita.kazutaka@gmail.com>
+Workflow+1: MORITA Kazutaka <morita.kazutaka@gmail.com>
+Submitted-by: Jenkins
+Submitted-at: Sun, 17 Aug 2014 17:59:06 +0000
+Reviewed-on: https://review.openstack.org/114099
+Project: stackforge/swift3
+Branch: refs/heads/master
