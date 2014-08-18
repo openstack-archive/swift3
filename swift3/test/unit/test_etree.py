@@ -47,5 +47,10 @@ class TestSwift3Etree(unittest.TestCase):
         elem = etree.fromstring(xml)
         self.assertEquals(elem.find('./B'), None)
 
+    def test_xml_with_comments(self):
+        xml = '<A><!-- comment --><B>C</B></A>'
+        elem = etree.fromstring(xml)
+        self.assertEquals(elem.find('./B').text, 'C')
+
 if __name__ == '__main__':
     unittest.main()
