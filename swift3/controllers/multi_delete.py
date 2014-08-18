@@ -17,7 +17,7 @@ from swift3.controllers.base import Controller, bucket_operation
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
 from swift3.response import HTTPOk, S3NotImplemented, NoSuchKey, \
-    ErrorResponse, MalformedXML
+    ErrorResponse, MalformedXML, UserKeyMustBeSpecified
 from swift3.cfg import CONF
 from swift3.utils import LOGGER
 
@@ -37,6 +37,8 @@ class MultiObjectDeleteController(Controller):
         def object_key_iter(elem):
             for obj in elem.iterchildren('Object'):
                 key = obj.find('./Key').text
+                if not key:
+                    raise UserKeyMustBeSpecified()
                 version = obj.find('./VersionId')
                 if version is not None:
                     version = version.text
