@@ -37,6 +37,10 @@ def cleanup_namespaces(elem):
             tag = tag[len('{%s}' % ns):]
         return tag
 
+    if not isinstance(elem.tag, basestring):
+        # elem is a comment element.
+        return
+
     # remove s3 namespace
     elem.tag = remove_ns(elem.tag, XMLNS_S3)
 
