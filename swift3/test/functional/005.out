@@ -1,0 +1,3 @@
+QA output created by 005
+> s3curl --id tester -- -X PUT http://SWIFT_HOST/bucket... 200
+> s3curl --id tester -- -X DELETE http://SWIFT_HOST/bucket... 204
