@@ -160,6 +160,14 @@ _xmlindent()
     ./xmlindent.py
 }
 
+_xq()
+{
+    local path=$1
+
+    sed "s/ xmlns.*\">/>/" > $tmp.xq.xml
+    echo "cat ${path}/text()" | xmllint --shell $tmp.xq.xml | head -3 | tail -1
+}
+
 _xpath()
 {
     local path=$1

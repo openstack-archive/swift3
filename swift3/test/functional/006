@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# PUT Object
+
+. ./common
+
+S3USER=tester
+
+_s3_put /bucket
+
+echo data > $tmp.data
+MD5=$(_md5 $tmp.data) CONTENT_TYPE='application/octet-stream' \
+    _s3_put /bucket/object -T $tmp.data \
+    -H 'Content-Disposition: attachment; filename="a.txt.gz"' \
+    -H 'Content-Encoding: gzip' \
+    -H "Content-Length: $(_file_size $tmp.data)" \
+    -H "x-amz-meta-hoge: hoge" \
+    -H 'x-amz-acl: private' -D - | _filter_curl

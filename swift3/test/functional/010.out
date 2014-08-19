@@ -1,0 +1,5 @@
+QA output created by 010
+> s3curl --id tester -- -X PUT http://SWIFT_HOST/bucket... 200
+> s3curl --id tester -- -X POST -H x-amz-acl: public-read-write -H x-amz-meta-hoge1: 1 -H x-amz-meta-hoge2: 2 -H x-amz-meta-hoge3: 3 http://SWIFT_HOST/bucket/object?uploads... 200
+<?xml version='1.0' encoding='UTF-8'?>
+<InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Bucket>bucket</Bucket><Key>object</Key><UploadId>UPLOAD_ID</UploadId></InitiateMultipartUploadResult>

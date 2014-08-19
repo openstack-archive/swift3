@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# HEAD Bucket
+
+. ./common
+
+S3USER=tester
+
+_s3_put /bucket
+
+_s3_head /bucket | _filter_curl
+

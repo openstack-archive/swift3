@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# List Parts
+
+. ./common
+
+num=10
+
+S3USER=tester
+
+_s3_put /bucket
+
+upload_id=$(_s3_post /bucket/object?uploads | \
+    _xq /InitiateMultipartUploadResult/UploadId)
+
+for i in `seq $num`; do
+    j=$(($i - 1))
+    dd if=/dev/zero of=./segment_1M.dat_0$j bs=1k count=1024 > /dev/null 2>&1
+    _s3_put /bucket/object?uploadId=${upload_id}\&partNumber=$i \
+        -T ./segment_1M.dat_0$j
+done
+
+_s3_get /bucket/object?uploadId=${upload_id} | _filter_curl xml
+
+for i in `seq $num`; do
+    j=$(($i - 1))
+    rm ./segment_1M.dat_0$j
+done
+
