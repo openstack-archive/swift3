@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Abort Multipart Upload
+
+. ./common
+
+num=10
+
+S3USER=tester
+
+
+_s3_put /bucket
+
+upload_id=$(_s3_post /bucket/object?uploads | \
+    _xq /InitiateMultipartUploadResult/UploadId)
+
+for i in `seq $num`; do
+    truncate -s 103K $TEST_DIR/segment_1M.dat_$i
+    _s3_put /bucket/object?uploadId=${upload_id}\&partNumber=$i \
+        -T $TEST_DIR/segment_1M.dat_$i
+done
+
+_s3_delete /bucket/object?uploadId=${upload_id}
+
+
+for i in `seq $num`; do
+    rm $TEST_DIR/segment_1M.dat_$i
+done

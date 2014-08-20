@@ -1,0 +1,14 @@
+QA output created by 014
+> s3curl --id tester -- -X PUT http://SWIFT_HOST/bucket... 200
+> s3curl --id tester -- -X POST http://SWIFT_HOST/bucket/object?uploads... 200
+> s3curl --id tester -- -X PUT -T /TEST_DIR/segment_1M.dat_1 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=1... 200
+> s3curl --id tester -- -X PUT -T /TEST_DIR/segment_1M.dat_2 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=2... 200
+> s3curl --id tester -- -X PUT -T /TEST_DIR/segment_1M.dat_3 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=3... 200
+> s3curl --id tester -- -X PUT -T /TEST_DIR/segment_1M.dat_4 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=4... 200
+> s3curl --id tester -- -X PUT -T /TEST_DIR/segment_1M.dat_5 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=5... 200
+> s3curl --id tester -- -X PUT -T /TEST_DIR/segment_1M.dat_6 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=6... 200
+> s3curl --id tester -- -X PUT -T /TEST_DIR/segment_1M.dat_7 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=7... 200
+> s3curl --id tester -- -X PUT -T /TEST_DIR/segment_1M.dat_8 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=8... 200
+> s3curl --id tester -- -X PUT -T /TEST_DIR/segment_1M.dat_9 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=9... 200
+> s3curl --id tester -- -X PUT -T /TEST_DIR/segment_1M.dat_10 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=10... 200
+> s3curl --id tester -- -X DELETE http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID... 204

@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Initiate MultiPart Upload
+
+. ./common
+
+S3USER=tester
+
+_s3_put /bucket
+
+_s3_post /bucket/object?uploads \
+    -H "x-amz-acl: public-read-write" \
+    -H "x-amz-meta-foo1: 1" \
+    -H "x-amz-meta-foo2: 2" \
+    -H "x-amz-meta-foo3: 3" | _filter_curl

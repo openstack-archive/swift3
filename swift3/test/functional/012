@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# Complete Multipart Upload
+
+. ./common
+
+num=10
+
+S3USER=tester
+
+_gen_complete_xml()
+{
+    echo '<CompleteMultipartUpload>'
+
+    for i in `seq $num`; do
+        echo '<Part>'
+        echo "<PartNumber>$i</PartNumber>"
+        echo "<ETag>$(_etag $TEST_DIR/segment_50M.dat_$i)</ETag>"
+        echo '</Part>'
+    done
+
+    echo '</CompleteMultipartUpload>'
+}
+
+
+_s3_put /bucket
+
+upload_id=$(_s3_post /bucket/object?uploads \
+    -H "x-amz-acl: public-read-write" \
+    -H "x-amz-meta-foo1: 1" \
+    -H "x-amz-meta-foo2: 2" \
+    -H "x-amz-meta-foo3: 3" | \
+    _xq /InitiateMultipartUploadResult/UploadId)
+
+for i in `seq $num`; do
+    truncate -s 512K $TEST_DIR/segment_50M.dat_$i
+    _s3_put /bucket/object?uploadId=${upload_id}\&partNumber=$i \
+        -T $TEST_DIR/segment_50M.dat_$i
+done
+
+_gen_complete_xml > $TEST_DIR/complete.xml
+
+_s3_post /bucket/object?uploadId=${upload_id} -T $TEST_DIR/complete.xml -D - | \
+    _filter_curl xml
+
+_s3_head /bucket/object | _filter_curl
+
+rm $TEST_DIR/complete.xml
+
+for i in `seq $num`; do
+    rm $TEST_DIR/segment_50M.dat_$i
+done
+

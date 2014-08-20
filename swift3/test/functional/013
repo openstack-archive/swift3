@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# List Multipart Uploads
+
+. ./common
+
+
+S3USER=tester
+
+_s3_put /bucket
+
+upload_id=$(_s3_post /bucket/object?uploads _xq /InitiateMultipartUploadResult/UploadId)
+upload_id=$(_s3_post /bucket/object?uploads _xq /InitiateMultipartUploadResult/UploadId)
+upload_id=$(_s3_post /bucket/object2?uploads _xq /InitiateMultipartUploadResult/UploadId)
+
+_s3_get /bucket?uploads -D - | _filter_curl xml
+
