@@ -196,9 +196,10 @@ _filter_curl()
 
 _filter_curl_command()
 {
-    sed "s#$tmp#/TMP#g" | _filter_user | _filter_host | _filter_tenant | \
-	_filter_upload_id | _filter_version_id | _filter_txid | _filter_etag | \
-	_filter_timestamp
+    sed "s#$tmp#/TMP#g" | sed "s#$TEST_DIR#/TEST_DIR#g" | \
+        _filter_user | _filter_host | _filter_tenant | \
+	_filter_upload_id | _filter_version_id | _filter_txid | \
+        _filter_etag | _filter_timestamp
 }
 
 # make sure this script returns success

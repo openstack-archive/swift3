@@ -1,0 +1,15 @@
+QA output created by 006
+> s3curl --id tester -- -X PUT http://SWIFT_HOST/bucket... 200
+> s3curl --id tester --contentMd5 YTfN5Ik8WfdvAFqBI9jo5g== --contentType application/octet-stream -- -X PUT -T /TEST_DIR/data -H Content-Disposition: attachment; filename="a.txt.gz" -H Content-Encoding: gzip -H Content-Length: 5 -H x-amz-meta-foo: bar -H x-amz-acl: private -D - http://SWIFT_HOST/bucket/object... 200
+HTTP/1.1 100 Continue
+
+HTTP/1.1 200 OK
+Content-Length: LENGTH
+Content-Type: text/html; charset=UTF-8
+Date: DATE
+ETag: "ETAG"
+Last-Modified: DATE
+x-amz-id-2: TXID
+x-amz-request-id: TXID
+X-Trans-Id: TXID
+
