@@ -1,0 +1,13 @@
+QA output created by 011
+> s3curl --id tester -- -X PUT http://SWIFT_HOST/bucket... 200
+> s3curl --id tester -- -X POST -H x-amz-acl: public-read-write -H x-amz-meta-hoge1: 1 -H x-amz-meta-hoge2: 2 -H x-amz-meta-hoge3: 3 http://SWIFT_HOST/bucket/object?uploads... 200
+> s3curl --id tester -- -X PUT -T ./segment_50M.dat_00 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=1... 200
+> s3curl --id tester -- -X PUT -T ./segment_50M.dat_01 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=2... 200
+> s3curl --id tester -- -X PUT -T ./segment_50M.dat_02 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=3... 200
+> s3curl --id tester -- -X PUT -T ./segment_50M.dat_03 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=4... 200
+> s3curl --id tester -- -X PUT -T ./segment_50M.dat_04 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=5... 200
+> s3curl --id tester -- -X PUT -T ./segment_50M.dat_05 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=6... 200
+> s3curl --id tester -- -X PUT -T ./segment_50M.dat_06 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=7... 200
+> s3curl --id tester -- -X PUT -T ./segment_50M.dat_07 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=8... 200
+> s3curl --id tester -- -X PUT -T ./segment_50M.dat_08 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=9... 200
+> s3curl --id tester -- -X PUT -T ./segment_50M.dat_09 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=10... 200

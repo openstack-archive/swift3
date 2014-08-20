@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# Upload Part
+
+. ./common
+
+num=10
+
+S3USER=tester
+
+_s3_put /bucket
+
+upload_id=$(_s3_post /bucket/object?uploads \
+    -H "x-amz-acl: public-read-write" \
+    -H "x-amz-meta-hoge1: 1" \
+    -H "x-amz-meta-hoge2: 2" \
+    -H "x-amz-meta-hoge3: 3" | \
+    _xq /InitiateMultipartUploadResult/UploadId)
+
+for i in `seq $num`; do
+    j=$(($i - 1))
+    dd if=/dev/zero of=./segment_50M.dat_0$j bs=1k count=5120 > /dev/null 2>&1
+    _s3_put /bucket/object?uploadId=${upload_id}\&partNumber=$i \
+        -T ./segment_50M.dat_0$j
+done
+
+for i in `seq $num`; do
+    j=$(($i - 1))
+    rm ./segment_50M.dat_0$j
+done
+

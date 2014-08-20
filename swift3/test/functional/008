@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# DELETE Object
+
+. ./common
+
+S3USER=tester
+
+_s3_put /containerA
+
+echo data > $tmp.data
+MD5=$(_md5 $tmp.data) CONTENT_TYPE='application/octet-stream' \
+    _s3_put /containerA/objectA -T $tmp.data \
+    -H 'Content-Disposition: attachment; filename="a.txt.gz"' \
+    -H 'Content-Encoding: gzip' \
+    -H "Content-Length: $(_file_size $tmp.data)" \
+    -H 'Expect: 100-continue' \
+    -H 'x-amz-storage-class: STANDARD' -D - | _filter_curl
+
+_s3_delete /containerA/objectA

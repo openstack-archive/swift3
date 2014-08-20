@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# DELETE Bucket
+
+. ./common
+
+S3USER=tester
+
+_s3_put /bucket
+
+_s3_delete /bucket

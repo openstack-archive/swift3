@@ -1,0 +1,93 @@
+QA output created by 015
+> s3curl --id tester -- -X PUT http://SWIFT_HOST/bucket... 200
+> s3curl --id tester -- -X POST http://SWIFT_HOST/bucket/object?uploads... 200
+> s3curl --id tester -- -X PUT -T ./segment_1M.dat_00 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=1... 200
+> s3curl --id tester -- -X PUT -T ./segment_1M.dat_01 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=2... 200
+> s3curl --id tester -- -X PUT -T ./segment_1M.dat_02 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=3... 200
+> s3curl --id tester -- -X PUT -T ./segment_1M.dat_03 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=4... 200
+> s3curl --id tester -- -X PUT -T ./segment_1M.dat_04 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=5... 200
+> s3curl --id tester -- -X PUT -T ./segment_1M.dat_05 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=6... 200
+> s3curl --id tester -- -X PUT -T ./segment_1M.dat_06 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=7... 200
+> s3curl --id tester -- -X PUT -T ./segment_1M.dat_07 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=8... 200
+> s3curl --id tester -- -X PUT -T ./segment_1M.dat_08 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=9... 200
+> s3curl --id tester -- -X PUT -T ./segment_1M.dat_09 http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID&partNumber=10... 200
+> s3curl --id tester -- -X GET http://SWIFT_HOST/bucket/object?uploadId=UPLOAD_ID... 200
+<?xml version='1.0' encoding='UTF-8'?>
+<ListPartsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Bucket>bucket</Bucket>
+  <Key>object</Key>
+  <UploadId>UPLOAD_ID</UploadId>
+  <Initiator>
+    <ID>TESTER</ID>
+    <DisplayName>TESTER</DisplayName>
+  </Initiator>
+  <Owner>
+    <ID>TESTER</ID>
+    <DisplayName>TESTER</DisplayName>
+  </Owner>
+  <StorageClass>STANDARD</StorageClass>
+  <PartNumberMarker>0</PartNumberMarker>
+  <NextPartNumberMarker>10</NextPartNumberMarker>
+  <MaxParts>1000</MaxParts>
+  <IsTruncated>false</IsTruncated>
+  <Part>
+    <PartNumber>1</PartNumber>
+    <LastModified>DATE</LastModified>
+    <ETag>ETAG</ETag>
+    <Size>1048576</Size>
+  </Part>
+  <Part>
+    <PartNumber>2</PartNumber>
+    <LastModified>DATE</LastModified>
+    <ETag>ETAG</ETag>
+    <Size>1048576</Size>
+  </Part>
+  <Part>
+    <PartNumber>3</PartNumber>
+    <LastModified>DATE</LastModified>
+    <ETag>ETAG</ETag>
+    <Size>1048576</Size>
+  </Part>
+  <Part>
+    <PartNumber>4</PartNumber>
+    <LastModified>DATE</LastModified>
+    <ETag>ETAG</ETag>
+    <Size>1048576</Size>
+  </Part>
+  <Part>
+    <PartNumber>5</PartNumber>
+    <LastModified>DATE</LastModified>
+    <ETag>ETAG</ETag>
+    <Size>1048576</Size>
+  </Part>
+  <Part>
+    <PartNumber>6</PartNumber>
+    <LastModified>DATE</LastModified>
+    <ETag>ETAG</ETag>
+    <Size>1048576</Size>
+  </Part>
+  <Part>
+    <PartNumber>7</PartNumber>
+    <LastModified>DATE</LastModified>
+    <ETag>ETAG</ETag>
+    <Size>1048576</Size>
+  </Part>
+  <Part>
+    <PartNumber>8</PartNumber>
+    <LastModified>DATE</LastModified>
+    <ETag>ETAG</ETag>
+    <Size>1048576</Size>
+  </Part>
+  <Part>
+    <PartNumber>9</PartNumber>
+    <LastModified>DATE</LastModified>
+    <ETag>ETAG</ETag>
+    <Size>1048576</Size>
+  </Part>
+  <Part>
+    <PartNumber>10</PartNumber>
+    <LastModified>DATE</LastModified>
+    <ETag>ETAG</ETag>
+    <Size>1048576</Size>
+  </Part>
+</ListPartsResult>
