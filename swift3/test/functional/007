@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# GET Object
+
+. ./common
+
+S3USER=tester
+
+_s3_put /bucket
+
+echo data > $TEST_DIR/data
+MD5=$(_md5 $TEST_DIR/data) CONTENT_TYPE='application/octet-stream' \
+    _s3_put /bucket/object -T $TEST_DIR/data \
+    -H 'Content-Disposition: attachment; filename="a.txt.gz"' \
+    -H 'Content-Encoding: gzip' \
+    -H "Content-Length: $(_file_size $TEST_DIR/data)" \
+    -H 'x-amz-storage-class: STANDARD' -D - | _filter_curl
+
+_s3_get /bucket/object -D - | _filter_curl
+
+rm $TEST_DIR/data
+

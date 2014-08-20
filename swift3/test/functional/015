@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# List Parts
+
+. ./common
+
+num=10
+
+S3USER=tester
+
+_s3_put /bucket
+
+upload_id=$(_s3_post /bucket/object?uploads | \
+    _xpath '/InitiateMultipartUploadResult/UploadId/text()')
+
+for i in `seq $num`; do
+    truncate -s 103K $TEST_DIR/segment_1M.dat_$i
+    _s3_put /bucket/object?uploadId=${upload_id}\&partNumber=$i \
+        -T $TEST_DIR/segment_1M.dat_$i
+done
+
+_s3_get /bucket/object?uploadId=${upload_id} | _filter_curl xml
+
+for i in `seq $num`; do
+    rm $TEST_DIR/segment_1M.dat_$i
+done
+
