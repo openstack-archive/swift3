@@ -24,7 +24,7 @@ from swift3.etree import Element, SubElement, tostring, fromstring, \
 from swift3.response import HTTPOk, S3NotImplemented, InvalidArgument, \
     MalformedXML, InvalidLocationConstraint
 from swift3.cfg import CONF
-from swift3.utils import LOGGER
+from swift3.utils import LOGGER, utf8decode
 
 MAX_PUT_BUCKET_BODY_SIZE = 10240
 
@@ -68,9 +68,9 @@ class BucketController(Controller):
         objects = loads(resp.body)
 
         elem = Element('ListBucketResult')
-        SubElement(elem, 'Name').text = req.container_name
-        SubElement(elem, 'Prefix').text = req.params.get('prefix')
-        SubElement(elem, 'Marker').text = req.params.get('marker')
+        SubElement(elem, 'Name').text = utf8decode(req.container_name)
+        SubElement(elem, 'Prefix').text = utf8decode(req.params.get('prefix'))
+        SubElement(elem, 'Marker').text = utf8decode(req.params.get('marker'))
         SubElement(elem, 'MaxKeys').text = str(max_keys)
 
         if 'delimiter' in req.params:
@@ -85,7 +85,11 @@ class BucketController(Controller):
         for o in objects[:max_keys]:
             if 'subdir' not in o:
                 contents = SubElement(elem, 'Contents')
+
+                # XXX: We don't need utf8decode() here since json.loads returns
+                # unicode for non-ascii strings.
                 SubElement(contents, 'Key').text = o['name']
+
                 SubElement(contents, 'LastModified').text = \
                     o['last_modified'] + 'Z'
                 SubElement(contents, 'ETag').text = o['hash']
@@ -98,6 +102,9 @@ class BucketController(Controller):
         for o in objects[:max_keys]:
             if 'subdir' in o:
                 common_prefixes = SubElement(elem, 'CommonPrefixes')
+
+                # o['subdir'] is unicode for non-ascii strings.  No need to use
+                # utf8decode().
                 SubElement(common_prefixes, 'Prefix').text = o['subdir']
 
         body = tostring(elem)

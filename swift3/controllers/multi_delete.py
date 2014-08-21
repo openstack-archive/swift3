@@ -19,7 +19,7 @@ from swift3.etree import Element, SubElement, fromstring, tostring, \
 from swift3.response import HTTPOk, S3NotImplemented, NoSuchKey, \
     ErrorResponse, MalformedXML, UserKeyMustBeSpecified
 from swift3.cfg import CONF
-from swift3.utils import LOGGER
+from swift3.utils import LOGGER, utf8encode, utf8decode
 
 MAX_MULTI_DELETE_BODY_SIZE = 61365
 
@@ -36,7 +36,7 @@ class MultiObjectDeleteController(Controller):
         """
         def object_key_iter(elem):
             for obj in elem.iterchildren('Object'):
-                key = obj.find('./Key').text
+                key = utf8encode(obj.find('./Key').text)
                 if not key:
                     raise UserKeyMustBeSpecified()
                 version = obj.find('./VersionId')
@@ -81,14 +81,14 @@ class MultiObjectDeleteController(Controller):
                 pass
             except ErrorResponse as e:
                 error = SubElement(elem, 'Error')
-                SubElement(error, 'Key').text = key
+                SubElement(error, 'Key').text = utf8decode(key)
                 SubElement(error, 'Code').text = e.__class__.__name__
                 SubElement(error, 'Message').text = e._msg
                 continue
 
             if not self.quiet:
                 deleted = SubElement(elem, 'Deleted')
-                SubElement(deleted, 'Key').text = key
+                SubElement(deleted, 'Key').text = utf8decode(key)
 
         body = tostring(elem)
 
