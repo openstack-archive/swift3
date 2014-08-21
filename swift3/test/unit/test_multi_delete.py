@@ -23,6 +23,7 @@ from swift.common.swob import Request
 from swift3.test.unit import Swift3TestCase
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.cfg import CONF
+from swift3.utils import utf8decode
 
 
 class TestSwift3MultiDelete(Swift3TestCase):
@@ -51,11 +52,13 @@ class TestSwift3MultiDelete(Swift3TestCase):
                             swob.HTTPNoContent, {}, None)
         self.swift.register('DELETE', '/v1/AUTH_test/bucket/Key2',
                             swob.HTTPNotFound, {}, None)
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket/\xef\xbc\xa1',
+                            swob.HTTPNoContent, {}, None)
 
         elem = Element('Delete')
-        for key in ['Key1', 'Key2']:
+        for key in ['Key1', 'Key2', '\xef\xbc\xa1']:
             obj = SubElement(elem, 'Object')
-            SubElement(obj, 'Key').text = key
+            SubElement(obj, 'Key').text = utf8decode(key)
         body = tostring(elem, use_s3ns=False)
         content_md5 = md5(body).digest().encode('base64').strip()
 
@@ -70,7 +73,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
 
         elem = fromstring(body)
-        self.assertEquals(len(elem.findall('Deleted')), 2)
+        self.assertEquals(len(elem.findall('Deleted')), 3)
 
     def test_object_multi_DELETE_quiet(self):
         self.swift.register('DELETE', '/v1/AUTH_test/bucket/Key1',
@@ -82,7 +85,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
         SubElement(elem, 'Quiet').text = 'true'
         for key in ['Key1', 'Key2']:
             obj = SubElement(elem, 'Object')
-            SubElement(obj, 'Key').text = key
+            SubElement(obj, 'Key').text = utf8decode(key)
         body = tostring(elem, use_s3ns=False)
         content_md5 = md5(body).digest().encode('base64').strip()
 
@@ -123,7 +126,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
         elem = Element('Delete')
         for key in ['Key1', 'Key2']:
             obj = SubElement(elem, 'Object')
-            SubElement(obj, 'Key').text = key
+            SubElement(obj, 'Key').text = utf8decode(key)
         body = tostring(elem, use_s3ns=False)
 
         req = Request.blank('/bucket?delete',
@@ -138,7 +141,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
         elem = Element('Delete')
         for key in ['Key1', 'Key2']:
             obj = SubElement(elem, 'Object')
-            SubElement(obj, 'Key').text = key
+            SubElement(obj, 'Key').text = utf8decode(key)
         body = tostring(elem, use_s3ns=False)
 
         req = Request.blank('/bucket?delete',

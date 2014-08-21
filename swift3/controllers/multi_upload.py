@@ -53,7 +53,7 @@ from swift3.response import InvalidArgument, ErrorResponse, MalformedXML, \
     InvalidPart, BucketAlreadyExists, EntityTooSmall, InvalidPartOrder, \
     InvalidRequest, HTTPOk, HTTPNoContent, NoSuchKey, NoSuchUpload
 from swift3.exception import BadSwiftRequest
-from swift3.utils import LOGGER, unique_id
+from swift3.utils import LOGGER, unique_id, utf8encode, utf8decode
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
 
@@ -142,6 +142,7 @@ class UploadsController(Controller):
 
         uploads = []
         for o in objects:
+            o['name'] = utf8encode(o['name'])
             obj, upid = split_path('/' + o['name'], 1, 2, True)
             if '/' in upid:
                 # This is a part object.
@@ -160,10 +161,11 @@ class UploadsController(Controller):
             nextkeymarker = uploads[-1]['key']
 
         result_elem = Element('ListMultipartUploadsResult')
-        SubElement(result_elem, 'Bucket').text = req.container_name
+        SubElement(result_elem, 'Bucket').text = utf8decode(req.container_name)
         SubElement(result_elem, 'KeyMarker').text = ''
         SubElement(result_elem, 'UploadIdMarker').text = ''
-        SubElement(result_elem, 'NextKeyMarker').text = nextkeymarker
+        SubElement(result_elem, 'NextKeyMarker').text = \
+            utf8decode(nextkeymarker)
         SubElement(result_elem, 'NextUploadIdMarker').text = nextuploadmarker
 
         SubElement(result_elem, 'MaxUploads').text = str(DEFAULT_MAX_UPLOADS)
@@ -174,7 +176,7 @@ class UploadsController(Controller):
         # created.
         for u in uploads:
             upload_elem = SubElement(result_elem, 'Upload')
-            SubElement(upload_elem, 'Key').text = u['key']
+            SubElement(upload_elem, 'Key').text = utf8decode(u['key'])
             SubElement(upload_elem, 'UploadId').text = u['upload_id']
             initiator_elem = SubElement(upload_elem, 'Initiator')
             SubElement(initiator_elem, 'ID').text = req.user_id
@@ -209,8 +211,8 @@ class UploadsController(Controller):
         req.get_response(self.app, 'PUT', container, obj, body='')
 
         result_elem = Element('InitiateMultipartUploadResult')
-        SubElement(result_elem, 'Bucket').text = req.container_name
-        SubElement(result_elem, 'Key').text = req.object_name
+        SubElement(result_elem, 'Bucket').text = utf8decode(req.container_name)
+        SubElement(result_elem, 'Key').text = utf8decode(req.object_name)
         SubElement(result_elem, 'UploadId').text = upload_id
 
         body = tostring(result_elem)
@@ -260,8 +262,8 @@ class UploadController(Controller):
             last_part = os.path.basename(o['name'])
 
         result_elem = Element('ListPartsResult')
-        SubElement(result_elem, 'Bucket').text = req.container_name
-        SubElement(result_elem, 'Key').text = req.object_name
+        SubElement(result_elem, 'Bucket').text = utf8decode(req.container_name)
+        SubElement(result_elem, 'Key').text = utf8decode(req.object_name)
         SubElement(result_elem, 'UploadId').text = upload_id
 
         initiator_elem = SubElement(result_elem, 'Initiator')
@@ -400,8 +402,8 @@ class UploadController(Controller):
 
         result_elem = Element('CompleteMultipartUploadResult')
         SubElement(result_elem, 'Location').text = req.host_url + req.path
-        SubElement(result_elem, 'Bucket').text = req.container_name
-        SubElement(result_elem, 'Key').text = req.object_name
+        SubElement(result_elem, 'Bucket').text = utf8decode(req.container_name)
+        SubElement(result_elem, 'Key').text = utf8decode(req.object_name)
         SubElement(result_elem, 'ETag').text = resp.etag
 
         resp.body = tostring(result_elem)

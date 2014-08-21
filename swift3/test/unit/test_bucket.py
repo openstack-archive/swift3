@@ -29,7 +29,8 @@ class TestSwift3Bucket(Swift3TestCase):
                         ('viola', '2011-01-05T02:19:14.275290', 0, 3909),
                         ('lily', '2011-01-05T02:19:14.275290', 0, 3909),
                         ('with space', '2011-01-05T02:19:14.275290', 0, 390),
-                        ('with%20space', '2011-01-05T02:19:14.275290', 0, 390))
+                        ('with%20space', '2011-01-05T02:19:14.275290', 0, 390),
+                        (u'\uff21', '2011-01-05T02:19:14.275290', 0, 390))
 
         json_pattern = ['"name":"%s"', '"last_modified":"%s"', '"hash":"%s"',
                         '"bytes":%s']
@@ -113,10 +114,11 @@ class TestSwift3Bucket(Swift3TestCase):
 
     def test_bucket_GET_is_truncated(self):
         bucket_name = 'junk'
+        max_keys = len(self.objects)
 
         req = Request.blank('/%s' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET',
-                                     'QUERY_STRING': 'max-keys=5'},
+                                     'QUERY_STRING': 'max-keys=%d' % max_keys},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
@@ -124,7 +126,8 @@ class TestSwift3Bucket(Swift3TestCase):
 
         req = Request.blank('/%s' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET',
-                                     'QUERY_STRING': 'max-keys=4'},
+                                     'QUERY_STRING':
+                                         'max-keys=%d' % (max_keys - 1)},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
@@ -135,15 +138,16 @@ class TestSwift3Bucket(Swift3TestCase):
 
         req = Request.blank('/%s' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET',
-                                     'QUERY_STRING': 'max-keys=5'},
+                                     'QUERY_STRING':
+                                         'max-keys=%d' % len(self.objects)},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('./MaxKeys').text, '5')
+        self.assertEquals(elem.find('./MaxKeys').text, str(len(self.objects)))
         _, path = self.swift.calls[-1]
         _, query_string = path.split('?')
         args = dict(cgi.parse_qsl(query_string))
-        self.assert_(args['limit'] == '6')
+        self.assert_(args['limit'] == str(len(self.objects) + 1))
 
         req = Request.blank('/%s' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET',

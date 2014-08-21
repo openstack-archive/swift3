@@ -42,7 +42,11 @@ class ServiceController(Controller):
         buckets = SubElement(elem, 'Buckets')
         for c in containers:
             bucket = SubElement(buckets, 'Bucket')
+
+            # No need to use utf8decode since c['name'] is unicode for
+            # non-ascii strings.
             SubElement(bucket, 'Name').text = c['name']
+
             SubElement(bucket, 'CreationDate').text = \
                 '2009-02-03T16:45:09.000Z'
 
