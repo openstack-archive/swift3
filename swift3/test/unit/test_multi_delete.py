@@ -164,5 +164,31 @@ class TestSwift3MultiDelete(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'MalformedXML')
 
+    def test_object_multi_DELETE_with_non_ascii_key(self):
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket/Key1',
+                            swob.HTTPNoContent, {}, None)
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket/\xef\xbc\xa1',
+                            swob.HTTPNoContent, {}, None)
+
+        elem = Element('Delete')
+        for key in ['Key1', '\xef\xbc\xa1']:
+            obj = SubElement(elem, 'Object')
+            SubElement(obj, 'Key').text = key.decode('utf-8')
+
+        # This is decoded key check
+        body = tostring(elem, use_s3ns=False)
+        content_md5 = md5(body).digest().encode('base64').strip()
+
+        req = Request.blank('/bucket?delete',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Content-MD5': content_md5},
+                            body=body)
+        req.date = datetime.now()
+        req.content_type = 'text/plain'
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+
+
 if __name__ == '__main__':
     unittest.main()

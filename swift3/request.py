@@ -29,6 +29,7 @@ from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_BAD_REQUEST, HTTP_SERVICE_UNAVAILABLE
 
 from swift.common.constraints import check_utf8
+from swift.common.utils import get_valid_utf8_str
 
 from swift3.controllers import ServiceController, BucketController, \
     ObjectController, AclController, MultiObjectDeleteController, \
@@ -359,6 +360,9 @@ class Request(swob.Request):
             path = '/v1/%s/%s' % (self.access_key, container)
         else:
             path = '/v1/%s' % (self.access_key)
+
+        path = get_valid_utf8_str(path)
+
         env['PATH_INFO'] = path
 
         query_string = ''
