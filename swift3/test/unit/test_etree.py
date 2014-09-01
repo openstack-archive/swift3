@@ -52,5 +52,22 @@ class TestSwift3Etree(unittest.TestCase):
         elem = etree.fromstring(xml)
         self.assertEquals(elem.find('./B').text, 'C')
 
+    def test_tostring_with_nonascii_text(self):
+        elem = etree.Element('Test')
+        sub = etree.SubElement(elem, 'FOO')
+        sub.text = '\xef\xbc\xa1'
+        self.assertTrue(isinstance(sub.text, str))
+        xml_string = etree.tostring(elem)
+        self.assertTrue(isinstance(xml_string, str))
+
+    def test_fromstring_with_nonascii_text(self):
+        input_str = '<?xml version="1.0" encoding="UTF-8"?>\n' \
+                    '<Test><FOO>\xef\xbc\xa1</FOO></Test>'
+        elem = etree.fromstring(input_str)
+        text = elem.find('FOO').text
+        self.assertEquals(text, '\xef\xbc\xa1')
+        self.assertTrue(isinstance(text, str))
+
+
 if __name__ == '__main__':
     unittest.main()
