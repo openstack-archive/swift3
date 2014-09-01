@@ -54,7 +54,7 @@ def cleanup_namespaces(elem):
 
 def fromstring(text, root_tag=None):
     try:
-        elem = lxml.etree.fromstring(text)
+        elem = lxml.etree.fromstring(text, parser)
     except lxml.etree.XMLSyntaxError as e:
         LOGGER.debug(e)
         raise XMLSyntaxError(e)
@@ -83,7 +83,7 @@ def tostring(tree, use_s3ns=True):
         nsmap = tree.nsmap.copy()
         nsmap[None] = XMLNS_S3
 
-        root = lxml.etree.Element(tree.tag, attrib=tree.attrib, nsmap=nsmap)
+        root = Element(tree.tag, attrib=tree.attrib, nsmap=nsmap)
         root.text = tree.text
         root.extend(deepcopy(tree.getchildren()))
         tree = root
@@ -91,5 +91,41 @@ def tostring(tree, use_s3ns=True):
     return lxml.etree.tostring(tree, xml_declaration=True, encoding='UTF-8')
 
 
-Element = lxml.etree.Element
+class _Element(lxml.etree.ElementBase):
+    """
+    Wrapper Element class of lxml.etree.Element to support
+    a utf-8 encoded non-ascii string as a text.
+
+    Why we need this?:
+    Original lxml.etree.Element supports only unicode for the text.
+    It declines maintainability because we have to call a lot of encode/decode
+    methods to apply account/container/object name (i.e. PATH_INFO) to each
+    Element instance. When using this class, we can remove such a redundant
+    codes from swift3 middleware. 
+    """
+    def __init__(self, *args, **kwargs):
+        super(_Element, self).__init__(*args, **kwargs)
+
+    @property
+    def text(self):
+        """ 
+        utf-8 wrapper property of lxml.etree.Element.text
+        """ 
+        text = lxml.etree.ElementBase.text.__get__(self)
+        if isinstance(text, unicode):
+            text = text.encode('utf-8')
+        return text
+
+    @text.setter
+    def text(self, value):
+        if isinstance(value, str):
+            value = value.decode('utf-8')
+        lxml.etree.ElementBase.text.__set__(self, value)
+
+
+parser_lookup = lxml.etree.ElementDefaultClassLookup(element=_Element)
+parser = lxml.etree.XMLParser()
+parser.set_element_class_lookup(parser_lookup)
+
+Element = parser.makeelement
 SubElement = lxml.etree.SubElement
