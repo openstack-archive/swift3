@@ -175,6 +175,26 @@ class TestSwift3Bucket(Swift3TestCase):
         self.assertEquals(args['marker'], 'b')
         self.assertEquals(args['prefix'], 'c')
 
+    def test_bucket_GET_with_nonascii_queries(self):
+        bucket_name = 'junk'
+        req = Request.blank(
+            '/%s' % bucket_name,
+            environ={'REQUEST_METHOD': 'GET', 'QUERY_STRING':
+                     'delimiter=\xef\xbc\xa1&marker=\xef\xbc\xa2&'
+                     'prefix=\xef\xbc\xa3'},
+            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        elem = fromstring(body, 'ListBucketResult')
+        self.assertEquals(elem.find('./Prefix').text, '\xef\xbc\xa3')
+        self.assertEquals(elem.find('./Marker').text, '\xef\xbc\xa2')
+        self.assertEquals(elem.find('./Delimiter').text, '\xef\xbc\xa1')
+        _, path = self.swift.calls[-1]
+        _, query_string = path.split('?')
+        args = dict(cgi.parse_qsl(query_string))
+        self.assertEquals(args['delimiter'], '\xef\xbc\xa1')
+        self.assertEquals(args['marker'], '\xef\xbc\xa2')
+        self.assertEquals(args['prefix'], '\xef\xbc\xa3')
+
     def test_bucket_PUT_error(self):
         code = self._test_method_error('PUT', '/bucket', swob.HTTPCreated,
                                        headers={'Content-Length': 'a'})
