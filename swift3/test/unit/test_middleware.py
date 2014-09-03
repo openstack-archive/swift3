@@ -14,6 +14,8 @@
 # limitations under the License.
 
 import unittest
+from mock import patch
+from contextlib import nested
 from datetime import datetime
 import hashlib
 import base64
@@ -25,6 +27,7 @@ from swift.common.swob import Request
 from swift3.test.unit import Swift3TestCase
 from swift3.request import Request as S3Request
 from swift3.etree import fromstring
+from swift3.middleware import check_pipeline
 
 
 class TestSwift3Middleware(Swift3TestCase):
@@ -306,6 +309,27 @@ class TestSwift3Middleware(Swift3TestCase):
         self.assertEquals(elem.find('./Code').text, 'MethodNotAllowed')
         self.assertEquals(elem.find('./Method').text, 'POST')
         self.assertEquals(elem.find('./ResourceType').text, 'ACL')
+
+    def test_check_pipeline(self):
+        with nested(patch("swift3.middleware.CONF"),
+                    patch("swift3.middleware.PipelineWrapper"),
+                    patch("swift3.middleware.loadcontext")) as \
+                (conf, pipeline, _):
+            conf.__file__ = ''
+
+            pipeline.return_value = 'swift3 tempauth proxy-server'
+            check_pipeline()
+
+            pipeline.return_value = 'swift3 s3token authtoken keystoneauth ' \
+                'proxy-server'
+            check_pipeline()
+
+            pipeline.return_value = 'swift3 authtoken s3token keystoneauth ' \
+                'proxy-server'
+            self.assertRaises(ValueError, check_pipeline)
+
+            pipeline.return_value = 'swift3 proxy-server'
+            self.assertRaises(ValueError, check_pipeline)
 
 if __name__ == '__main__':
     unittest.main()
