@@ -53,6 +53,9 @@ following for an SAIO setup::
 """
 
 import re
+from paste.deploy import loadwsgi
+
+from swift.common.wsgi import PipelineWrapper, loadcontext
 
 from swift3.exception import NotS3Request
 from swift3.request import Request
@@ -128,9 +131,38 @@ class Swift3Middleware(object):
         return res
 
 
+def check_pipeline():
+    """
+    Check that proxy-server.conf has an appropriate pipeline for swift3.
+    """
+    ctx = loadcontext(loadwsgi.APP, CONF.__file__)
+    pipeline = str(PipelineWrapper(ctx)).split(' ')
+
+    # Check tempauth middleware.
+    if 'tempauth' in pipeline:
+        LOGGER.debug('Use tempauth middleware.')
+        return
+
+    # Check keystone middleware.
+    try:
+        a = pipeline.index('s3token')
+        b = pipeline.index('authtoken')
+        c = pipeline.index('keystoneauth')
+        if a < b and b < c:
+            LOGGER.debug('Use keystone middleware.')
+            return
+    except ValueError as e:
+        LOGGER.debug(e)
+        pass
+
+    raise ValueError('Invalid proxy pipeline: %s' % pipeline)
+
+
 def filter_factory(global_conf, **local_conf):
     """Standard filter factory to use the middleware with paste.deploy"""
     CONF.update(global_conf)
     CONF.update(local_conf)
+
+    check_pipeline()
 
     return Swift3Middleware
