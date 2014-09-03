@@ -116,16 +116,9 @@ _filter_header_content_length()
     sed -e 's/^Content-Length: [0-9]*$/Content-Length: LENGTH/g'
 }
 
-# This is not necessary after Swift merge swift3 patch
-_filter_header_capitalization()
-{
-    perl -pe '$_=lc($&).$'\'' if /^x-(amz|rgw)-.+?:/i' | \
-	perl -pe '$_="ETag:".$'\'' if /^etag:/i'
-}
-
 _filter_header()
 {
-    _filter_header_capitalization | _filter_header_date | _filter_user | \
+    _filter_header_date | _filter_user | \
 	_filter_upload_id | _filter_version_id | _filter_txid | _filter_etag | \
 	_filter_timestamp | _filter_header_content_length
 }
