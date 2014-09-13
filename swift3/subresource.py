@@ -15,15 +15,74 @@
 
 import re
 from functools import partial
+from itertools import count
+from simplejson import loads, dumps
 from memoize import mproperty
 
 from swift3.response import InvalidArgument, MalformedACLError, \
     S3NotImplemented, InvalidRequest, AccessDenied, InternalError
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
-from swift3.utils import LOGGER
+from swift3.utils import LOGGER, sysmeta_header, MAX_META_VALUE_LENGTH
+from swift3.cfg import CONF
+from swift3.exception import InvalidSubresource
 
 XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
+
+UNDEFINED_OWNER_VALUE = 'undefined'
+
+
+def encode_acl(resource, value):
+    """
+    Encode an ACL instance to Swift metadata.
+
+    Given a resource type and an ACL instance, this method returns HTTP
+    headers, which can be used for Swift metadata.
+    """
+    value = dumps(value.encode(), separators=(',', ':'))
+    n = MAX_META_VALUE_LENGTH
+    segs = [value[i:i + n] for i in range(0, len(value), n)]
+    segs.append('')  # add a terminater
+
+    headers = {}
+    for i, value in enumerate(segs):
+        if i == 0:
+            key = sysmeta_header(resource, 'acl')
+        else:
+            key = sysmeta_header(resource, 'acl') + '-' + str(i)
+        headers[key] = value
+
+    return headers
+
+
+def decode_acl(resource, headers):
+    """
+    Decode Swift metadata to an ACL instance.
+
+    Given a resource type and HTTP headers, this method returns an ACL
+    instance.
+    """
+    value = ''
+
+    for i in count():
+        if i == 0:
+            key = sysmeta_header(resource, 'acl')
+        else:
+            key = sysmeta_header(resource, 'acl') + '-' + str(i)
+        if key not in headers or not headers[key]:
+            break
+        value += headers[key]
+
+    if value == '':
+        return ACL.from_grant([], UNDEFINED_OWNER_VALUE)
+
+    try:
+        return ACL.decode(loads(value))
+    except Exception as e:
+        LOGGER.debug(e)
+        pass
+
+    raise InvalidSubresource((resource, 'acl', value))
 
 
 class Grantee(object):
@@ -333,6 +392,17 @@ class ACL(object):
         """
         Check that the user is an owner.
         """
+        if not CONF.s3_acl:
+            # Ignore Swift3 ACL.
+            return
+
+        if self.owner == UNDEFINED_OWNER_VALUE:
+            if CONF.allow_no_owner:
+                # No owner means public.
+                return
+
+            raise AccessDenied()
+
         if user_id != self.owner:
             raise AccessDenied()
 
@@ -340,6 +410,10 @@ class ACL(object):
         """
         Check that the user has a permission.
         """
+        if not CONF.s3_acl:
+            # Ignore Swift3 ACL.
+            return
+
         try:
             self.check_owner(user_id)
 

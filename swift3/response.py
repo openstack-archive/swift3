@@ -19,7 +19,7 @@ from functools import partial
 
 from swift.common import swob
 
-from swift3.utils import snake_to_camel
+from swift3.utils import snake_to_camel, sysmeta_prefix
 from swift3.etree import Element, SubElement, tostring
 
 
@@ -84,11 +84,26 @@ class Response(ResponseBase, swob.Response):
             # add double quotes to the etag header
             self.etag = self.etag
 
+        swift3_headers = HeaderKeyDict()
+        sw_headers = HeaderKeyDict()
         headers = HeaderKeyDict()
+        self.meta = {}
+
         for key, val in self.headers.iteritems():
             _key = key.lower()
+            if _key.startswith(sysmeta_prefix('object')) or \
+                    _key.startswith(sysmeta_prefix('container')):
+                swift3_headers[key] = val
+            else:
+                sw_headers[key] = val
+
+        # Handle swift headers
+        for key, val in sw_headers.iteritems():
+            _key = key.lower()
+
             if _key.startswith('x-object-meta-'):
-                headers['x-amz-meta-' + key[14:]] = val
+                self.meta[_key[14:]] = val
+                headers['x-amz-meta-' + _key[14:]] = val
             elif _key in ('content-length', 'content-type',
                           'content-range', 'content-encoding',
                           'etag', 'last-modified'):
@@ -101,6 +116,10 @@ class Response(ResponseBase, swob.Response):
                 headers['x-rgw-bytes-used'] = val
 
         self.headers = headers
+
+        from swift3.subresource import decode_acl
+        self.bucket_acl = decode_acl('container', swift3_headers)
+        self.object_acl = decode_acl('object', swift3_headers)
 
     @classmethod
     def from_swift_resp(cls, sw_resp):
