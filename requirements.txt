@@ -1,2 +1,3 @@
 swift>=1.8
 lxml
+memoize
