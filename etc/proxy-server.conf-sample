@@ -24,6 +24,17 @@ user_test_tester3 = testing3
 [filter:swift3]
 use = egg:swift3#swift3
 
+# Swift has no concept of the S3's resource owner; the resources
+# (i.e. containers and objects) created via the Swift API have no owner
+# information. This option specifies how the swift3 middleware handles them
+# with the S3 API.  If this option is 'false', such kinds of resources will be
+# invisible and no users can access them with the S3 API.  If set to 'true',
+# the resource without owner is belong to everyone and everyone can access it
+# with the S3 API.  If you care about S3 compatibility, set 'false' here.  This
+# option makes sense only when the s3_acl option is set to 'true' and your
+# Swift cluster has the resources created via the Swift API.
+# allow_no_owner = false
+#
 # Set a region name of your Swift cluster.  Note that Swift3 doesn't choose a
 # region of the newly created bucket actually.  This value is used only for the
 # GET Bucket location API.
@@ -36,6 +47,13 @@ use = egg:swift3#swift3
 # Set the maximum number of objects we can delete with the Multi-Object Delete
 # operation.
 # max_multi_delete_objects = 1000
+#
+# If set to 'true', Swift3 uses its own metadata for ACL
+# (e.g. X-Container-Sysmeta-Swift3-Acl) to achieve the best S3 compatibility.
+# If set to 'false', Swift3 tries to use Swift ACL (e.g. X-Container-Read)
+# instead of S3 ACL as far as possible.  If you want to keep backward
+# compatibility with Swift3 1.7 or earlier, set false here
+# s3_acl = false
 #
 # Specify a host name of your Swift cluster.  This enables virtual-hosted style
 # requests.
