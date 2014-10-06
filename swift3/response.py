@@ -99,6 +99,9 @@ class Response(ResponseBase, swob.Response):
             elif _key == 'x-container-bytes-used':
                 # for ceph/s3tests
                 headers['x-rgw-bytes-used'] = val
+            elif _key == 'x-copied-from-last-modified':
+                # Generated in response to x-amz-copy-source
+                headers['last-modified'] = val
 
         self.headers = headers
 

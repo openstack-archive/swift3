@@ -21,6 +21,7 @@ from swift.common import swob
 from swift.common.swob import Request
 
 from swift3.test.unit import Swift3TestCase
+from swift3.etree import fromstring
 
 
 class TestSwift3Obj(Swift3TestCase):
@@ -181,7 +182,6 @@ class TestSwift3Obj(Swift3TestCase):
             headers={'Authorization': 'AWS test:tester:hmac',
                      'X-Amz-Storage-Class': 'STANDARD',
                      'X-Amz-Meta-Something': 'oh hai',
-                     'X-Amz-Copy-Source': '/some/source',
                      'Content-MD5': content_md5})
         req.date = datetime.now()
         req.content_type = 'text/plain'
@@ -193,6 +193,33 @@ class TestSwift3Obj(Swift3TestCase):
         # Check that swift3 converts a Content-MD5 header into an etag.
         self.assertEquals(headers['ETag'], etag)
         self.assertEquals(headers['X-Object-Meta-Something'], 'oh hai')
+
+    def test_object_PUT_copy(self):
+        response_headers = {
+            'X-Copied-From-Last-Modified': '2009-10-28T22:32:00',
+            'etag': '9b2cf535f27731c974343645a3985328'}
+
+        self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPCreated, response_headers, None)
+        req = Request.blank(
+            '/bucket/object',
+            environ={'REQUEST_METHOD': 'PUT'},
+            headers={'Authorization': 'AWS test:tester:hmac',
+                     'X-Amz-Copy-Source': '/some/source'})
+        req.date = datetime.now()
+        req.content_type = 'text/plain'
+        status, headers, body = self.call_swift3(req)
+
+        # Check that swift3 returns an xml report with ta
+        elem = fromstring(body, 'CopyObjectResult')
+        self.assertEquals(elem.find('./ETag').text,
+                          '\"9b2cf535f27731c974343645a3985328\"')
+        self.assertEquals(elem.find('./LastModified').text,
+                          '2009-10-28T22:32:00')
+
+        _, _, headers = self.swift.calls_with_headers[-1]
+
+        # Check that swift3 converts a to an x-copy-from.
         self.assertEquals(headers['X-Copy-From'], '/some/source')
 
     def test_object_DELETE_error(self):

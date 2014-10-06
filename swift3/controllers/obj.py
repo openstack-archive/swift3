@@ -55,8 +55,10 @@ class ObjectController(Controller):
         """
         resp = req.get_response(self.app)
 
-        if 'HTTP_X_COPY_FROM' in req.environ:
+        if 'HTTP_X_AMZ_COPY_SOURCE' in req.environ:
             elem = Element('CopyObjectResult')
+            last_modified = resp.headers['Last-Modified']
+            SubElement(elem, 'LastModified').text = last_modified
             SubElement(elem, 'ETag').text = '"%s"' % resp.etag
             body = tostring(elem, use_s3ns=False)
             return HTTPOk(body=body)
