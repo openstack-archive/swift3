@@ -26,7 +26,7 @@ from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, HTTP_REQUEST_ENTITY_TOO_LARGE, \
     HTTP_PARTIAL_CONTENT, HTTP_NOT_MODIFIED, HTTP_PRECONDITION_FAILED, \
     HTTP_REQUESTED_RANGE_NOT_SATISFIABLE, HTTP_LENGTH_REQUIRED, \
-    HTTP_BAD_REQUEST, HTTP_SERVICE_UNAVAILABLE
+    HTTP_BAD_REQUEST
 
 from swift.common.constraints import check_utf8
 
@@ -37,7 +37,7 @@ from swift3.controllers import ServiceController, BucketController, \
     UnsupportedController
 from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     RequestTimeTooSkewed, Response, SignatureDoesNotMatch, \
-    ServiceUnavailable, BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
+    BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
     MalformedXML, InvalidRequest
@@ -533,7 +533,5 @@ class Request(swob.Request):
             raise SignatureDoesNotMatch()
         if status == HTTP_FORBIDDEN:
             raise AccessDenied()
-        if status == HTTP_SERVICE_UNAVAILABLE:
-            raise ServiceUnavailable()
 
         raise InternalError('unexpected status code %d' % status)
