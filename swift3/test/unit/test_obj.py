@@ -64,6 +64,38 @@ class TestSwift3Obj(Swift3TestCase):
         if method == 'GET':
             self.assertEquals(body, self.object_body)
 
+    def test_object_HEAD_error(self):
+        # HEAD does not return the body even an error resonse in the
+        # specifications of the REST API.
+        # So, check the response code for error test of HEAD.
+        req = Request.blank('/bucket/object',
+                            environ={'REQUEST_METHOD': 'HEAD'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPUnauthorized, {}, None)
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '403')
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPForbidden, {}, None)
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '403')
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPNotFound, {}, None)
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '404')
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPPreconditionFailed, {}, None)
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '412')
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPServerError, {}, None)
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '500')
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPServiceUnavailable, {}, None)
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '503')
+
     def test_object_HEAD(self):
         self._test_object_GETorHEAD('HEAD')
 
@@ -80,6 +112,12 @@ class TestSwift3Obj(Swift3TestCase):
         code = self._test_method_error('GET', '/bucket/object',
                                        swob.HTTPServerError)
         self.assertEquals(code, 'InternalError')
+        code = self._test_method_error('GET', '/bucket/object',
+                                       swob.HTTPPreconditionFailed)
+        self.assertEquals(code, 'PreconditionFailed')
+        code = self._test_method_error('GET', '/bucket/object',
+                                       swob.HTTPServiceUnavailable)
+        self.assertEquals(code, 'ServiceUnavailable')
 
     def test_object_GET(self):
         self._test_object_GETorHEAD('GET')
@@ -94,6 +132,11 @@ class TestSwift3Obj(Swift3TestCase):
 
         self.assertTrue('content-range' in headers)
         self.assertTrue(headers['content-range'].startswith('bytes 0-3'))
+
+    def test_object_GET_Range_error(self):
+        code = self._test_method_error('GET', '/bucket/object',
+                                       swob.HTTPRequestedRangeNotSatisfiable)
+        self.assertEquals(code, 'InvalidRange')
 
     def test_object_GET_Response(self):
         req = Request.blank('/bucket/object',
@@ -144,6 +187,15 @@ class TestSwift3Obj(Swift3TestCase):
         code = self._test_method_error('PUT', '/bucket/object',
                                        swob.HTTPServerError)
         self.assertEquals(code, 'InternalError')
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPUnprocessableEntity)
+        self.assertEquals(code, 'InvalidDigest')
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPLengthRequired)
+        self.assertEquals(code, 'MissingContentLength')
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPServiceUnavailable)
+        self.assertEquals(code, 'ServiceUnavailable')
 
     def test_object_PUT(self):
         etag = self.response_headers['etag']
@@ -208,6 +260,9 @@ class TestSwift3Obj(Swift3TestCase):
         code = self._test_method_error('DELETE', '/bucket/object',
                                        swob.HTTPServerError)
         self.assertEquals(code, 'InternalError')
+        code = self._test_method_error('DELETE', '/bucket/object',
+                                       swob.HTTPServiceUnavailable)
+        self.assertEquals(code, 'ServiceUnavailable')
 
     def test_object_DELETE(self):
         req = Request.blank('/bucket/object',
