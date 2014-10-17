@@ -62,6 +62,36 @@ class TestSwift3Acl(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
+    def test_bucket_canned_acl_PUT(self):
+        req = Request.blank('/bucket?acl',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'X-AMZ-ACL': 'public-read'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+
+    def test_bucket_fails_with_both_acl_header_and_xml_PUT(self):
+        elem = Element('AccessControlPolicy')
+        owner = SubElement(elem, 'Owner')
+        SubElement(owner, 'ID').text = 'id'
+        acl = SubElement(elem, 'AccessControlList')
+        grant = SubElement(acl, 'Grant')
+        grantee = SubElement(grant, 'Grantee', nsmap={'xsi': XMLNS_XSI})
+        grantee.set('{%s}type' % XMLNS_XSI, 'Group')
+        SubElement(grantee, 'URI').text = \
+            'http://acs.amazonaws.com/groups/global/AllUsers'
+        SubElement(grant, 'Permission').text = 'READ'
+
+        xml = tostring(elem)
+        req = Request.blank('/bucket?acl',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'X-AMZ-ACL': 'public-read'},
+                            body=xml)
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body),
+                          'UnexpectedContent')
+
     def test_object_acl_GET(self):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'GET'},
