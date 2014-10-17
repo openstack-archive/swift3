@@ -174,15 +174,16 @@ class AclController(Controller):
             if 'HTTP_X_AMZ_ACL' in req.environ:
                 handle_acl_header(req)
 
-            # We very likely have an XML-based ACL request.
-            try:
-                translated_acl = swift_acl_translate(
-                    req.xml(MAX_ACL_BODY_SIZE), xml=True)
-            except ACLError:
-                raise MalformedACLError()
+            if req.content_length:
+                # We very likely have an XML-based ACL request.
+                try:
+                    translated_acl = swift_acl_translate(
+                        req.xml(MAX_ACL_BODY_SIZE), xml=True)
+                except ACLError:
+                    raise MalformedACLError()
 
-            for header, acl in translated_acl:
-                req.headers[header] = acl
+                for header, acl in translated_acl:
+                    req.headers[header] = acl
 
             resp = req.get_response(self.app)
             resp.status = HTTP_OK
