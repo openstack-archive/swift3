@@ -62,6 +62,14 @@ class TestSwift3Acl(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
+    def test_bucket_canned_acl_PUT(self):
+        req = Request.blank('/bucket?acl',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'X-AMZ-ACL': 'public-read'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+
     def test_object_acl_GET(self):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'GET'},
