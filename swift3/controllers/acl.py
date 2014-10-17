@@ -187,7 +187,7 @@ class AclController(Controller):
                 for header, acl in translated_acl:
                     req.headers[header] = acl
 
-            resp = req.get_response(self.app)
+            resp = req.get_response(self.app, 'POST')
             resp.status = HTTP_OK
             resp.headers.update({'Location': req.container_name})
 

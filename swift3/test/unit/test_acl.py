@@ -15,7 +15,7 @@
 
 import unittest
 
-from swift.common.swob import Request
+from swift.common.swob import Request, HTTPAccepted
 
 from swift3.test.unit import Swift3TestCase
 from swift3.etree import fromstring, tostring, Element, SubElement
@@ -28,6 +28,9 @@ class TestSwift3Acl(Swift3TestCase):
 
     def setUp(self):
         super(TestSwift3Acl, self).setUp()
+        # All ACL API should be called against to existing bucket.
+        self.swift.register('PUT', '/v1/AUTH_test/bucket',
+                            HTTPAccepted, {}, None)
 
     def _check_acl(self, owner, body):
         elem = fromstring(body, 'AccessControlPolicy')
