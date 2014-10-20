@@ -19,6 +19,7 @@ from swift.common.swob import Request
 
 from swift3.test.unit import Swift3TestCase
 from swift3.etree import fromstring, tostring, Element, SubElement
+from swift3.controllers.acl import handle_acl_header
 
 XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
 
@@ -76,6 +77,25 @@ class TestSwift3Acl(Swift3TestCase):
                             body='invalid')
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'MalformedACLError')
+
+    def test_handle_acl_header(self):
+        def check_generated_acl_header(acl, targets):
+            req = Request.blank('/bucket',
+                                headers={'X-Amz-Acl': acl})
+            handle_acl_header(req)
+            for target in targets:
+                self.assertTrue(target[0] in req.headers)
+                self.assertEquals(req.headers[target[0]], target[1])
+
+        check_generated_acl_header('public-read',
+                                   [('X-Container-Read', '.r:*,.rlistings')])
+        check_generated_acl_header('public-read-write',
+                                   [('X-Container-Read', '.r:*,.rlistings'),
+                                    ('X-Container-Write', '.r:*')])
+        check_generated_acl_header('private',
+                                   [('X-Container-Read', '.'),
+                                    ('X-Container-Write', '.')])
+
 
 if __name__ == '__main__':
     unittest.main()

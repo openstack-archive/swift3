@@ -231,6 +231,17 @@ class TestSwift3Bucket(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
+    def test_bucket_PUT_with_canned_acl(self):
+        req = Request.blank('/bucket',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'X-Amz-Acl': 'public-read'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+        _, _, headers = self.swift.calls_with_headers[-1]
+        self.assertTrue('X-Container-Read' in headers)
+        self.assertEquals(headers.get('X-Container-Read'), '.r:*,.rlistings')
+
     def test_bucket_PUT_with_location_error(self):
         elem = Element('CreateBucketConfiguration')
         SubElement(elem, 'LocationConstraint').text = 'XXX'
