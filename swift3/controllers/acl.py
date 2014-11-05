@@ -79,11 +79,11 @@ def swift_acl_translate(acl, group='', user='', xml=False):
     that yet.
     """
     swift_acl = {}
-    swift_acl['public-read'] = [['HTTP_X_CONTAINER_READ', '.r:*,.rlistings']]
+    swift_acl['public-read'] = [['X-Container-Read', '.r:*,.rlistings']]
     # Swift does not support public write:
     # https://answers.launchpad.net/swift/+question/169541
-    swift_acl['public-read-write'] = [['HTTP_X_CONTAINER_WRITE', '.r:*'],
-                                      ['HTTP_X_CONTAINER_READ',
+    swift_acl['public-read-write'] = [['X-Container-Write', '.r:*'],
+                                      ['X-Container-Read',
                                        '.r:*,.rlistings']]
 
     # TODO: if there's a way to get group and user, this should work for
@@ -91,8 +91,8 @@ def swift_acl_translate(acl, group='', user='', xml=False):
     # swift_acl['private'] = \
     #     [['HTTP_X_CONTAINER_WRITE',  group + ':' + user], \
     #      ['HTTP_X_CONTAINER_READ', group + ':' + user]]
-    swift_acl['private'] = [['HTTP_X_CONTAINER_WRITE', '.'],
-                            ['HTTP_X_CONTAINER_READ', '.']]
+    swift_acl['private'] = [['X-Container-Write', '.'],
+                            ['X-Container-Read', '.']]
     if xml:
         # We are working with XML and need to parse it
         try:
