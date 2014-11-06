@@ -28,6 +28,7 @@ from swift3.test.unit import Swift3TestCase
 from swift3.request import Request as S3Request
 from swift3.etree import fromstring
 from swift3.middleware import check_pipeline
+from swift3.subresource import ACLPrivate, encode_acl, Owner
 
 
 class TestSwift3Middleware(Swift3TestCase):
@@ -35,6 +36,24 @@ class TestSwift3Middleware(Swift3TestCase):
         super(TestSwift3Middleware, self).setUp()
 
         self.swift.register('GET', '/something', swob.HTTPOk, {}, 'FAKE APP')
+
+        self.object_body = 'hello'
+        etag = hashlib.md5(self.object_body).hexdigest()
+        self.response_headers = {'Content-Type': 'text/html',
+                                 'Content-Length': len(self.object_body),
+                                 'x-object-meta-test': 'swift',
+                                 'etag': etag,
+                                 'last-modified': '2011-01-05T02:19:14.275290'}
+        self.sysmeta_headers = encode_acl('object',
+                                          ACLPrivate(Owner('test:tester',
+                                                           'test:tester')))
+        self.headers = self.response_headers.copy()
+        self.headers.update(self.sysmeta_headers)
+
+        self.swift.register('GET', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPOk,
+                            self.headers,
+                            self.object_body)
 
     def test_non_s3_request_passthrough(self):
         req = Request.blank('/something')
@@ -192,6 +211,12 @@ class TestSwift3Middleware(Swift3TestCase):
         self.assertEquals(self._get_error_code(body), 'AccessDenied')
 
     def test_bucket_virtual_hosted_style(self):
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket',
+                            swob.HTTPNoContent,
+                            encode_acl('bucket',
+                                       ACLPrivate(Owner('test:tester',
+                                                        'test:tester'))),
+                            None)
         req = Request.blank('/',
                             environ={'HTTP_HOST': 'bucket.localhost:80',
                                      'REQUEST_METHOD': 'HEAD',
@@ -201,11 +226,20 @@ class TestSwift3Middleware(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
 
     def test_object_virtual_hosted_style(self):
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPOk,
+                            encode_acl('object',
+                                       ACLPrivate(Owner('test:tester',
+                                                        'test:tester'))),
+                            None)
         req = Request.blank('/object',
                             environ={'HTTP_HOST': 'bucket.localhost:80',
+                                     'PATH_INFO': '/object',
                                      'REQUEST_METHOD': 'HEAD',
                                      'HTTP_AUTHORIZATION':
                                      'AWS test:tester:hmac'})
+        print 'req.environ: %s'
+        req.environ['PATH_INFO'] = '/object'
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 

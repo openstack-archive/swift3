@@ -21,6 +21,7 @@ from swift.common.swob import Request
 
 from swift3.test.unit import Swift3TestCase
 from swift3.etree import Element, SubElement, fromstring, tostring
+from swift3.subresource import ACLPrivate, encode_acl, Owner
 
 
 class TestSwift3Bucket(Swift3TestCase):
@@ -38,11 +39,17 @@ class TestSwift3Bucket(Swift3TestCase):
         for b in self.objects:
             json_out.append(json_pattern % b)
         object_list = '[' + ','.join(json_out) + ']'
+        sysmeta_headers = encode_acl('bucket',
+                                     ACLPrivate(Owner('test:tester',
+                                                      'test:tester')))
         self.swift.register('HEAD', '/v1/AUTH_test/junk', swob.HTTPNoContent,
-                            {}, None)
+                            sysmeta_headers, None)
         self.swift.register('HEAD', '/v1/AUTH_test/nojunk', swob.HTTPNotFound,
-                            {}, None)
-        self.swift.register('GET', '/v1/AUTH_test/junk', swob.HTTPOk, {},
+                            sysmeta_headers, None)
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket', swob.HTTPNoContent,
+                            sysmeta_headers, None)
+        self.swift.register('GET', '/v1/AUTH_test/junk', swob.HTTPOk,
+                            sysmeta_headers,
                             object_list)
 
     def setUp(self):
