@@ -18,10 +18,19 @@ import unittest
 from swift3.response import AccessDenied
 from swift3.subresource import User, AuthenticatedUsers, AllUsers, \
     ACLPrivate, ACLPublicRead, ACLPublicReadWrite, ACLAuthenticatedRead, \
-    ACLBucketOwnerRead, ACLBucketOwnerFullControl, Owner, ACL
+    ACLBucketOwnerRead, ACLBucketOwnerFullControl, Owner, ACL, encode_acl, \
+    decode_acl
+from swift3.utils import CONF, MAX_META_VALUE_LENGTH, sysmeta_header
 
 
 class TestSwift3Subresource(unittest.TestCase):
+
+    def setUp(self):
+        CONF.s3_acl = True
+
+    def tearDown(self):
+        CONF.s3_acl = False
+
     def test_acl_canonical_user(self):
         grantee = User('test:tester')
 
@@ -172,6 +181,132 @@ class TestSwift3Subresource(unittest.TestCase):
                                                'READ_ACP'))
         self.assertFalse(self.check_permission(acl, 'test:tester2',
                                                'WRITE_ACP'))
+
+    def test_decode_acl_container(self):
+        access_control_policy = \
+            '{"Owner":"test:tester",' \
+            '"Grant":[{"Permission":"FULL_CONTROL","Grantee":"test:tester"}]}'
+        headers = {sysmeta_header('container', 'acl') + '-0':
+                   access_control_policy,
+                   sysmeta_header('container', 'acl') + '-1': ''}
+        acl = decode_acl('container', headers)
+
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'READ'))
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'WRITE'))
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'READ_ACP'))
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'WRITE_ACP'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2', 'READ'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2', 'WRITE'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2',
+                                               'READ_ACP'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2',
+                                               'WRITE_ACP'))
+
+    def test_decode_acl_object(self):
+        access_control_policy = \
+            '{"Owner":"test:tester",' \
+            '"Grant":[{"Permission":"FULL_CONTROL","Grantee":"test:tester"}]}'
+        headers = {sysmeta_header('object', 'acl') + '-0':
+                   access_control_policy,
+                   sysmeta_header('object', 'acl') + '-1': ''}
+        acl = decode_acl('object', headers)
+
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'READ'))
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'WRITE'))
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'READ_ACP'))
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'WRITE_ACP'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2', 'READ'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2', 'WRITE'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2',
+                                               'READ_ACP'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2',
+                                               'WRITE_ACP'))
+
+    def test_decode_acl_long_acp(self):
+        grants = ''
+        for var in range(1, 10):
+            grants += '{"Permission":"READ",' \
+                      '"Grantee":"test:tester%s"},' % str(var)
+        grants = grants.rstrip(',')
+        access_control_policy = \
+            '{"Owner":"test:tester",' \
+            '"Grant":[%s]}' % grants
+
+        n = MAX_META_VALUE_LENGTH
+        segs = [access_control_policy[i:i + n]
+                for i in range(0, len(access_control_policy), n)]
+        segs.append('')  # add a terminater
+
+        headers = {}
+        head = sysmeta_header('container', 'acl')
+        for i, value in enumerate(segs):
+            headers[sysmeta_header('container', 'acl') + '-' + str(i)] = \
+                segs[i]
+        acl = decode_acl('container', headers)
+
+        for var in range(1, 10):
+            self.assertTrue(self.check_permission(acl,
+                                                  'test:tester%s' % str(var),
+                                                  'READ'))
+
+    def test_decode_acl_undefined(self):
+        headers = {}
+        acl = decode_acl('container', headers)
+
+        self.assertEqual('undefined', acl.owner.id)
+        self.assertEqual([], acl.grants)
+
+    def test_encode_acl_container(self):
+        acl = ACLPrivate(Owner(id='test:tester',
+                               name='test:tester'))
+        acp = encode_acl('container', acl)
+
+        self.assertEqual(acp[sysmeta_header('container', 'acl') + '-0'],
+                         '{"Owner":"test:tester",'
+                         '"Grant":[{"Grantee":"test:tester",'
+                         '"Permission":"FULL_CONTROL"}]}')
+        self.assertEqual(acp[sysmeta_header('container', 'acl') + '-1'], '')
+
+    def test_encode_acl_object(self):
+        acl = ACLPrivate(Owner(id='test:tester',
+                               name='test:tester'))
+        acp = encode_acl('object', acl)
+
+        self.assertEqual(acp[sysmeta_header('object', 'acl') + '-0'],
+                         '{"Owner":"test:tester",'
+                         '"Grant":[{"Grantee":"test:tester",'
+                         '"Permission":"FULL_CONTROL"}]}')
+        self.assertEqual(acp[sysmeta_header('object', 'acl') + '-1'], '')
+
+    def test_encode_acl_many_grant(self):
+        acl = ACLPrivate(Owner(id='test:tester',
+                               name='test:tester'))
+        headers = {}
+        users = ''
+        for i in range(0, 10):
+            users += 'id=test:tester%s,' % str(i)
+        users = users.rstrip(',')
+        headers["x-amz-grant-read"] = users
+        acl = ACL.from_headers(headers, Owner('test:tester', 'test:tester'))
+        acp = encode_acl('container', acl)
+
+        sysmeta0 = '{"Owner":"test:tester",' \
+                   '"Grant":[{"Grantee":"test:tester0","Permission":"READ"},' \
+                   '{"Grantee":"test:tester1","Permission":"READ"},' \
+                   '{"Grantee":"test:tester2","Permission":"READ"},' \
+                   '{"Grantee":"test:tester3","Permission":"READ"},' \
+                   '{"Grantee":"test:tester4","Permissio'
+        sysmeta1 = 'n":"READ"},' \
+                   '{"Grantee":"test:tester5","Permission":"READ"},' \
+                   '{"Grantee":"test:tester6","Permission":"READ"},' \
+                   '{"Grantee":"test:tester7","Permission":"READ"},' \
+                   '{"Grantee":"test:tester8","Permission":"READ"},' \
+                   '{"Grantee":"test:tester9","Permission":"READ"}]}'
+        self.assertEqual(acp[sysmeta_header('container', 'acl') + '-0'],
+                         sysmeta0)
+        self.assertEqual(acp[sysmeta_header('container', 'acl') + '-1'],
+                         sysmeta1)
+        self.assertEqual(acp[sysmeta_header('container', 'acl') + '-2'], '')
 
 
 if __name__ == '__main__':
