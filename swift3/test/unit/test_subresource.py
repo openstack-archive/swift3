@@ -14,14 +14,23 @@
 # limitations under the License.
 
 import unittest
-
+from simplejson import dumps, loads
 from swift3.response import AccessDenied
 from swift3.subresource import User, AuthenticatedUsers, AllUsers, \
     ACLPrivate, ACLPublicRead, ACLPublicReadWrite, ACLAuthenticatedRead, \
-    ACLBucketOwnerRead, ACLBucketOwnerFullControl, Owner, ACL
+    ACLBucketOwnerRead, ACLBucketOwnerFullControl, Owner, ACL, encode_acl, \
+    decode_acl
+from swift3.utils import CONF, sysmeta_header
 
 
 class TestSwift3Subresource(unittest.TestCase):
+
+    def setUp(self):
+        CONF.s3_acl = True
+
+    def tearDown(self):
+        CONF.s3_acl = False
+
     def test_acl_canonical_user(self):
         grantee = User('test:tester')
 
@@ -172,6 +181,80 @@ class TestSwift3Subresource(unittest.TestCase):
                                                'READ_ACP'))
         self.assertFalse(self.check_permission(acl, 'test:tester2',
                                                'WRITE_ACP'))
+
+    def test_decode_acl_container(self):
+        access_control_policy = \
+            {'Owner': 'test:tester',
+             'Grant': [{'Permission': 'FULL_CONTROL',
+                        'Grantee': 'test:tester'}]}
+        headers = {sysmeta_header('container', 'acl'):
+                   dumps(access_control_policy)}
+        acl = decode_acl('container', headers)
+
+        self.assertEqual(type(acl), ACL)
+        self.assertEqual(len(acl.grants), 1)
+        self.assertEqual(acl.owner.id, 'test:tester')
+
+    def test_decode_acl_object(self):
+        access_control_policy = \
+            {'Owner': 'test:tester',
+             'Grant': [{'Permission': 'FULL_CONTROL',
+                        'Grantee': 'test:tester'}]}
+        headers = {sysmeta_header('object', 'acl'):
+                   dumps(access_control_policy)}
+        acl = decode_acl('object', headers)
+
+        self.assertEqual(type(acl), ACL)
+        self.assertEqual(len(acl.grants), 1)
+        self.assertEqual(acl.owner.id, 'test:tester')
+
+    def test_decode_acl_undefined(self):
+        headers = {}
+        acl = decode_acl('container', headers)
+
+        self.assertEqual(type(acl), ACL)
+        self.assertEqual(len(acl.grants), 0)
+        self.assertEqual('undefined', acl.owner.id)
+
+    def test_encode_acl_container(self):
+        acl = ACLPrivate(Owner(id='test:tester',
+                               name='test:tester'))
+        acp = encode_acl('container', acl)
+        header_value = loads(acp[sysmeta_header('container', 'acl')])
+
+        self.assertTrue('Owner' in header_value)
+        self.assertTrue('Grant' in header_value)
+        self.assertEqual('test:tester', header_value['Owner'])
+        self.assertEqual(len(header_value['Grant']), 1)
+
+    def test_encode_acl_object(self):
+        acl = ACLPrivate(Owner(id='test:tester',
+                               name='test:tester'))
+        acp = encode_acl('object', acl)
+        header_value = loads(acp[sysmeta_header('object', 'acl')])
+
+        self.assertTrue('Owner' in header_value)
+        self.assertTrue('Grant' in header_value)
+        self.assertEqual('test:tester', header_value['Owner'])
+        self.assertEqual(len(header_value['Grant']), 1)
+
+    def test_encode_acl_many_grant(self):
+        headers = {}
+        users = []
+        for i in range(0, 99):
+            users.append('id=test:tester%s' % str(i))
+        users = ','.join(users)
+        headers['x-amz-grant-read'] = users
+        acl = ACL.from_headers(headers, Owner('test:tester', 'test:tester'))
+        acp = encode_acl('container', acl)
+
+        header_value = acp[sysmeta_header('container', 'acl')]
+        header_value = loads(header_value)
+
+        self.assertTrue('Owner' in header_value)
+        self.assertTrue('Grant' in header_value)
+        self.assertEqual('test:tester', header_value['Owner'])
+        self.assertEqual(len(header_value['Grant']), 99)
 
 
 if __name__ == '__main__':
