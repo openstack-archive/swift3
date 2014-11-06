@@ -20,7 +20,7 @@ from swift.common.swob import Request, HTTPAccepted
 from swift3.test.unit import Swift3TestCase
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.controllers.acl import handle_acl_header
-
+from swift3.utils import CONF
 XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
 
 
@@ -28,6 +28,7 @@ class TestSwift3Acl(Swift3TestCase):
 
     def setUp(self):
         super(TestSwift3Acl, self).setUp()
+        CONF.s3_acl = False
         # All ACL API should be called against to existing bucket.
         self.swift.register('PUT', '/v1/AUTH_test/bucket',
                             HTTPAccepted, {}, None)

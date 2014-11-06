@@ -19,6 +19,7 @@ from copy import deepcopy
 from hashlib import md5
 from swift.common import swob
 from swift.common.utils import split_path
+from swift3.cfg import CONF
 
 
 class FakeSwift(object):
@@ -26,15 +27,43 @@ class FakeSwift(object):
     A good-enough fake Swift proxy server to use in testing middleware.
     """
 
-    def __init__(self):
+    def __init__(self, auth='tempauth'):
         self._calls = []
         self.req_method_paths = []
         self.swift_sources = []
         self.uploaded = {}
+        self.auth = auth
         # mapping of (method, path) --> (response class, headers, body)
         self._responses = {}
 
+    def _fake_auth_middleware(self, env):
+        if 'swift.authorize_override' in env:
+            return
+
+        if 'HTTP_AUTHORIZATION' not in env:
+            return
+
+        _, authorization = env['HTTP_AUTHORIZATION'].split(' ')
+        tenant_user, sign = authorization.rsplit(':', 1)
+        tenant, user = tenant_user.rsplit(':', 1)
+
+        path = env['PATH_INFO']
+        env['PATH_INFO'] = path.replace(tenant_user, 'AUTH_' + tenant)
+
+        env['REMOTE_USER'] = 'authorized'
+
+        if self.auth == 'keystone':
+            env['HTTP_X_TENANT_NAME'] = tenant
+            env['HTTP_X_USER_NAME'] = user
+            env['PATH_INFO'] = unicode(env['PATH_INFO'])
+
+        # AccessDenied by default
+        env['swift.authorize'] = lambda req: swob.HTTPForbidden(request=req)
+
     def __call__(self, env, start_response):
+        if CONF.s3_acl:
+            self._fake_auth_middleware(env)
+
         method = env['REQUEST_METHOD']
         path = env['PATH_INFO']
         _, acc, cont, obj = split_path(env['PATH_INFO'], 0, 4,
@@ -43,7 +72,7 @@ class FakeSwift(object):
             path += '?' + env['QUERY_STRING']
 
         if 'swift.authorize' in env:
-            resp = env['swift.authorize']()
+            resp = env['swift.authorize'](swob.Request(env))
             if resp:
                 return resp(env, start_response)
 
