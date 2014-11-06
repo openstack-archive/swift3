@@ -39,6 +39,7 @@ class FakeApp(object):
         tenant, user = tenant_user.rsplit(':', 1)
 
         path = env['PATH_INFO']
+
         env['PATH_INFO'] = path.replace(tenant_user, 'AUTH_' + tenant)
 
     def __call__(self, env, start_response):
@@ -59,6 +60,12 @@ class Swift3TestCase(unittest.TestCase):
         self.app = FakeApp()
         self.swift = self.app.swift
         self.swift3 = Swift3Middleware(self.app)
+
+        # TEST method is used to resolve a tenant name
+        self.swift.register('TEST', '/v1/AUTH_test', swob.HTTPMethodNotAllowed,
+                            {}, None)
+        self.swift.register('TEST', '/v1/AUTH_X', swob.HTTPMethodNotAllowed,
+                            {}, None)
 
         self.swift.register('HEAD', '/v1/AUTH_test/bucket',
                             swob.HTTPNoContent, {}, None)
