@@ -20,6 +20,7 @@ import base64
 import email.utils
 import datetime
 
+from swift.common.utils import split_path
 from swift.common import swob
 from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_NO_CONTENT, HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, HTTP_NOT_FOUND, \
@@ -34,7 +35,7 @@ from swift3.controllers import ServiceController, BucketController, \
     ObjectController, AclController, MultiObjectDeleteController, \
     LocationController, LoggingStatusController, PartController, \
     UploadController, UploadsController, VersioningController, \
-    UnsupportedController
+    UnsupportedController, S3AclController
 from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     RequestTimeTooSkewed, Response, SignatureDoesNotMatch, \
     BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
@@ -44,6 +45,8 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.utils import utf8encode
 from swift3.cfg import CONF
+from swift3.subresource import decode_acl, encode_acl
+from swift3.utils import sysmeta_header
 
 # List of sub-resources that must be maintained as part of the HMAC
 # signature string.
@@ -57,10 +60,32 @@ ALLOWED_SUB_RESOURCES = sorted([
 ])
 
 
+def _header_acl_property(resource):
+    """
+    Set and retrieve the acl in self.headers
+    """
+    def getter(self):
+        return getattr(self, '_%s' % resource)
+
+    def setter(self, value):
+        self.headers.update(encode_acl(resource, value))
+        setattr(self, '_%s' % resource, value)
+
+    def deleter(self):
+        self.headers[sysmeta_header(resource, 'acl')] = ''
+
+    return property(getter, setter, deleter,
+                    doc='Get and set the %s acl property' % resource)
+
+
 class Request(swob.Request):
     """
     S3 request object.
     """
+
+    bucket_acl = _header_acl_property('container')
+    object_acl = _header_acl_property('object')
+
     def __init__(self, env, slo_enabled=True):
         swob.Request.__init__(self, env)
 
@@ -69,6 +94,8 @@ class Request(swob.Request):
         self.container_name, self.object_name = self._parse_uri()
         self._validate_headers()
         self.token = base64.urlsafe_b64encode(self._canonical_string())
+        self.account = None
+        self.keystone_token = None
         self.user_id = None
         self.slo_enabled = slo_enabled
 
@@ -209,6 +236,36 @@ class Request(swob.Request):
         if 'x-amz-website-redirect-location' in self.headers:
             raise S3NotImplemented('Website redirection is not supported.')
 
+    def authenticate(self, app):
+        """
+        authenticate method will run pre-authenticate request and retrieve
+        account information.
+        Note that it currently supports only keystone and tempauth.
+        (no support for the third party authentication middleware)
+        """
+        sw_req = self.to_swift_req('TEST', None, None, body='')
+        # don't show log message of this request
+        sw_req.environ['swift.proxy_access_log_made'] = True
+
+        sw_resp = sw_req.get_response(app)
+
+        if not sw_req.remote_user:
+            raise SignatureDoesNotMatch()
+
+        _, self.account, _ = split_path(sw_resp.environ['PATH_INFO'],
+                                        2, 3, True)
+        self.account = utf8encode(self.account)
+
+        if 'HTTP_X_USER_NAME' in sw_resp.environ:
+            # keystone
+            self.user_id = "%s:%s" % (sw_resp.environ['HTTP_X_TENANT_NAME'],
+                                      sw_resp.environ['HTTP_X_USER_NAME'])
+            self.user_id = utf8encode(self.user_id)
+            self.keystone_token = sw_req.environ['HTTP_X_AUTH_TOKEN']
+        else:
+            # tempauth
+            self.user_id = self.access_key
+
     @property
     def body(self):
         """
@@ -302,7 +359,10 @@ class Request(swob.Request):
                 raise S3NotImplemented("Multi-part feature isn't support")
 
         if 'acl' in self.params:
-            return AclController
+            if CONF.s3_acl:
+                return S3AclController
+            else:
+                return AclController
         if 'delete' in self.params:
             return MultiObjectDeleteController
         if 'location' in self.params:
@@ -340,10 +400,15 @@ class Request(swob.Request):
         return self.container_name and self.object_name
 
     def to_swift_req(self, method, container, obj, query=None,
-                     body=None):
+                     body=None, headers=None):
         """
         Create a Swift request based on this request's environment.
         """
+        if self.account is None:
+            account = self.access_key
+        else:
+            account = self.account
+
         env = self.environ.copy()
 
         for key in env:
@@ -358,14 +423,21 @@ class Request(swob.Request):
         env['swift.source'] = 'S3'
         if method is not None:
             env['REQUEST_METHOD'] = method
-        env['HTTP_X_AUTH_TOKEN'] = self.token
+
+        if self.keystone_token:
+            # Need to skip S3 authorization since authtoken middleware
+            # overwrites account in PATH_INFO
+            env['HTTP_X_AUTH_TOKEN'] = self.keystone_token
+            del env['HTTP_AUTHORIZATION']
+        else:
+            env['HTTP_X_AUTH_TOKEN'] = self.token
 
         if obj:
-            path = '/v1/%s/%s/%s' % (self.access_key, container, obj)
+            path = '/v1/%s/%s/%s' % (account, container, obj)
         elif container:
-            path = '/v1/%s/%s' % (self.access_key, container)
+            path = '/v1/%s/%s' % (account, container)
         else:
-            path = '/v1/%s' % (self.access_key)
+            path = '/v1/%s' % (account)
         env['PATH_INFO'] = path
 
         query_string = ''
@@ -379,7 +451,8 @@ class Request(swob.Request):
             query_string = '&'.join(params)
         env['QUERY_STRING'] = query_string
 
-        return swob.Request.blank(quote(path), environ=env, body=body)
+        return swob.Request.blank(quote(path), environ=env, body=body,
+                                  headers=headers)
 
     def _swift_success_codes(self, method, container, obj):
         """
@@ -427,6 +500,9 @@ class Request(swob.Request):
                 ],
                 'PUT': [
                     HTTP_CREATED,
+                ],
+                'POST': [
+                    HTTP_ACCEPTED,
                 ],
                 'DELETE': [
                     HTTP_NO_CONTENT,
@@ -484,6 +560,10 @@ class Request(swob.Request):
                     HTTP_REQUEST_ENTITY_TOO_LARGE: EntityTooLarge,
                     HTTP_LENGTH_REQUIRED: MissingContentLength,
                 },
+                'POST': {
+                    HTTP_NOT_FOUND: (NoSuchKey, obj),
+                    HTTP_PRECONDITION_FAILED: PreconditionFailed,
+                },
                 'DELETE': {
                     HTTP_NOT_FOUND: (NoSuchKey, obj),
                 },
@@ -492,7 +572,7 @@ class Request(swob.Request):
         return code_map[method]
 
     def get_response(self, app, method=None, container=None, obj=None,
-                     body=None, query=None):
+                     body=None, query=None, headers=None):
         """
         Calls the application with this request's environment.  Returns a
         Response object that wraps up the application's result.
@@ -503,20 +583,32 @@ class Request(swob.Request):
         if obj is None:
             obj = self.object_name
 
-        sw_req = self.to_swift_req(method, container, obj, query=query,
-                                   body=body)
+        sw_req = self.to_swift_req(method, container, obj, headers=headers,
+                                   body=body, query=query)
+
+        if CONF.s3_acl:
+            sw_req.environ['swift_owner'] = True  # needed to set ACL
+            sw_req.environ['swift.authorize_override'] = True
+            sw_req.environ['swift.authorize'] = lambda req: None
+
         sw_resp = sw_req.get_response(app)
         resp = Response.from_swift_resp(sw_resp)
         status = resp.status_int  # pylint: disable-msg=E1101
 
-        if 'HTTP_X_USER_NAME' in sw_resp.environ:
-            # keystone
-            self.user_id = utf8encode("%s:%s" %
-                                      (sw_resp.environ['HTTP_X_TENANT_NAME'],
-                                       sw_resp.environ['HTTP_X_USER_NAME']))
-        else:
-            # tempauth
-            self.user_id = self.access_key
+        if CONF.s3_acl:
+            resp.bucket_acl = decode_acl('container', resp.sysmeta_headers)
+            resp.object_acl = decode_acl('object', resp.sysmeta_headers)
+
+        if not self.user_id:
+            if 'HTTP_X_USER_NAME' in sw_resp.environ:
+                # keystone
+                self.user_id = \
+                    utf8encode("%s:%s" %
+                               (sw_resp.environ['HTTP_X_TENANT_NAME'],
+                                sw_resp.environ['HTTP_X_USER_NAME']))
+            else:
+                # tempauth
+                self.user_id = self.access_key
 
         success_codes = self._swift_success_codes(method, container, obj)
         error_codes = self._swift_error_codes(method, container, obj)
