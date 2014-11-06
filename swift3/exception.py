@@ -28,3 +28,7 @@ class BadSwiftRequest(S3Exception):
 
 class ACLError(S3Exception):
     pass
+
+
+class InvalidSubresource(S3Exception):
+    pass

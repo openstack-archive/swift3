@@ -25,6 +25,23 @@ from swift3.cfg import CONF
 LOGGER = get_logger(CONF, log_route='swift3')
 
 
+def sysmeta_prefix(resource):
+    """
+    Returns the system metadata prefix for given resource type.
+    """
+    if resource == 'object':
+        return 'x-object-sysmeta-swift3-'
+    else:
+        return 'x-container-sysmeta-swift3-'
+
+
+def sysmeta_header(resource, name):
+    """
+    Returns the system metadata header for given resource type and name.
+    """
+    return sysmeta_prefix(resource) + name
+
+
 def camel_to_snake(camel):
     return re.sub('(.)([A-Z])', r'\1_\2', camel).lower()
 

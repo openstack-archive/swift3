@@ -39,6 +39,7 @@ class FakeApp(object):
         tenant, user = tenant_user.rsplit(':', 1)
 
         path = env['PATH_INFO']
+
         env['PATH_INFO'] = path.replace(tenant_user, 'AUTH_' + tenant)
 
     def __call__(self, env, start_response):
