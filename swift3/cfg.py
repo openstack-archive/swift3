@@ -51,8 +51,11 @@ class Config(dict):
 
 # Global config dictionary.  The default values can be defined here.
 CONF = Config({
+    'allow_no_owner': False,
+    'log_delivery_user': '.log_delivery',
     'location': 'US',
     'max_bucket_listing': 1000,
     'max_multi_delete_objects': 1000,
+    's3_acl': False,
     'storage_domain': '',
 })
