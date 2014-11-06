@@ -19,6 +19,9 @@ from swift3.response import AccessDenied
 from swift3.subresource import User, AuthenticatedUsers, AllUsers, \
     ACLPrivate, ACLPublicRead, ACLPublicReadWrite, ACLAuthenticatedRead, \
     ACLBucketOwnerRead, ACLBucketOwnerFullControl, Owner, ACL
+from swift3.utils import CONF
+
+CONF.s3_acl = True
 
 
 class TestSwift3Subresource(unittest.TestCase):
