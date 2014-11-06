@@ -15,13 +15,20 @@
 
 import re
 from functools import partial
-from swift3.response import InvalidArgument, \
+from itertools import count
+from simplejson import loads, dumps
+
+from swift3.response import InvalidArgument, MalformedACLError, \
     S3NotImplemented, InvalidRequest, AccessDenied
 from swift3.etree import Element, SubElement
+from swift3.utils import LOGGER, sysmeta_header, MAX_META_VALUE_LENGTH
+from swift3.cfg import CONF
+from swift3.exception import InvalidSubresource
 
 XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
-
 PERMISSIONS = ['FULL_CONTROL', 'READ', 'WRITE', 'READ_ACP', 'WRITE_ACP']
+UNDEFINED_OWNER_VALUE = 'undefined'
+LOG_DELIVERY_USER = '.log_delivery'
 
 """
 An entry point of this approach is here.
@@ -47,6 +54,69 @@ please see official documentation here,
 http://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html
 
 """
+
+
+def encode_acl(resource, acl):
+    """
+    Encode an ACL instance to Swift metadata.
+
+    Given a resource type and an ACL instance, this method returns HTTP
+    headers, which can be used for Swift metadata.
+    """
+    acl = dumps(acl.encode(), separators=(',', ':'))
+    n = MAX_META_VALUE_LENGTH
+    segs = [acl[i:i + n] for i in range(0, len(acl), n)]
+    segs.append('')  # add a terminater
+
+    headers = {}
+    for i, value in enumerate(segs):
+        key = sysmeta_header(resource, 'acl') + '-' + str(i)
+        headers[key] = value
+
+    return headers
+
+
+def decode_acl(resource, headers):
+    """
+    Decode Swift metadata to an ACL instance.
+
+    Given a resource type and HTTP headers, this method returns an ACL
+    instance.
+    """
+    value = ''
+
+    for i in count():
+        key = sysmeta_header(resource, 'acl') + '-' + str(i)
+        if key not in headers or not headers[key]:
+            break
+        value += headers[key]
+
+    if value == '':
+        id = UNDEFINED_OWNER_VALUE
+        name = UNDEFINED_OWNER_VALUE
+        return ACL(Owner(id, name), [])
+
+    try:
+        value = loads(value)
+        id = value[0]
+        name = value[0]
+        grants = []
+        for grant in value[1:]:
+            grantee = None
+            for group in Group.__subclasses__():  # pylint: disable-msg=E1101
+                if group.__name__ == grant[0]:
+                    grantee = group()
+            if not grantee:
+                grantee = User(grant[0])
+
+            permission = grant[1]
+            grants.append(Grant(grantee, permission))
+        return ACL(Owner(id, name), grants)
+    except Exception as e:
+        LOGGER.debug(e)
+        pass
+
+    raise InvalidSubresource((resource, 'acl', value))
 
 
 class Grantee(object):
@@ -89,10 +159,13 @@ class Grantee(object):
         if type == 'CanonicalUser':
             value = elem.find('./ID').text
             return User(value)
-        if type == 'Group':
+        elif type == 'Group':
             value = elem.find('./URI').text
-            subclass = get_group_subclass_from_uri(value)
-            return subclass()
+            return get_group_subclass_from_uri(value)
+        elif type == 'AmazonCustomerByEmail':
+            raise S3NotImplemented()
+        else:
+            raise MalformedACLError()
 
     @staticmethod
     def from_header(grantee):
@@ -107,8 +180,7 @@ class Grantee(object):
             raise S3NotImplemented()
         elif type == 'uri':
             # retrun a subclass instance of Group class
-            subclass = get_group_subclass_from_uri(value)
-            return subclass()
+            return get_group_subclass_from_uri(value)
         else:
             raise InvalidArgument(type, value,
                                   'Argument format not recognized')
@@ -153,7 +225,7 @@ def get_group_subclass_from_uri(uri):
     """
     for group in Group.__subclasses__():  # pylint: disable-msg=E1101
         if group.uri == uri:
-            return group
+            return group()
     raise InvalidArgument('uri', uri, 'Invalid group uri')
 
 
@@ -177,7 +249,7 @@ class Group(Grantee):
 
     def __str__(self):
         name = re.sub('(.)([A-Z])', r'\1 \2', self.__class__.__name__)
-        return name + ' group'
+        return name
 
 
 def canned_acl_grantees(bucket_owner, object_owner=None):
@@ -253,8 +325,14 @@ class LogDelivery(Group):
     WRITE and READ_ACP permissions on a bucket enables this group to write
     server access logs to the bucket.
     """
-    # TODO: Add support for log delivery group.
-    pass
+    uri = 'http://acs.amazonaws.com/groups/s3/LogDelivery'
+
+    def __contains__(self, key):
+        if ':' in key:
+            tenant, user = key.split(':', 1)
+        else:
+            user = key
+        return user == LOG_DELIVERY_USER
 
 
 class Grant(object):
@@ -271,7 +349,6 @@ class Grant(object):
             raise S3NotImplemented()
         if not isinstance(grantee, Grantee):
             raise
-
         self.grantee = grantee
         self.permission = permission
 
@@ -297,6 +374,12 @@ class Grant(object):
     def allow(self, grantee, permission):
         return permission == self.permission and grantee in self.grantee
 
+    def encode(self):
+        """
+        Represent this instance with List types.
+        """
+        return [str(self.grantee), self.permission]
+
 
 class ACL(object):
     """
@@ -320,7 +403,7 @@ class ACL(object):
         """
         :param owner: Owner Class for ACL instance
         """
-        self._owner = owner
+        self.owner = owner
         self.grants = grants
 
     @classmethod
@@ -341,8 +424,8 @@ class ACL(object):
         elem = Element(self.root_tag)
 
         owner = SubElement(elem, 'Owner')
-        SubElement(owner, 'ID').text = self._owner.id
-        SubElement(owner, 'DisplayName').text = self._owner.name
+        SubElement(owner, 'ID').text = self.owner.id
+        SubElement(owner, 'DisplayName').text = self.owner.name
 
         SubElement(elem, 'AccessControlList').extend(
             g.elem() for g in self.grants
@@ -350,21 +433,31 @@ class ACL(object):
 
         return elem
 
-    def owner(self):
-        # FIXME: maybe we should return Owner instance
-        return self._owner.id
-
     def check_owner(self, user_id):
         """
         Check that the user is an owner.
         """
-        if user_id != self._owner.id:
+        if not CONF.s3_acl:
+            # Ignore Swift3 ACL.
+            return
+
+        if self.owner == UNDEFINED_OWNER_VALUE:
+            if CONF.allow_no_owner:
+                # No owner means public.
+                return
+            raise AccessDenied()
+
+        if user_id != self.owner.id:
             raise AccessDenied()
 
     def check_permission(self, user_id, permission):
         """
         Check that the user has a permission.
         """
+        if not CONF.s3_acl:
+            # Ignore Swift3 ACL.
+            return
+
         try:
             # owners have full control permission
             self.check_owner(user_id)
@@ -390,6 +483,8 @@ class ACL(object):
                 if key.lower().startswith('x-amz-grant-'):
                     permission = key[len('x-amz-grant-'):]
                     permission = permission.upper().replace('-', '_')
+                    if permission not in PERMISSIONS:
+                        continue
                     for grantee in value.split(','):
                         grants.append(
                             Grant(Grantee.from_header(grantee), permission))
@@ -400,7 +495,6 @@ class ACL(object):
                     err_msg = 'Specifying both Canned ACLs and Header ' \
                         'Grants is not allowed'
                     raise InvalidRequest(err_msg)
-
                 grantees = canned_acl_grantees(bucket_owner, object_owner)[acl]
                 for permission, grantee in grantees:
                     grants.append(Grant(grantee, permission))
@@ -412,6 +506,12 @@ class ACL(object):
             return None
 
         return cls(object_owner or bucket_owner, grants)
+
+    def encode(self):
+        """
+        Represent this instance with List types.
+        """
+        return [self.owner.id] + [g.encode() for g in self.grants]
 
 
 class CannedACL(object):
