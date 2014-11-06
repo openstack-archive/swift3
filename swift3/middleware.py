@@ -99,6 +99,8 @@ class Swift3Middleware(object):
     def __call__(self, env, start_response):
         try:
             req = Request(env)
+            req.authenticate(self.app)
+
             resp = self.handle_request(req)
         except NotS3Request:
             resp = self.app
