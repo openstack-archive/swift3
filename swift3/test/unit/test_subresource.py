@@ -14,14 +14,23 @@
 # limitations under the License.
 
 import unittest
-
+from simplejson import loads
 from swift3.response import AccessDenied
 from swift3.subresource import User, AuthenticatedUsers, AllUsers, \
     ACLPrivate, ACLPublicRead, ACLPublicReadWrite, ACLAuthenticatedRead, \
-    ACLBucketOwnerRead, ACLBucketOwnerFullControl, Owner, ACL
+    ACLBucketOwnerRead, ACLBucketOwnerFullControl, Owner, ACL, encode_acl, \
+    decode_acl
+from swift3.utils import CONF, sysmeta_header
 
 
 class TestSwift3Subresource(unittest.TestCase):
+
+    def setUp(self):
+        CONF.s3_acl = True
+
+    def tearDown(self):
+        CONF.s3_acl = False
+
     def test_acl_canonical_user(self):
         grantee = User('test:tester')
 
@@ -172,6 +181,141 @@ class TestSwift3Subresource(unittest.TestCase):
                                                'READ_ACP'))
         self.assertFalse(self.check_permission(acl, 'test:tester2',
                                                'WRITE_ACP'))
+
+    def test_decode_acl_container(self):
+        access_control_policy = \
+            '{"Owner":"test:tester",' \
+            '"Grant":[{"Permission":"FULL_CONTROL","Grantee":"test:tester"}]}'
+        headers = {sysmeta_header('container', 'acl') + '-0':
+                   access_control_policy,
+                   sysmeta_header('container', 'acl') + '-1': ''}
+        acl = decode_acl('container', headers)
+
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'READ'))
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'WRITE'))
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'READ_ACP'))
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'WRITE_ACP'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2', 'READ'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2', 'WRITE'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2',
+                                               'READ_ACP'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2',
+                                               'WRITE_ACP'))
+
+    def test_decode_acl_object(self):
+        access_control_policy = \
+            '{"Owner":"test:tester",' \
+            '"Grant":[{"Permission":"FULL_CONTROL","Grantee":"test:tester"}]}'
+        headers = {sysmeta_header('object', 'acl') + '-0':
+                   access_control_policy,
+                   sysmeta_header('object', 'acl') + '-1': ''}
+        acl = decode_acl('object', headers)
+
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'READ'))
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'WRITE'))
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'READ_ACP'))
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'WRITE_ACP'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2', 'READ'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2', 'WRITE'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2',
+                                               'READ_ACP'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2',
+                                               'WRITE_ACP'))
+
+    def test_decode_acl_undefined(self):
+        headers = {}
+        acl = decode_acl('container', headers)
+
+        self.assertEqual('undefined', acl.owner.id)
+        self.assertEqual([], acl.grants)
+
+    def test_encode_acl_container(self):
+        acl = ACLPrivate(Owner(id='test:tester',
+                               name='test:tester'))
+        acp = encode_acl('container', acl)
+        header_value = loads(acp[sysmeta_header('container', 'acl') + '-0'])
+        owner = ''
+        grant = ''
+
+        # pylint: disable-msg=E1103
+        for key, value in header_value.items():
+            if key == 'Owner':
+                owner = value
+            elif key == 'Grant':
+                grant = value
+            else:
+                self.fail('Unsupport Key')
+
+        self.assertEqual("test:tester", owner)
+        self.assertEqual([{"Grantee": "test:tester",
+                           "Permission": "FULL_CONTROL"}], grant)
+        self.assertEqual(acp[sysmeta_header('container', 'acl') + '-1'], '')
+
+    def test_encode_acl_object(self):
+        acl = ACLPrivate(Owner(id='test:tester',
+                               name='test:tester'))
+        acp = encode_acl('object', acl)
+
+        header_value = loads(acp[sysmeta_header('object', 'acl') + '-0'])
+        owner = ''
+        grant = ''
+
+        # pylint: disable-msg=E1103
+        for key, value in header_value.items():
+            if key == 'Owner':
+                owner = value
+            elif key == 'Grant':
+                grant = value
+            else:
+                self.fail('Unsupport Key')
+
+        self.assertEqual("test:tester", owner)
+        self.assertEqual([{"Grantee": "test:tester",
+                           "Permission": "FULL_CONTROL"}], grant)
+        self.assertEqual(acp[sysmeta_header('object', 'acl') + '-1'], '')
+
+    def test_encode_acl_many_grant(self):
+        acl = ACLPrivate(Owner(id='test:tester',
+                               name='test:tester'))
+        headers = {}
+        users = ''
+        for i in range(0, 10):
+            users += 'id=test:tester%s,' % str(i)
+        users = users.rstrip(',')
+        headers["x-amz-grant-read"] = users
+        acl = ACL.from_headers(headers, Owner('test:tester', 'test:tester'))
+        acp = encode_acl('container', acl)
+
+        header_value = acp[sysmeta_header('container', 'acl') + '-0']
+        header_value += acp[sysmeta_header('container', 'acl') + '-1']
+        header_value += acp[sysmeta_header('container', 'acl') + '-2']
+        header_value = loads(header_value)
+
+        owner = ''
+        grants = []
+
+        # pylint: disable-msg=E1103
+        for key, value in header_value.items():
+            if key == 'Owner':
+                owner = value
+            elif key == 'Grant':
+                grants = value
+            else:
+                self.fail('Unsupport Key')
+
+        grantee = []
+        permission = []
+        for i, grant in enumerate(grants):
+            for key, value in grant.items():
+                if key == 'Grantee':
+                    grantee.append(value)
+                if key == 'Permission':
+                    permission.append(value)
+
+        self.assertEqual("test:tester", owner)
+        for i in range(0, 10):
+            self.assertEqual("test:tester" + str(i), grantee[i])
+            self.assertEqual("READ", permission[i])
 
 
 if __name__ == '__main__':
