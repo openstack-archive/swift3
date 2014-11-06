@@ -465,6 +465,9 @@ class ACL(object):
         """
         Check that the user has a permission.
         """
+        if not CONF.s3_acl:
+            # Ignore Swift3 ACL.
+            return
         try:
             # owners have full control permission
             self.check_owner(user_id)
