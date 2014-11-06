@@ -19,6 +19,7 @@ from copy import deepcopy
 from hashlib import md5
 from swift.common import swob
 from swift.common.utils import split_path
+from swift3.cfg import CONF
 
 
 class FakeSwift(object):
@@ -26,7 +27,7 @@ class FakeSwift(object):
     A good-enough fake Swift proxy server to use in testing middleware.
     """
 
-    def __init__(self):
+    def __init__(self, auth='tempauth'):
         self._calls = []
         self.req_method_paths = []
         self.swift_sources = []
@@ -34,7 +35,30 @@ class FakeSwift(object):
         # mapping of (method, path) --> (response class, headers, body)
         self._responses = {}
 
+    def _fake_auth_middleware(self, env):
+        if 'swift.authorize_override' in env:
+            return
+
+        if 'HTTP_AUTHORIZATION' not in env:
+            return
+
+        _, authorization = env['HTTP_AUTHORIZATION'].split(' ')
+        tenant_user, sign = authorization.rsplit(':', 1)
+        tenant, user = tenant_user.rsplit(':', 1)
+
+        path = env['PATH_INFO']
+        env['PATH_INFO'] = path.replace(tenant_user, 'AUTH_' + tenant)
+
+        env['REMOTE_USER'] = 'authorized'
+
+        # AccessDenied by default
+        env['swift.authorize'] = lambda req: swob.HTTPForbidden(request=req)
+
     def __call__(self, env, start_response):
+        if CONF.s3_acl:
+            self._fake_auth_middleware(env)
+
+        req = swob.Request(env)
         method = env['REQUEST_METHOD']
         path = env['PATH_INFO']
         _, acc, cont, obj = split_path(env['PATH_INFO'], 0, 4,
@@ -43,11 +67,11 @@ class FakeSwift(object):
             path += '?' + env['QUERY_STRING']
 
         if 'swift.authorize' in env:
-            resp = env['swift.authorize']()
+            resp = env['swift.authorize'](req)
             if resp:
                 return resp(env, start_response)
 
-        headers = swob.Request(env).headers
+        headers = req.headers
         self._calls.append((method, path, headers))
         self.swift_sources.append(env.get('swift.source'))
 
@@ -86,7 +110,6 @@ class FakeSwift(object):
                 self.uploaded[path][0]['Content-Type'] = env["CONTENT_TYPE"]
 
         # range requests ought to work, hence conditional_response=True
-        req = swob.Request(env)
         resp = resp_class(req=req, headers=headers, body=body,
                           conditional_response=True)
         return resp(env, start_response)
