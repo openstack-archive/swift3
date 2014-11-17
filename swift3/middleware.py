@@ -156,7 +156,6 @@ def check_pipeline():
 
         auth_pipeline = pipeline[pipeline.index('swift3') + 1:
                                  pipeline.index('proxy-server')]
-        print auth_pipeline
 
         if 'tempauth' in auth_pipeline:
             LOGGER.debug('Use tempauth middleware.')
