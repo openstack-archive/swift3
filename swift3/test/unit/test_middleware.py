@@ -324,12 +324,19 @@ class TestSwift3Middleware(Swift3TestCase):
                 'proxy-server'
             check_pipeline()
 
+            pipeline.return_value = 'swift3 swauth proxy-server'
+            check_pipeline()
+
             pipeline.return_value = 'swift3 authtoken s3token keystoneauth ' \
                 'proxy-server'
             self.assertRaises(ValueError, check_pipeline)
 
             pipeline.return_value = 'swift3 proxy-server'
             self.assertRaises(ValueError, check_pipeline)
+
+            pipeline.return_value = 'proxy-server'
+            self.assertRaises(ValueError, check_pipeline)
+
 
 if __name__ == '__main__':
     unittest.main()

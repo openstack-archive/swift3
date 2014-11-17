@@ -151,16 +151,25 @@ def check_pipeline():
     ctx = loadcontext(loadwsgi.APP, CONF.__file__)
     pipeline = str(PipelineWrapper(ctx)).split(' ')
 
-    # Check tempauth middleware.
-    if check_filter_order(pipeline, ['swift3', 'tempauth', 'proxy-server']):
-        LOGGER.debug('Use tempauth middleware.')
-        return
+    # Add compatible with 3rd party middleware.
+    if check_filter_order(pipeline, ['swift3', 'proxy-server']):
 
-    # Check keystone middleware.
-    if check_filter_order(pipeline, ['swift3', 's3token', 'authtoken',
-                                     'keystoneauth', 'proxy-server']):
-        LOGGER.debug('Use keystone middleware.')
-        return
+        auth_pipeline = pipeline[pipeline.index('swift3') + 1:
+                                 pipeline.index('proxy-server')]
+
+        if 'tempauth' in auth_pipeline:
+            LOGGER.debug('Use tempauth middleware.')
+            return
+        elif 'keystoneauth' in auth_pipeline:
+            if check_filter_order(auth_pipeline, ['s3token',
+                                                  'authtoken',
+                                                  'keystoneauth']):
+                LOGGER.debug('Use keystone middleware.')
+                return
+
+        elif len(auth_pipeline):
+            LOGGER.debug('Use third party(unknown) auth middleware.')
+            return
 
     raise ValueError('Invalid proxy pipeline: %s' % pipeline)
 
