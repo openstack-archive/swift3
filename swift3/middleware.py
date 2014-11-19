@@ -63,6 +63,7 @@ from swift3.response import ErrorResponse, InternalError, MethodNotAllowed, \
     ResponseBase
 from swift3.cfg import CONF
 from swift3.utils import LOGGER
+from swift.common.utils import get_logger
 
 
 def validate_bucket_name(name):
@@ -178,6 +179,10 @@ def filter_factory(global_conf, **local_conf):
     """Standard filter factory to use the middleware with paste.deploy"""
     CONF.update(global_conf)
     CONF.update(local_conf)
+
+    # Reassign config to logger
+    global LOGGER
+    LOGGER = get_logger(CONF, log_route='swift3')
 
     check_pipeline()
 
