@@ -38,6 +38,8 @@ class BucketController(Controller):
         Handle HEAD Bucket (Get Metadata) request
         """
         resp = req.get_response(self.app)
+        if CONF.s3_acl:
+            resp.bucket_acl.check_permission(req.user_id, 'READ')
 
         return HTTPOk(headers=resp.headers)
 
@@ -69,6 +71,8 @@ class BucketController(Controller):
             query.update({'delimiter': req.params['delimiter']})
 
         resp = req.get_response(self.app, query=query)
+        if CONF.s3_acl:
+            resp.bucket_acl.check_permission(req.user_id, 'READ')
 
         objects = loads(resp.body)
 
@@ -116,9 +120,6 @@ class BucketController(Controller):
         """
         Handle PUT Bucket request
         """
-        if 'HTTP_X_AMZ_ACL' in req.environ:
-            handle_acl_header(req)
-
         xml = req.xml(MAX_PUT_BUCKET_BODY_SIZE)
         if xml:
             # check location
@@ -135,7 +136,27 @@ class BucketController(Controller):
                 # Swift3 cannot support multiple reagions now.
                 raise InvalidLocationConstraint()
 
-        resp = req.get_response(self.app)
+        if CONF.s3_acl:
+            acl_to_put = ACL.from_headers(req.headers,
+                                          Owner(req.user_id, req.user_id))
+            if acl_to_put is None:
+                # The default acl is private.
+                acl_to_put = ACLPrivate(Owner(req.user_id, req.user_id))
+
+            # To avoid overwriting the existing bucket's ACL, we send PUT
+            # request first before setting the ACL to make sure that the target
+            # container does not exist.
+            resp = req.get_response(self.app)
+
+            # update metadata
+            req.bucket_acl = acl_to_put
+            req.get_response(self.app, 'POST')
+        else:
+            if 'HTTP_X_AMZ_ACL' in req.environ:
+                handle_acl_header(req)
+
+            resp = req.get_response(self.app)
+
         resp.status = HTTP_OK
         resp.location = '/' + req.container_name
 
@@ -145,6 +166,10 @@ class BucketController(Controller):
         """
         Handle DELETE Bucket request
         """
+        if CONF.s3_acl:
+            resp = req.get_response(self.app, 'HEAD')
+            resp.bucket_acl.check_owner(req.user_id)
+
         return req.get_response(self.app)
 
     def POST(self, req):
