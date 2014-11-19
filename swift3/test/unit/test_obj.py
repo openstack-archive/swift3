@@ -21,6 +21,7 @@ from swift.common import swob
 from swift.common.swob import Request
 
 from swift3.test.unit import Swift3TestCase
+from swift3.subresource import ACLPrivate, encode_acl, Owner
 
 
 class TestSwift3Obj(Swift3TestCase):
@@ -36,10 +37,24 @@ class TestSwift3Obj(Swift3TestCase):
                                  'x-object-meta-test': 'swift',
                                  'etag': etag,
                                  'last-modified': '2011-01-05T02:19:14.275290'}
+        self.sysmeta_headers = encode_acl('object',
+                                          ACLPrivate(Owner('test:tester',
+                                                           'test:tester')))
+        self.headers = self.response_headers.copy()
+        self.headers.update(self.sysmeta_headers)
+
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket',
+                            swob.HTTPNoContent,
+                            encode_acl('bucket',
+                                       ACLPrivate(Owner('test:tester',
+                                                        'test:tester'))),
+                            None)
 
         self.swift.register('GET', '/v1/AUTH_test/bucket/object',
-                            swob.HTTPOk, self.response_headers,
-                            self.object_body)
+                            swob.HTTPOk, self.headers, self.object_body)
+
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPOk, self.headers, None)
 
     def _test_object_GETorHEAD(self, method):
         req = Request.blank('/bucket/object',
