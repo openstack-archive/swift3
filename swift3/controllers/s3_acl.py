@@ -65,13 +65,14 @@ class AclController(Controller):
         """
         Handles GET Bucket acl and GET Object acl.
         """
-        resp = req.get_response(self.app, 'HEAD')
         if req.is_object_request:
+            resp = req.get_response(self.app, 'HEAD', resource='OBJECT',
+                                    permission='READ_ACP')
             acl = resp.object_acl
         else:
+            resp = req.get_response(self.app, 'HEAD', resource='CONTAINER',
+                                    permission='READ_ACP')
             acl = resp.bucket_acl
-
-        acl.check_permission(req.user_id, 'READ_ACP')
 
         resp = HTTPOk()
         resp.body = tostring(acl.elem())
@@ -83,16 +84,16 @@ class AclController(Controller):
         Handles PUT Bucket acl and PUT Object acl.
         """
         if req.is_object_request:
-            b_resp = req.get_response(self.app, 'HEAD', obj='')
-            o_resp = req.get_response(self.app, 'HEAD')
-
+            b_resp = req.get_response(self.app, 'HEAD', obj='',
+                                      permission='NO_CHECK')
+            o_resp = req.get_response(self.app, 'HEAD', resource='OBJECT',
+                                      permission='WRITE_ACP')
             acl_to_put = get_acl(req.headers, req.xml(ACL.max_xml_length),
                                  b_resp.bucket_acl.owner,
                                  o_resp.object_acl.owner)
 
             # It is not allowed to change an owner of resource.
             o_resp.object_acl.check_owner(acl_to_put.owner.id)
-            o_resp.object_acl.check_permission(req.user_id, 'WRITE_ACP')
 
             for g in acl_to_put.grants:
                 LOGGER.debug('Grant %s %s permission on the object /%s/%s' %
@@ -107,22 +108,23 @@ class AclController(Controller):
             # So headers['X-Copy-From'] for copy request is added here.
             headers['X-Copy-From'] = quote(src_path)
             headers['Content-Length'] = 0
-            req.get_response(self.app, 'PUT', headers=headers)
+            req.get_response(self.app, 'PUT', headers=headers,
+                             permission='NO_CHECK')
         else:
-            resp = req.get_response(self.app, 'HEAD')
+            resp = req.get_response(self.app, 'HEAD', resource='CONTAINER',
+                                    permission='WRITE_ACP')
 
             acl_to_put = get_acl(req.headers, req.xml(ACL.max_xml_length),
                                  resp.bucket_acl.owner)
 
             # It is not allowed to change an owner of resource.
             resp.bucket_acl.check_owner(acl_to_put.owner.id)
-            resp.bucket_acl.check_permission(req.user_id, 'WRITE_ACP')
 
             for g in acl_to_put.grants:
                 LOGGER.debug('Grant %s %s permission on the bucket /%s' %
                              (g.grantee, g.permission, req.container_name))
 
             req.bucket_acl = acl_to_put
-            req.get_response(self.app, 'POST')
+            req.get_response(self.app, 'POST', permission='NO_CHECK')
 
         return HTTPOk()
