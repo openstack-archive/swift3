@@ -246,6 +246,7 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEquals(headers['ETag'], etag)
         self.assertEquals(headers['X-Object-Meta-Something'], 'oh hai')
         self.assertEquals(headers['X-Copy-From'], '/some/source')
+        self.assertEquals(headers['Content-Length'], '0')
 
     def test_object_DELETE_error(self):
         code = self._test_method_error('DELETE', '/bucket/object',
