@@ -99,6 +99,8 @@ class Response(ResponseBase, swob.Response):
             elif _key == 'x-container-bytes-used':
                 # for ceph/s3tests
                 headers['x-rgw-bytes-used'] = val
+            elif _key.startswith('x-rgw'):
+                headers[_key] = val
 
         self.headers = headers
 
