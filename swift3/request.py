@@ -521,7 +521,8 @@ class Request(swob.Request):
         err_msg = resp.body
 
         if status in error_codes:
-            err_resp = error_codes[sw_resp.status_int]
+            err_resp = \
+                error_codes[sw_resp.status_int]  # pylint: disable-msg=E1101
             if isinstance(err_resp, tuple):
                 raise err_resp[0](*err_resp[1:])
             else:

@@ -16,8 +16,7 @@
 import lxml.etree
 from urllib import quote
 from copy import deepcopy
-from pkg_resources import resource_stream
-
+from pkg_resources import resource_stream  # pylint: disable-msg=E0611
 from swift3.exception import S3Exception
 from swift3.utils import LOGGER, camel_to_snake, utf8encode, utf8decode
 
@@ -115,6 +114,7 @@ class _Element(lxml.etree.ElementBase):
     codes from swift3 middleware.
     """
     def __init__(self, *args, **kwargs):
+        # pylint: disable-msg=E1002
         super(_Element, self).__init__(*args, **kwargs)
 
     @property
