@@ -55,6 +55,8 @@ class FakeSwift(object):
             resp_class, raw_headers, body = self._responses[(method, path)]
             headers = swob.HeaderKeyDict(raw_headers)
         except KeyError:
+            # FIXME: suppress print state error for python3 compatibility.
+            # pylint: disable-msg=E1601
             if (env.get('QUERY_STRING')
                     and (method, env['PATH_INFO']) in self._responses):
                 resp_class, raw_headers, body = self._responses[
