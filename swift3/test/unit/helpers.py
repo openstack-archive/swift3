@@ -27,7 +27,7 @@ class FakeSwift(object):
     A good-enough fake Swift proxy server to use in testing middleware.
     """
 
-    def __init__(self, auth='tempauth'):
+    def __init__(self):
         self._calls = []
         self.req_method_paths = []
         self.swift_sources = []
