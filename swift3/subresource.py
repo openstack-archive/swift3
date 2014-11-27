@@ -437,6 +437,10 @@ class ACL(object):
         """
         Check that the user is an owner.
         """
+        if not CONF.s3_acl:
+            # Ignore Swift3 ACL.
+            return
+
         if not self.owner.id:
             if CONF.allow_no_owner:
                 # No owner means public.
@@ -450,6 +454,10 @@ class ACL(object):
         """
         Check that the user has a permission.
         """
+        if not CONF.s3_acl:
+            # Ignore Swift3 ACL.
+            return
+
         try:
             # owners have full control permission
             self.check_owner(user_id)
@@ -457,15 +465,17 @@ class ACL(object):
         except AccessDenied:
             pass
 
-        for g in self.grants:
-            if g.allow(user_id, 'FULL_CONTROL') or \
-                    g.allow(user_id, permission):
-                return
+        if permission in PERMISSIONS:
+            for g in self.grants:
+                if g.allow(user_id, 'FULL_CONTROL') or \
+                        g.allow(user_id, permission):
+                    return
 
         raise AccessDenied()
 
     @classmethod
-    def from_headers(cls, headers, bucket_owner, object_owner=None):
+    def from_headers(cls, headers, bucket_owner, object_owner=None,
+                     as_private=True):
         """
         Convert HTTP headers to an ACL instance.
         """
@@ -495,7 +505,10 @@ class ACL(object):
 
         if len(grants) == 0:
             # No ACL headers
-            return None
+            if as_private:
+                return ACLPrivate(bucket_owner, object_owner)
+            else:
+                return None
 
         return cls(object_owner or bucket_owner, grants)
 

@@ -27,7 +27,8 @@ def get_acl(headers, body, bucket_owner, object_owner=None):
     """
     Get ACL instance from S3 (e.g. x-amz-grant) headers or S3 acl xml body.
     """
-    acl = ACL.from_headers(headers, bucket_owner, object_owner)
+    acl = ACL.from_headers(headers, bucket_owner, object_owner,
+                           as_private=False)
 
     if acl is None:
         # Get acl from request body if possible.
@@ -65,13 +66,9 @@ class AclController(Controller):
         """
         Handles GET Bucket acl and GET Object acl.
         """
-        resp = req.get_response(self.app, 'HEAD')
-        if req.is_object_request:
-            acl = resp.object_acl
-        else:
-            acl = resp.bucket_acl
-
-        acl.check_permission(req.user_id, 'READ_ACP')
+        resp = req.get_response(self.app, 'HEAD', permission='READ_ACP')
+        acl = getattr(resp, '%s_acl' %
+                      ('object' if req.is_object_request else 'bucket'))
 
         resp = HTTPOk()
         resp.body = tostring(acl.elem())
@@ -83,16 +80,15 @@ class AclController(Controller):
         Handles PUT Bucket acl and PUT Object acl.
         """
         if req.is_object_request:
-            b_resp = req.get_response(self.app, 'HEAD', obj='')
-            o_resp = req.get_response(self.app, 'HEAD')
-
+            b_resp = req.get_response(self.app, 'HEAD', obj='',
+                                      skip_check=True)
+            o_resp = req.get_response(self.app, 'HEAD', permission='WRITE_ACP')
             req_acl = get_acl(req.headers, req.xml(ACL.max_xml_length),
                               b_resp.bucket_acl.owner,
                               o_resp.object_acl.owner)
 
             # Don't change the owner of the resource by PUT acl request.
             o_resp.object_acl.check_owner(req_acl.owner.id)
-            o_resp.object_acl.check_permission(req.user_id, 'WRITE_ACP')
 
             for g in req_acl.grants:
                 LOGGER.debug('Grant %s %s permission on the object /%s/%s' %
@@ -107,22 +103,22 @@ class AclController(Controller):
             # So headers['X-Copy-From'] for copy request is added here.
             headers['X-Copy-From'] = quote(src_path)
             headers['Content-Length'] = 0
-            req.get_response(self.app, 'PUT', headers=headers)
+            req.get_response(self.app, 'PUT', headers=headers,
+                             skip_check=True)
         else:
-            resp = req.get_response(self.app, 'HEAD')
+            resp = req.get_response(self.app, 'HEAD', permission='WRITE_ACP')
 
             req_acl = get_acl(req.headers, req.xml(ACL.max_xml_length),
                               resp.bucket_acl.owner)
 
             # Don't change the owner of the resource by PUT acl request.
             resp.bucket_acl.check_owner(req_acl.owner.id)
-            resp.bucket_acl.check_permission(req.user_id, 'WRITE_ACP')
 
             for g in req_acl.grants:
                 LOGGER.debug('Grant %s %s permission on the bucket /%s' %
                              (g.grantee, g.permission, req.container_name))
 
             req.bucket_acl = req_acl
-            req.get_response(self.app, 'POST')
+            req.get_response(self.app, 'POST', skip_check=True)
 
         return HTTPOk()
