@@ -236,12 +236,6 @@ class Request(swob.Request):
             raise S3NotImplemented('Website redirection is not supported.')
 
     def authenticate(self, app):
-        """
-        authenticate method will run pre-authenticate request and retrieve
-        account information.
-        Note that it currently supports only keystone and tempauth.
-        (no support for the third party authentication middleware)
-        """
         sw_req = self.to_swift_req('TEST', None, None, body='')
         # don't show log message of this request
         sw_req.environ['swift.proxy_access_log_made'] = True
@@ -565,18 +559,12 @@ class Request(swob.Request):
 
         return code_map[method]
 
-    def get_response(self, app, method=None, container=None, obj=None,
-                     headers=None, body=None, query=None):
+    def _get_response(self, app, method, container, obj,
+                      headers=None, body=None, query=None):
         """
         Calls the application with this request's environment.  Returns a
         Response object that wraps up the application's result.
         """
-        method = method or self.environ['REQUEST_METHOD']
-        if container is None:
-            container = self.container_name
-        if obj is None:
-            obj = self.object_name
-
         sw_req = self.to_swift_req(method, container, obj, headers=headers,
                                    body=body, query=query)
 
@@ -627,3 +615,98 @@ class Request(swob.Request):
             raise AccessDenied()
 
         raise InternalError('unexpected status code %d' % status)
+
+    def get_response(self, app, method=None, container=None, obj=None,
+                     headers=None, body=None, query=None, permission=None,
+                     skip_check=False):
+        """
+        Calls the application with this request's environment.  Returns a
+        Response object that wraps up the application's result.
+        """
+        sw_method = method or self.environ['REQUEST_METHOD']
+        if container is None:
+            container = self.container_name
+        if obj is None:
+            obj = self.object_name
+
+        if CONF.s3_acl and not skip_check:
+            resource = 'object' if obj else 'container'
+            s3_method = self.environ['REQUEST_METHOD']
+            if not permission and (s3_method, sw_method, resource) in ACL_MAP:
+                acl_check = ACL_MAP[(s3_method, sw_method, resource)]
+                resource = acl_check.get('Resource') or resource
+                permission = acl_check.get('Permission')
+
+            if permission:
+                match_resource = True
+                if resource == 'object':
+                    resp = self._get_response(app, 'HEAD', container, obj)
+                    acl = resp.object_acl
+                elif resource == 'container':
+                    resp = self._get_response(app, 'HEAD', container, None)
+                    acl = resp.bucket_acl
+                    if obj:
+                        match_resource = False
+
+                acl.check_permission(self.user_id, permission)
+
+                if sw_method == 'HEAD' and match_resource:
+                    # If the request to swift is HEAD and the resource is
+                    # consistent with the confirmation subject of ACL, not
+                    # request again. This is because that contains the
+                    # information required in the HEAD response at the time of
+                    # ACL acquisition.
+                    return resp
+
+        return self._get_response(app, sw_method, container, obj,
+                                  headers, body, query)
+
+"""
+ACL_MAP =
+    {
+        ('<s3_method>', '<swift_method>', '<swift_resource>'):
+        {'Resource': '<check_resource>',
+         'Permission': '<check_permission>'},
+        ...
+    }
+
+s3_method: Method of S3 Request from user to swift3
+swift_method: Method of Swift Request from swift3 to swift
+swift_resource: Resource of Swift Request from swift3 to swift
+check_resource: <container/object>
+check_permission: <OWNER/READ/WRITE/READ_ACP/WRITE_ACP>
+"""
+ACL_MAP = {
+    # HEAD Bucket
+    ('HEAD', 'HEAD', 'container'):
+    {'Permission': 'READ'},
+    # GET Service
+    ('GET', 'HEAD', 'container'):
+    {'Permission': 'OWNER'},
+    # GET Bucket
+    ('GET', 'GET', 'container'):
+    {'Permission': 'READ'},
+    # PUT Object
+    ('PUT', 'HEAD', 'container'):
+    {'Permission': 'WRITE'},
+    # DELETE Bucket
+    ('DELETE', 'DELETE', 'container'):
+    {'Permission': 'OWNER'},
+    # HEAD Object
+    ('HEAD', 'HEAD', 'object'):
+    {'Permission': 'READ'},
+    # GET Object
+    ('GET', 'GET', 'object'):
+    {'Permission': 'READ'},
+    # PUT Object Copy
+    ('PUT', 'HEAD', 'object'):
+    {'Permission': 'READ'},
+    # PUT Object Copy
+    ('PUT', 'PUT', 'object'):
+    {'Resource': 'container',
+     'Permission': 'WRITE'},
+    # Delete Object
+    ('DELETE', 'DELETE', 'object'):
+    {'Resource': 'container',
+     'Permission': 'WRITE'},
+}
