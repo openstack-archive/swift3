@@ -249,7 +249,7 @@ class TestSwift3Subresource(unittest.TestCase):
             users.append('id=test:tester%s' % str(i))
         users = ','.join(users)
         headers['x-amz-grant-read'] = users
-        acl = ACL.from_headers(headers, Owner('test:tester', 'test:tester'))
+        acl, _ = ACL.from_headers(headers, Owner('test:tester', 'test:tester'))
         acp = encode_acl('container', acl)
 
         header_value = acp[sysmeta_header('container', 'acl')]

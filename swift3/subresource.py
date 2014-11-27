@@ -437,6 +437,10 @@ class ACL(object):
         """
         Check that the user is an owner.
         """
+        if not CONF.s3_acl:
+            # Ignore Swift3 ACL.
+            return
+
         if not self.owner:
             if CONF.allow_no_owner:
                 # No owner means public.
@@ -450,6 +454,10 @@ class ACL(object):
         """
         Check that the user has a permission.
         """
+        if not CONF.s3_acl:
+            # Ignore Swift3 ACL.
+            return
+
         try:
             # owners have full control permission
             self.check_owner(user_id)
@@ -470,6 +478,7 @@ class ACL(object):
         Convert HTTP headers to an ACL instance.
         """
         grants = []
+        has_acl_headers = False
         try:
             for key, value in headers.items():
                 if key.lower().startswith('x-amz-grant-'):
@@ -495,9 +504,10 @@ class ACL(object):
 
         if len(grants) == 0:
             # No ACL headers
-            return None
+            return ACLPrivate(bucket_owner, object_owner), has_acl_headers
 
-        return cls(object_owner or bucket_owner, grants)
+        has_acl_headers = True
+        return cls(object_owner or bucket_owner, grants), has_acl_headers
 
 
 class CannedACL(object):
