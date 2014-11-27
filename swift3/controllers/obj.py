@@ -14,10 +14,13 @@
 # limitations under the License.
 
 from swift.common.http import HTTP_OK
+from swift.common.utils import split_path
 
 from swift3.controllers.base import Controller
-from swift3.response import AccessDenied, HTTPOk
+from swift3.response import AccessDenied, HTTPOk, NoSuchKey
 from swift3.etree import Element, SubElement, tostring
+from swift3.subresource import ACL, Owner
+from swift3.cfg import CONF
 
 
 class ObjectController(Controller):
@@ -26,6 +29,7 @@ class ObjectController(Controller):
     """
     def GETorHEAD(self, req):
         resp = req.get_response(self.app)
+
         if req.method == 'HEAD':
             resp.app_iter = None
 
@@ -53,6 +57,30 @@ class ObjectController(Controller):
         """
         Handle PUT Object and PUT Object (Copy) request
         """
+        if CONF.s3_acl:
+            if 'HTTP_X_AMZ_COPY_SOURCE' in req.environ:
+                src_path = req.environ['HTTP_X_AMZ_COPY_SOURCE']
+                src_path = src_path if src_path[0] == '/' else ('/' + src_path)
+                src_bucket, src_obj = split_path(src_path, 0, 2, True)
+
+                req.get_response(self.app, 'HEAD', src_bucket, src_obj,
+                                 permission='READ')
+
+            b_resp = req.get_response(self.app, 'HEAD', obj='')
+            # To avoid overwriting the existing object by unauthorized user,
+            # we send HEAD request first before writing the object to make
+            # sure that the target object does not exist or the user that sent
+            # the PUT request have write permission.
+            try:
+                req.get_response(self.app, 'HEAD')
+            except NoSuchKey:
+                pass
+            req_acl = ACL.from_headers(req.headers,
+                                       b_resp.bucket_acl.owner,
+                                       Owner(req.user_id, req.user_id))
+
+            req.object_acl = req_acl
+
         resp = req.get_response(self.app)
 
         if 'HTTP_X_COPY_FROM' in req.environ:
