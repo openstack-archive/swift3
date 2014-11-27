@@ -84,8 +84,8 @@ class Response(ResponseBase, swob.Response):
             # add double quotes to the etag header
             self.etag = self.etag
 
-        sw_sysmeta_headers = swob.HeaderKeyDict()
-        sw_headers = swob.HeaderKeyDict()
+        sw_sysmeta_headers = HeaderKeyDict()
+        sw_headers = HeaderKeyDict()
         headers = HeaderKeyDict()
 
         for key, val in self.headers.iteritems():
