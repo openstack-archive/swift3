@@ -192,8 +192,11 @@ class TestSwift3Middleware(Swift3TestCase):
         self.assertEquals(self._get_error_code(body), 'AccessDenied')
 
     def test_bucket_virtual_hosted_style(self):
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket',
+                            swob.HTTPNoContent, {}, None)
         req = Request.blank('/',
                             environ={'HTTP_HOST': 'bucket.localhost:80',
+                                     'PATH_INFO': '/object',
                                      'REQUEST_METHOD': 'HEAD',
                                      'HTTP_AUTHORIZATION':
                                      'AWS test:tester:hmac'})
@@ -201,6 +204,8 @@ class TestSwift3Middleware(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
 
     def test_object_virtual_hosted_style(self):
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPOk, {}, None)
         req = Request.blank('/object',
                             environ={'HTTP_HOST': 'bucket.localhost:80',
                                      'REQUEST_METHOD': 'HEAD',
