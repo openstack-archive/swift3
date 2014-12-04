@@ -58,7 +58,7 @@ class Swift3TestCase(unittest.TestCase):
     def setUp(self):
         self.app = FakeApp()
         self.swift = self.app.swift
-        self.swift3 = Swift3Middleware(self.app)
+        self.swift3 = Swift3Middleware(self.app, CONF)
 
         self.swift.register('HEAD', '/v1/AUTH_test/bucket',
                             swob.HTTPNoContent, {}, None)

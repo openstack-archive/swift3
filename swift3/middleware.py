@@ -94,12 +94,15 @@ def validate_bucket_name(name):
 
 class Swift3Middleware(object):
     """Swift3 S3 compatibility midleware"""
-    def __init__(self, app, *args, **kwargs):
+    def __init__(self, app, conf, *args, **kwargs):
         self.app = app
+        self.slo_enabled = True
+
+        self.check_pipeline(conf)
 
     def __call__(self, env, start_response):
         try:
-            req = Request(env)
+            req = Request(env, self.slo_enabled)
             resp = self.handle_request(req)
         except NotS3Request:
             resp = self.app
@@ -131,6 +134,45 @@ class Swift3Middleware(object):
 
         return res
 
+    def check_pipeline(self, conf):
+        """
+        Check that proxy-server.conf has an appropriate pipeline for swift3.
+        """
+        if conf.get('__file__', None) is None:
+            return
+
+        ctx = loadcontext(loadwsgi.APP, conf.__file__)
+        pipeline = str(PipelineWrapper(ctx)).split(' ')
+
+        # Add compatible with 3rd party middleware.
+        if check_filter_order(pipeline, ['swift3', 'proxy-server']):
+
+            auth_pipeline = pipeline[pipeline.index('swift3') + 1:
+                                     pipeline.index('proxy-server')]
+
+            # Check SLO middleware
+            if 'slo' not in auth_pipeline:
+                self.slo_enabled = False
+                LOGGER.debug('swift3 middleware is required SLO middleware '
+                             'to support multi-part upload, please add it '
+                             'in pipline')
+
+            if 'tempauth' in auth_pipeline:
+                LOGGER.debug('Use tempauth middleware.')
+                return
+            elif 'keystoneauth' in auth_pipeline:
+                if check_filter_order(auth_pipeline, ['s3token',
+                                                      'authtoken',
+                                                      'keystoneauth']):
+                    LOGGER.debug('Use keystone middleware.')
+                    return
+
+            elif len(auth_pipeline):
+                LOGGER.debug('Use third party(unknown) auth middleware.')
+                return
+
+        raise ValueError('Invalid proxy pipeline: %s' % pipeline)
+
 
 def check_filter_order(pipeline, required_filters):
     """
@@ -145,36 +187,6 @@ def check_filter_order(pipeline, required_filters):
     return indexes == sorted(indexes)
 
 
-def check_pipeline():
-    """
-    Check that proxy-server.conf has an appropriate pipeline for swift3.
-    """
-    ctx = loadcontext(loadwsgi.APP, CONF.__file__)
-    pipeline = str(PipelineWrapper(ctx)).split(' ')
-
-    # Add compatible with 3rd party middleware.
-    if check_filter_order(pipeline, ['swift3', 'proxy-server']):
-
-        auth_pipeline = pipeline[pipeline.index('swift3') + 1:
-                                 pipeline.index('proxy-server')]
-
-        if 'tempauth' in auth_pipeline:
-            LOGGER.debug('Use tempauth middleware.')
-            return
-        elif 'keystoneauth' in auth_pipeline:
-            if check_filter_order(auth_pipeline, ['s3token',
-                                                  'authtoken',
-                                                  'keystoneauth']):
-                LOGGER.debug('Use keystone middleware.')
-                return
-
-        elif len(auth_pipeline):
-            LOGGER.debug('Use third party(unknown) auth middleware.')
-            return
-
-    raise ValueError('Invalid proxy pipeline: %s' % pipeline)
-
-
 def filter_factory(global_conf, **local_conf):
     """Standard filter factory to use the middleware with paste.deploy"""
     CONF.update(global_conf)
@@ -184,6 +196,7 @@ def filter_factory(global_conf, **local_conf):
     global LOGGER
     LOGGER = get_logger(CONF, log_route='swift3')
 
-    check_pipeline()
+    def swift3_filter(app):
+        return Swift3Middleware(app, CONF)
 
-    return Swift3Middleware
+    return swift3_filter

@@ -61,7 +61,7 @@ class Request(swob.Request):
     """
     S3 request object.
     """
-    def __init__(self, env):
+    def __init__(self, env, slo_enabled=True):
         swob.Request.__init__(self, env)
 
         self.access_key, self.signature = self._parse_authorization()
@@ -70,6 +70,7 @@ class Request(swob.Request):
         self._validate_headers()
         self.token = base64.urlsafe_b64encode(self._canonical_string())
         self.user_id = None
+        self.slo_enabled = slo_enabled
 
         # Avoids that swift.swob.Response replaces Location header value
         # by full URL when absolute path given. See swift.swob for more detail.
@@ -294,6 +295,11 @@ class Request(swob.Request):
     def controller(self):
         if self.is_service_request:
             return ServiceController
+
+        if not self.slo_enabled:
+            multi_part = ['partNumber', 'uploadId', 'uploads']
+            if len([p for p in multi_part if p in self.params]):
+                raise S3NotImplemented("Multi-part feature isn't support")
 
         if 'acl' in self.params:
             return AclController

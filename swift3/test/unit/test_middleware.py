@@ -27,7 +27,6 @@ from swift.common.swob import Request
 from swift3.test.unit import Swift3TestCase
 from swift3.request import Request as S3Request
 from swift3.etree import fromstring
-from swift3.middleware import check_pipeline
 
 
 class TestSwift3Middleware(Swift3TestCase):
@@ -318,24 +317,27 @@ class TestSwift3Middleware(Swift3TestCase):
             conf.__file__ = ''
 
             pipeline.return_value = 'swift3 tempauth proxy-server'
-            check_pipeline()
+            self.swift3.check_pipeline(conf)
 
             pipeline.return_value = 'swift3 s3token authtoken keystoneauth ' \
                 'proxy-server'
-            check_pipeline()
+            self.swift3.check_pipeline(conf)
 
             pipeline.return_value = 'swift3 swauth proxy-server'
-            check_pipeline()
+            self.swift3.check_pipeline(conf)
 
             pipeline.return_value = 'swift3 authtoken s3token keystoneauth ' \
                 'proxy-server'
-            self.assertRaises(ValueError, check_pipeline)
+            with self.assertRaises(ValueError):
+                self.swift3.check_pipeline(conf)
 
             pipeline.return_value = 'swift3 proxy-server'
-            self.assertRaises(ValueError, check_pipeline)
+            with self.assertRaises(ValueError):
+                self.swift3.check_pipeline(conf)
 
             pipeline.return_value = 'proxy-server'
-            self.assertRaises(ValueError, check_pipeline)
+            with self.assertRaises(ValueError):
+                self.swift3.check_pipeline(conf)
 
 
 if __name__ == '__main__':
