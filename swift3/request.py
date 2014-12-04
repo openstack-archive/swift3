@@ -42,7 +42,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
     MalformedXML, InvalidRequest
 from swift3.exception import NotS3Request, BadSwiftRequest
-from swift3.utils import utf8encode
+from swift3.utils import utf8encode, LOGGER
 from swift3.cfg import CONF
 
 # List of sub-resources that must be maintained as part of the HMAC
@@ -74,6 +74,8 @@ class Request(swob.Request):
         # Avoids that swift.swob.Response replaces Location header value
         # by full URL when absolute path given. See swift.swob for more detail.
         self.environ['swift.leave_relative_location'] = True
+        print '### environ: %s'% self.environ
+        LOGGER.debug('### environ: %s'% self.environ )
 
     def _parse_host(self):
         storage_domain = CONF.storage_domain
@@ -294,6 +296,11 @@ class Request(swob.Request):
     def controller(self):
         if self.is_service_request:
             return ServiceController
+
+        if not self.environ.get('slo_enabled'):
+            multi_part = ['partNumber', 'uploadId', 'uploads']
+            if len([p for p in multi_part if p in self.params]):
+                raise AccessDenied("SLO middleware is required on swift")
 
         if 'acl' in self.params:
             return AclController
