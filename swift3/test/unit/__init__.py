@@ -59,6 +59,7 @@ class Swift3TestCase(unittest.TestCase):
         self.app = FakeApp()
         self.swift = self.app.swift
         self.swift3 = Swift3Middleware(self.app)
+        self.swift3.slo_enabled = True
 
         self.swift.register('HEAD', '/v1/AUTH_test/bucket',
                             swob.HTTPNoContent, {}, None)
