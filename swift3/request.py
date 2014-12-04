@@ -295,6 +295,11 @@ class Request(swob.Request):
         if self.is_service_request:
             return ServiceController
 
+        if not self.environ.get('slo_enabled'):
+            multi_part = ['partNumber', 'uploadId', 'uploads']
+            if len([p for p in multi_part if p in self.params]):
+                raise AccessDenied("SLO middleware is required on swift")
+
         if 'acl' in self.params:
             return AclController
         if 'delete' in self.params:

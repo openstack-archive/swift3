@@ -65,6 +65,7 @@ from swift3.cfg import CONF
 from swift3.utils import LOGGER
 from swift.common.utils import get_logger
 
+SLO_ENABLED = True
 
 def validate_bucket_name(name):
     """
@@ -96,9 +97,11 @@ class Swift3Middleware(object):
     """Swift3 S3 compatibility midleware"""
     def __init__(self, app, *args, **kwargs):
         self.app = app
+        self.slo_enabled = SLO_ENABLED
 
     def __call__(self, env, start_response):
         try:
+            env['slo_enabled'] = self.slo_enabled
             req = Request(env)
             resp = self.handle_request(req)
         except NotS3Request:
@@ -157,6 +160,14 @@ def check_pipeline():
 
         auth_pipeline = pipeline[pipeline.index('swift3') + 1:
                                  pipeline.index('proxy-server')]
+
+        # Check SLO middleware
+        if 'slo' not in auth_pipeline:
+            global SLO_ENABLED
+            SLO_ENABLED = False
+            LOGGER.debug('swift3 middleware is required SLO middleware '
+                         'to support multi-part upload, please add it '
+                         'in pipline')
 
         if 'tempauth' in auth_pipeline:
             LOGGER.debug('Use tempauth middleware.')
