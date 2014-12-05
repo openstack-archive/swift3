@@ -42,7 +42,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
     MalformedXML, InvalidRequest
 from swift3.exception import NotS3Request, BadSwiftRequest
-from swift3.utils import utf8encode
+from swift3.utils import utf8encode, LOGGER
 from swift3.cfg import CONF
 
 # List of sub-resources that must be maintained as part of the HMAC
@@ -299,6 +299,7 @@ class Request(swob.Request):
         if not self.slo_enabled:
             multi_part = ['partNumber', 'uploadId', 'uploads']
             if len([p for p in multi_part if p in self.params]):
+                LOGGER.warning('multipart: No SLO middleware in pipeline')
                 raise S3NotImplemented("Multi-part feature isn't support")
 
         if 'acl' in self.params:
