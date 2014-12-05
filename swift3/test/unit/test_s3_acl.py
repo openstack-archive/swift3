@@ -15,6 +15,10 @@
 
 import unittest
 import simplejson as json
+import functools
+import sys
+import traceback
+from mock import patch
 
 from swift.common import swob
 from swift.common.swob import Request
@@ -26,6 +30,37 @@ from swift3.test.unit.test_middleware import Swift3TestCase
 from swift3.cfg import CONF
 
 XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
+
+
+def s3acl(s3acl_only=False):
+    def wrapper(func):
+        @functools.wraps(func)
+        def _wrapper(*args, **kwargs):
+            def call_func(failing_point=''):
+                try:
+                    func(*args, **kwargs)
+                except AssertionError:
+                    # Make traceback message to clarify the assertion
+                    exc_type, exc_instance, exc_traceback = sys.exc_info()
+                    formatted_traceback = ''.join(traceback.format_tb(
+                        exc_traceback))
+                    message = '\n%s\n%s:\n%s' % (formatted_traceback,
+                                                 exc_type.__name__,
+                                                 exc_instance.message)
+                    message += failing_point
+                    raise exc_type(message)
+
+            if not s3acl_only:
+                call_func()
+
+            with patch('swift3.cfg.CONF.s3_acl', True):
+                owner = Owner('test:tester', 'test:tester')
+                instance = args[0]
+                generate_s3acl_environ('test', instance.swift, owner)
+                call_func(' (fail at s3_acl)')
+
+        return _wrapper
+    return wrapper
 
 
 def _gen_test_headers(owner, grants=[], resource='container'):
