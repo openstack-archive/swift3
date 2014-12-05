@@ -299,6 +299,7 @@ class Request(swob.Request):
         if not self.slo_enabled:
             multi_part = ['partNumber', 'uploadId', 'uploads']
             if len([p for p in multi_part if p in self.params]):
+                LOGGER.error('multipart: No SLO middleware in pipeline')
                 raise S3NotImplemented("Multi-part feature isn't support")
 
         if 'acl' in self.params:
