@@ -15,6 +15,10 @@
 
 import unittest
 import simplejson as json
+import functools
+import sys
+import traceback
+from mock import patch, MagicMock
 
 from swift.common import swob
 from swift.common.swob import Request
@@ -24,8 +28,48 @@ from swift3.subresource import ACL, ACLPrivate, User, encode_acl, \
     AuthenticatedUsers, AllUsers, Owner, Grant, PERMISSIONS
 from swift3.test.unit.test_middleware import Swift3TestCase
 from swift3.cfg import CONF
+from swift3.test.unit.exceptions import NotMethodException
 
 XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
+
+
+def s3acl(func=None, s3acl_only=False):
+    """
+    NOTE: s3acl decorator needs an instance of swift3 testing framework.
+          (i.e. An instance for first argument is necessary)
+    """
+    if func is None:
+        return functools.partial(s3acl, s3acl_only=s3acl_only)
+
+    @functools.wraps(func)
+    def s3acl_decorator(*args, **kwargs):
+        if not args and not kwargs:
+            raise NotMethodException('Use s3acl decorator for a method')
+
+        def call_func(failing_point=''):
+            try:
+                func(*args, **kwargs)
+            except AssertionError:
+                # Make traceback message to clarify the assertion
+                exc_type, exc_instance, exc_traceback = sys.exc_info()
+                formatted_traceback = ''.join(traceback.format_tb(
+                    exc_traceback))
+                message = '\n%s\n%s:\n%s' % (formatted_traceback,
+                                             exc_type.__name__,
+                                             exc_instance.message)
+                message += failing_point
+                raise exc_type(message)
+
+        if not s3acl_only:
+            call_func()
+
+        with patch('swift3.cfg.CONF.s3_acl', True):
+            owner = Owner('test:tester', 'test:tester')
+            instance = args[0]
+            generate_s3acl_environ('test', instance.swift, owner)
+            call_func(' (fail at s3_acl)')
+
+    return s3acl_decorator
 
 
 def _gen_test_headers(owner, grants=[], resource='container'):
@@ -606,6 +650,42 @@ class TestSwift3S3Acl(Swift3TestCase):
         status, headers, body = \
             self._test_object_copy('test:other', 'READ')
         self.assertEquals(status.split()[0], '403')
+
+    def test_s3acl_decorator(self):
+        @s3acl
+        def non_class_s3acl_error():
+            raise
+
+        class FakeClass(object):
+            def __init__(self):
+                self.swift = MagicMock()
+
+            @s3acl
+            def s3acl_error(self):
+                raise
+
+            @s3acl
+            def s3acl_assert_fail(self):
+                assert False
+
+            @s3acl(s3acl_only=True)
+            def s3acl_s3only_error(self):
+                if CONF.s3_acl:
+                    raise
+
+            @s3acl(s3acl_only=True)
+            def s3acl_s3only_no_error(self):
+                if not CONF.s3_acl:
+                    raise
+
+        fake_class = FakeClass()
+
+        self.assertRaises(NotMethodException, non_class_s3acl_error)
+        self.assertRaises(TypeError, fake_class.s3acl_error)
+        self.assertRaises(AssertionError, fake_class.s3acl_assert_fail)
+        self.assertRaises(TypeError, fake_class.s3acl_s3only_error)
+        self.assertEquals(None, fake_class.s3acl_s3only_no_error())
+
 
 if __name__ == '__main__':
     unittest.main()
