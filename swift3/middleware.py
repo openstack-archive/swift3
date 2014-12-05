@@ -153,9 +153,9 @@ class Swift3Middleware(object):
             # Check SLO middleware
             if 'slo' not in auth_pipeline:
                 self.slo_enabled = False
-                LOGGER.debug('swift3 middleware is required SLO middleware '
-                             'to support multi-part upload, please add it '
-                             'in pipline')
+                LOGGER.warn('swift3 middleware is required SLO middleware '
+                            'to support multi-part upload, please add it '
+                            'in pipline')
 
             if 'tempauth' in auth_pipeline:
                 LOGGER.debug('Use tempauth middleware.')
