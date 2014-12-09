@@ -64,11 +64,13 @@ MAX_COMPLETE_UPLOAD_BODY_SIZE = 2048 * 1024
 
 
 def _check_upload_info(req, app, upload_id):
+
     container = req.container_name + '+segments'
     obj = '%s/%s' % (req.object_name, upload_id)
 
     try:
-        req.get_response(app, 'HEAD', container=container, obj=obj)
+        req.get_response(app, 'HEAD', container=container, obj=obj,
+                         skip_check=True)
     except NoSuchKey:
         raise NoSuchUpload(upload_id=upload_id)
 
@@ -91,8 +93,6 @@ class PartController(Controller):
             raise InvalidArgument('ResourceType', 'partNumber',
                                   'Unexpected query string parameter')
 
-        upload_id = req.params['uploadId']
-
         try:
             # TODO: check the range of partNumber
             part_number = int(req.params['partNumber'])
@@ -101,7 +101,10 @@ class PartController(Controller):
             raise InvalidArgument('partNumber', req.params['partNumber'],
                                   err_msg)
 
+        upload_id = req.params['uploadId']
         _check_upload_info(req, self.app, upload_id)
+
+        req.check_copy_source(self.app)
 
         req.container_name += '+segments'
         req.object_name = '%s/%s/%d' % (req.object_name, upload_id,
@@ -334,7 +337,8 @@ class UploadController(Controller):
         objects = loads(resp.body)
         for o in objects:
             container = req.container_name + '+segments'
-            req.get_response(self.app, container=container, obj=o['name'])
+            req.get_response(self.app, container=container, obj=o['name'],
+                             skip_check=True)
 
         return HTTPNoContent()
 
