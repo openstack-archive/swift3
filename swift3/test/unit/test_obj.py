@@ -196,6 +196,22 @@ class TestSwift3Obj(Swift3TestCase):
         code = self._test_method_error('PUT', '/bucket/object',
                                        swob.HTTPServiceUnavailable)
         self.assertEquals(code, 'InternalError')
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPCreated,
+                                       {'X-Amz-Copy-Source': ''})
+        self.assertEquals(code, 'InvalidArgument')
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPCreated,
+                                       {'X-Amz-Copy-Source': '/'})
+        self.assertEquals(code, 'InvalidArgument')
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPCreated,
+                                       {'X-Amz-Copy-Source': '/bucket'})
+        self.assertEquals(code, 'InvalidArgument')
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPCreated,
+                                       {'X-Amz-Copy-Source': '/bucket/'})
+        self.assertEquals(code, 'InvalidArgument')
 
     def test_object_PUT(self):
         etag = self.response_headers['etag']
