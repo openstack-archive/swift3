@@ -19,6 +19,7 @@ from copy import deepcopy
 from hashlib import md5
 from swift.common import swob
 from swift.common.utils import split_path
+from swift.common.request_helpers import is_sys_meta
 from swift3.cfg import CONF
 
 
@@ -127,4 +128,17 @@ class FakeSwift(object):
         return len(self._calls)
 
     def register(self, method, path, response_class, headers, body):
+        # assuming the path format like /v1/account/container/object
+        resource_map = ['account', 'container', 'object']
+        index = len(split_path(path, 0, 3, True)[1:]) - 1
+        resource = resource_map[index]
+
+        if (method, path) in self._responses:
+            old_headers = self._responses[(method, path)][1]
+            headers = headers.copy()
+            for key, value in old_headers.iteritems():
+                if is_sys_meta(resource, key) and key not in headers:
+                    # keep old sysmeta for s3acl
+                    headers.update({key: value})
+
         self._responses[(method, path)] = (response_class, headers, body)
