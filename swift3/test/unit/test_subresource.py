@@ -21,6 +21,7 @@ from swift3.subresource import User, AuthenticatedUsers, AllUsers, \
     ACLBucketOwnerRead, ACLBucketOwnerFullControl, Owner, ACL, encode_acl, \
     decode_acl
 from swift3.utils import CONF, sysmeta_header
+from swift3.etree import fromstring
 
 
 class TestSwift3Subresource(unittest.TestCase):
@@ -181,6 +182,36 @@ class TestSwift3Subresource(unittest.TestCase):
                                                'READ_ACP'))
         self.assertFalse(self.check_permission(acl, 'test:tester2',
                                                'WRITE_ACP'))
+
+    def test_acl_from_elem_by_id_only(self):
+        owner_id = 'test:tester'
+        allow_id = 'test:tester2'
+        body = \
+            '<AccessControlPolicy ' \
+            '   xmlns="http://s3.amazonaws.com/doc/2006-03-01/">' \
+            '   <Owner><ID>%s</ID></Owner>' \
+            '   <AccessControlList>' \
+            '   <Grant>' \
+            '   <Grantee' \
+            '       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' \
+            '       xsi:type="CanonicalUser">' \
+            '       <ID>%s</ID>' \
+            '   </Grantee>' \
+            '   <Permission>FULL_CONTROL</Permission>' \
+            '   </Grant>' \
+            '   </AccessControlList>' \
+            '</AccessControlPolicy>' % (owner_id, allow_id)
+
+        elem = fromstring(body, ACL.root_tag)
+        acl = ACL.from_elem(elem)
+        self.assertTrue(self.check_permission(acl, owner_id, 'READ'))
+        self.assertTrue(self.check_permission(acl, owner_id, 'WRITE'))
+        self.assertTrue(self.check_permission(acl, owner_id, 'READ_ACP'))
+        self.assertTrue(self.check_permission(acl, owner_id, 'WRITE_ACP'))
+        self.assertTrue(self.check_permission(acl, allow_id, 'READ'))
+        self.assertTrue(self.check_permission(acl, allow_id, 'WRITE'))
+        self.assertTrue(self.check_permission(acl, allow_id, 'READ_ACP'))
+        self.assertTrue(self.check_permission(acl, allow_id, 'WRITE_ACP'))
 
     def test_decode_acl_container(self):
         access_control_policy = \
