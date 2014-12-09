@@ -28,7 +28,6 @@ from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_PARTIAL_CONTENT, HTTP_NOT_MODIFIED, HTTP_PRECONDITION_FAILED, \
     HTTP_REQUESTED_RANGE_NOT_SATISFIABLE, HTTP_LENGTH_REQUIRED, \
     HTTP_BAD_REQUEST
-
 from swift.common.constraints import check_utf8
 
 from swift3.controllers import ServiceController, BucketController, \
@@ -43,7 +42,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
     MalformedXML, InvalidRequest
 from swift3.exception import NotS3Request, BadSwiftRequest
-from swift3.utils import utf8encode, LOGGER
+from swift3.utils import utf8encode, check_path_header
 from swift3.cfg import CONF
 from swift3.subresource import decode_acl, encode_acl
 from swift3.utils import sysmeta_header
@@ -214,6 +213,16 @@ class Request(swob.Request):
                 self.headers['ETag'] = value.decode('base64').encode('hex')
             except Exception:
                 raise InvalidDigest(content_md5=value)
+
+        if 'X-Amz-Copy-Source' in self.headers:
+            try:
+                check_path_header(self, 'X-Amz-Copy-Source', 2, '')
+            except swob.HTTPException:
+                msg = 'Copy Source must mention the source bucket and key: ' \
+                      'sourcebucket/sourcekey'
+                raise InvalidArgument('x-amz-copy-source',
+                                      self.headers['X-Amz-Copy-Source'],
+                                      msg)
 
         if 'x-amz-metadata-directive' in self.headers:
             value = self.headers['x-amz-metadata-directive']
