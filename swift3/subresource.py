@@ -412,7 +412,11 @@ class ACL(object):
         Convert an ElementTree to an ACL instance
         """
         id = elem.find('./Owner/ID').text
-        name = elem.find('./Owner/DisplayName').text
+        try:
+            name = elem.find('./Owner/DisplayName').text
+        except AttributeError:
+            name = id
+
         grants = [Grant.from_elem(e)
                   for e in elem.findall('./AccessControlList/Grant')]
         return cls(Owner(id, name), grants)
