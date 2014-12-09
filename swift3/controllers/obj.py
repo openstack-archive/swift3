@@ -60,12 +60,14 @@ class ObjectController(Controller):
         if CONF.s3_acl:
             if 'HTTP_X_AMZ_COPY_SOURCE' in req.environ:
                 src_path = req.environ['HTTP_X_AMZ_COPY_SOURCE']
-                src_path = src_path if src_path[0] == '/' else ('/' + src_path)
+                src_path = src_path if src_path.startswith('/') else \
+                    ('/' + src_path)
                 src_bucket, src_obj = split_path(src_path, 0, 2, True)
-
-                req.get_response(self.app, 'HEAD', src_bucket, src_obj,
-                                 permission='READ')
-
+                if src_bucket and src_obj:
+                    # when no src_bucket and src_obj call directly copy
+                    # request to fail at swift.
+                    req.get_response(self.app, 'HEAD', src_bucket, src_obj,
+                                     permission='READ')
             b_resp = req.get_response(self.app, 'HEAD', obj='')
             # To avoid overwriting the existing object by unauthorized user,
             # we send HEAD request first before writing the object to make

@@ -559,6 +559,7 @@ class Request(swob.Request):
                     HTTP_UNPROCESSABLE_ENTITY: InvalidDigest,
                     HTTP_REQUEST_ENTITY_TOO_LARGE: EntityTooLarge,
                     HTTP_LENGTH_REQUIRED: MissingContentLength,
+                    HTTP_PRECONDITION_FAILED: PreconditionFailed,
                 },
                 'POST': {
                     HTTP_NOT_FOUND: (NoSuchKey, obj),
@@ -617,6 +618,14 @@ class Request(swob.Request):
                 error_codes[sw_resp.status_int]  # pylint: disable-msg=E1101
             if isinstance(err_resp, tuple):
                 raise err_resp[0](*err_resp[1:])
+            elif issubclass(err_resp, PreconditionFailed) and \
+                    'HTTP_X_AMZ_COPY_SOURCE' in self.environ:
+                # FIXME: we might ought to make this handle into code map.
+                msg = 'Copy Source must mention the source bucket and key: ' \
+                      'sourcebucket/sourcekey'
+                raise InvalidArgument('x-amz-copy-source',
+                                      self.environ['HTTP_X_AMZ_COPY_SOURCE'],
+                                      msg)
             else:
                 raise err_resp()
 

@@ -24,6 +24,7 @@ from swift3.subresource import ACL, ACLPrivate, User, encode_acl, \
     AuthenticatedUsers, AllUsers, Owner, Grant, PERMISSIONS
 from swift3.test.unit.test_middleware import Swift3TestCase
 from swift3.cfg import CONF
+from os.path import join
 
 XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
 
@@ -558,18 +559,20 @@ class TestSwift3S3Acl(Swift3TestCase):
         status, headers, body = self._test_object('DELETE', 'test:tester')
         self.assertEquals(status.split()[0], '204')
 
-    def _test_object_copy(self, account, src_permission=None):
+    def _test_object_copy(self, account, src_permission=None,
+                          src_path='/src_bucket/src_obj'):
         grants = [Grant(User(account), src_permission)] \
             if src_permission else []
         src_o_headers = _gen_test_headers(self.default_owner, grants, 'object')
-        self.swift.register('HEAD', '/v1/AUTH_test/src_bucket/src_obj',
-                            swob.HTTPOk, src_o_headers, None)
+        self.swift.register(
+            'HEAD', join('/v1/AUTH_test', src_path.lstrip('/')),
+            swob.HTTPOk, src_o_headers, None)
 
         req = Request.blank(
             '/bucket/object',
             environ={'REQUEST_METHOD': 'PUT'},
             headers={'Authorization': 'AWS %s:hmac' % account,
-                     'X-Amz-Copy-Source': '/src_bucket/src_obj'})
+                     'X-Amz-Copy-Source': src_path})
 
         return self.call_swift3(req)
 
@@ -606,6 +609,13 @@ class TestSwift3S3Acl(Swift3TestCase):
         status, headers, body = \
             self._test_object_copy('test:other', 'READ')
         self.assertEquals(status.split()[0], '403')
+
+    def test_object_PUT_copy_empty_src_path(self):
+        self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPPreconditionFailed, {}, None)
+        status, headers, body = self._test_object_copy(
+            'test:write', 'READ', src_path='')
+        self.assertEquals(status.split()[0], '400')
 
 if __name__ == '__main__':
     unittest.main()
