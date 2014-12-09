@@ -56,6 +56,7 @@ from swift3.exception import BadSwiftRequest
 from swift3.utils import LOGGER, unique_id
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
+from swift3.cfg import CONF
 
 DEFAULT_MAX_PARTS = 1000
 DEFAULT_MAX_UPLOADS = 1000
@@ -63,14 +64,20 @@ DEFAULT_MAX_UPLOADS = 1000
 MAX_COMPLETE_UPLOAD_BODY_SIZE = 2048 * 1024
 
 
-def _check_upload_info(req, app, upload_id):
+def _check_upload_info(req, app, upload_id, permission=None):
+
     container = req.container_name + '+segments'
     obj = '%s/%s' % (req.object_name, upload_id)
 
     try:
-        req.get_response(app, 'HEAD', container=container, obj=obj)
+        req.get_response(app, 'HEAD', container=container, obj=obj,
+                         skip_check=True)
     except NoSuchKey:
         raise NoSuchUpload(upload_id=upload_id)
+
+    if CONF.s3_acl:
+        req.get_response(app, 'HEAD', req.container_name, '',
+                         permission=permission)
 
 
 class PartController(Controller):
@@ -91,8 +98,6 @@ class PartController(Controller):
             raise InvalidArgument('ResourceType', 'partNumber',
                                   'Unexpected query string parameter')
 
-        upload_id = req.params['uploadId']
-
         try:
             # TODO: check the range of partNumber
             part_number = int(req.params['partNumber'])
@@ -101,13 +106,24 @@ class PartController(Controller):
             raise InvalidArgument('partNumber', req.params['partNumber'],
                                   err_msg)
 
+        upload_id = req.params['uploadId']
         _check_upload_info(req, self.app, upload_id)
+
+        if CONF.s3_acl:
+            if 'HTTP_X_AMZ_COPY_SOURCE' in req.environ:
+                src_path = req.environ['HTTP_X_AMZ_COPY_SOURCE']
+                src_path = src_path if src_path.startswith('/') else \
+                    ('/' + src_path)
+                src_bucket, src_obj = split_path(src_path, 0, 2, True)
+
+                req.get_response(self.app, 'HEAD', src_bucket, src_obj,
+                                 permission='READ')
 
         req.container_name += '+segments'
         req.object_name = '%s/%s/%d' % (req.object_name, upload_id,
                                         part_number)
 
-        resp = req.get_response(self.app)
+        resp = req.get_response(self.app, skip_check=True)
 
         # TODO: set xml body for copy requests.
 
@@ -136,13 +152,18 @@ class UploadsController(Controller):
             err_msg = 'Invalid Encoding Method specified in Request'
             raise InvalidArgument('encoding-type', encoding_type, err_msg)
 
+        if CONF.s3_acl:
+            req.get_response(self.app, 'HEAD', req.container_name,
+                             permission='READ')
+
         # TODO: add support for prefix, key-marker, upload-id-marker, and
         # max-uploads queries.
         query = {
             'format': 'json',
         }
         container = req.container_name + '+segments'
-        resp = req.get_response(self.app, container=container, query=query)
+        resp = req.get_response(self.app, container=container, query=query,
+                                skip_check=True)
         objects = loads(resp.body)
 
         uploads = []
@@ -203,6 +224,9 @@ class UploadsController(Controller):
         """
         Handles Initiate Multipart Upload.
         """
+        if CONF.s3_acl:
+            req.get_response(self.app, 'HEAD', req.container_name, '')
+
         # Create a unique S3 upload id from UUID to avoid duplicates.
         upload_id = unique_id()
 
@@ -247,7 +271,7 @@ class UploadController(Controller):
             raise InvalidArgument('encoding-type', encoding_type, err_msg)
 
         upload_id = req.params['uploadId']
-        _check_upload_info(req, self.app, upload_id)
+        _check_upload_info(req, self.app, upload_id, permission='READ')
 
         part_num_marker = 0
 
@@ -260,7 +284,7 @@ class UploadController(Controller):
 
         container = req.container_name + '+segments'
         resp = req.get_response(self.app, container=container, obj='',
-                                query=query)
+                                query=query, skip_check=True)
         objects = loads(resp.body)
 
         last_part = 0
@@ -316,7 +340,8 @@ class UploadController(Controller):
         # then it was completed and we return an error here.
         container = req.container_name + '+segments'
         obj = '%s/%s' % (req.object_name, upload_id)
-        req.get_response(self.app, container=container, obj=obj)
+        req.get_response(self.app, container=container, obj=obj,
+                         skip_check=True)
 
         # The completed object was not found so this
         # must be a multipart upload abort.
@@ -334,7 +359,8 @@ class UploadController(Controller):
         objects = loads(resp.body)
         for o in objects:
             container = req.container_name + '+segments'
-            req.get_response(self.app, container=container, obj=o['name'])
+            req.get_response(self.app, container=container, obj=o['name'],
+                             skip_check=True)
 
         return HTTPNoContent()
 

@@ -699,8 +699,14 @@ ACL_MAP = {
     # GET Bucket
     ('GET', 'GET', 'container'):
     {'Permission': 'READ'},
-    # PUT Object, PUT Object Copy
+    # PUT Object, PUT Object Copy, Upload Part, Upload Part Copy
     ('PUT', 'HEAD', 'container'):
+    {'Permission': 'WRITE'},
+    # Initiate Multipart Upload, Complete Multipart Upload
+    ('POST', 'HEAD', 'container'):
+    {'Permission': 'WRITE'},
+    # Abort Multipart Upload
+    ('DELETE', 'HEAD', 'container'):
     {'Permission': 'WRITE'},
     # DELETE Bucket
     ('DELETE', 'DELETE', 'container'):
