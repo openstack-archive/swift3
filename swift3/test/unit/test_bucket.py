@@ -293,5 +293,72 @@ class TestSwift3Bucket(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '204')
 
+    def _test_bucket_for_s3acl(self, method, account):
+        req = Request.blank('/bucket',
+                            environ={'REQUEST_METHOD': method},
+                            headers={'Authorization': 'AWS %s:hmac' % account})
+
+        return self.call_swift3(req)
+
+    @s3acl(s3acl_only=True)
+    def test_bucket_GET_without_permission(self):
+        status, headers, body = self._test_bucket_for_s3acl('GET',
+                                                            'test:other')
+        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+
+    @s3acl(s3acl_only=True)
+    def test_bucket_GET_with_read_permission(self):
+        status, headers, body = self._test_bucket_for_s3acl('GET',
+                                                            'test:read')
+        self.assertEquals(status.split()[0], '200')
+
+    @s3acl(s3acl_only=True)
+    def test_bucket_GET_with_fullcontrol_permission(self):
+        status, headers, body = \
+            self._test_bucket_for_s3acl('GET', 'test:full_control')
+        self.assertEquals(status.split()[0], '200')
+
+    @s3acl(s3acl_only=True)
+    def test_bucket_GET_with_owner_permission(self):
+        status, headers, body = self._test_bucket_for_s3acl('GET',
+                                                            'test:tester')
+        self.assertEquals(status.split()[0], '200')
+
+    def _test_bucket_GET_canned_acl(self, bucket):
+        req = Request.blank('/%s' % bucket,
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+
+        return self.call_swift3(req)
+
+    @s3acl(s3acl_only=True)
+    def test_bucket_GET_authenticated_users(self):
+        status, headers, body = \
+            self._test_bucket_GET_canned_acl('authenticated')
+        self.assertEquals(status.split()[0], '200')
+
+    @s3acl(s3acl_only=True)
+    def test_bucket_GET_all_users(self):
+        status, headers, body = self._test_bucket_GET_canned_acl('public')
+        self.assertEquals(status.split()[0], '200')
+
+    @s3acl(s3acl_only=True)
+    def test_bucket_DELETE_without_permission(self):
+        status, headers, body = self._test_bucket_for_s3acl('DELETE',
+                                                            'test:other')
+        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+
+    @s3acl(s3acl_only=True)
+    def test_bucket_DELETE_with_write_permission(self):
+        status, headers, body = self._test_bucket_for_s3acl('DELETE',
+                                                            'test:write')
+        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+
+    @s3acl(s3acl_only=True)
+    def test_bucket_DELETE_with_fullcontrol_permission(self):
+        status, headers, body = \
+            self._test_bucket_for_s3acl('DELETE', 'test:full_control')
+        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+
 if __name__ == '__main__':
     unittest.main()
