@@ -53,7 +53,7 @@ from swift3.response import InvalidArgument, ErrorResponse, MalformedXML, \
     InvalidPart, BucketAlreadyExists, EntityTooSmall, InvalidPartOrder, \
     InvalidRequest, HTTPOk, HTTPNoContent, NoSuchKey, NoSuchUpload
 from swift3.exception import BadSwiftRequest
-from swift3.utils import LOGGER, unique_id
+from swift3.utils import LOGGER, unique_id, MULTIUPLOAD_SUFFIX
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
 
@@ -64,11 +64,13 @@ MAX_COMPLETE_UPLOAD_BODY_SIZE = 2048 * 1024
 
 
 def _check_upload_info(req, app, upload_id):
-    container = req.container_name + '+segments'
+
+    container = req.container_name + MULTIUPLOAD_SUFFIX
     obj = '%s/%s' % (req.object_name, upload_id)
 
     try:
-        req.get_response(app, 'HEAD', container=container, obj=obj)
+        req.get_response(app, 'HEAD', container=container, obj=obj,
+                         skip_check=True)
     except NoSuchKey:
         raise NoSuchUpload(upload_id=upload_id)
 
@@ -91,8 +93,6 @@ class PartController(Controller):
             raise InvalidArgument('ResourceType', 'partNumber',
                                   'Unexpected query string parameter')
 
-        upload_id = req.params['uploadId']
-
         try:
             # TODO: check the range of partNumber
             part_number = int(req.params['partNumber'])
@@ -101,9 +101,12 @@ class PartController(Controller):
             raise InvalidArgument('partNumber', req.params['partNumber'],
                                   err_msg)
 
+        upload_id = req.params['uploadId']
         _check_upload_info(req, self.app, upload_id)
 
-        req.container_name += '+segments'
+        req.check_copy_source(self.app)
+
+        req.container_name += MULTIUPLOAD_SUFFIX
         req.object_name = '%s/%s/%d' % (req.object_name, upload_id,
                                         part_number)
 
@@ -141,7 +144,7 @@ class UploadsController(Controller):
         query = {
             'format': 'json',
         }
-        container = req.container_name + '+segments'
+        container = req.container_name + MULTIUPLOAD_SUFFIX
         resp = req.get_response(self.app, container=container, query=query)
         objects = loads(resp.body)
 
@@ -206,7 +209,7 @@ class UploadsController(Controller):
         # Create a unique S3 upload id from UUID to avoid duplicates.
         upload_id = unique_id()
 
-        container = req.container_name + '+segments'
+        container = req.container_name + MULTIUPLOAD_SUFFIX
         try:
             req.get_response(self.app, 'PUT', container, '')
         except BucketAlreadyExists:
@@ -258,7 +261,7 @@ class UploadController(Controller):
             'delimiter': '/'
         }
 
-        container = req.container_name + '+segments'
+        container = req.container_name + MULTIUPLOAD_SUFFIX
         resp = req.get_response(self.app, container=container, obj='',
                                 query=query)
         objects = loads(resp.body)
@@ -314,7 +317,7 @@ class UploadController(Controller):
         # First check to see if this multi-part upload was already
         # completed.  Look in the primary container, if the object exists,
         # then it was completed and we return an error here.
-        container = req.container_name + '+segments'
+        container = req.container_name + MULTIUPLOAD_SUFFIX
         obj = '%s/%s' % (req.object_name, upload_id)
         req.get_response(self.app, container=container, obj=obj)
 
@@ -333,8 +336,9 @@ class UploadController(Controller):
         #  Iterate over the segment objects and delete them individually
         objects = loads(resp.body)
         for o in objects:
-            container = req.container_name + '+segments'
-            req.get_response(self.app, container=container, obj=o['name'])
+            container = req.container_name + MULTIUPLOAD_SUFFIX
+            req.get_response(self.app, container=container, obj=o['name'],
+                             skip_check=True)
 
         return HTTPNoContent()
 
@@ -353,7 +357,7 @@ class UploadController(Controller):
             'delimiter': '/'
         }
 
-        container = req.container_name + '+segments'
+        container = req.container_name + MULTIUPLOAD_SUFFIX
         resp = req.get_response(self.app, 'GET', container, '', query=query)
         objinfo = loads(resp.body)
         objtable = dict((o['name'],

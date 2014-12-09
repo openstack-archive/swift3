@@ -43,7 +43,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
     MalformedXML, InvalidRequest
 from swift3.exception import NotS3Request, BadSwiftRequest
-from swift3.utils import utf8encode, LOGGER
+from swift3.utils import utf8encode, LOGGER, MULTIUPLOAD_SUFFIX
 from swift3.cfg import CONF
 from swift3.subresource import decode_acl, encode_acl
 from swift3.utils import sysmeta_header
@@ -347,6 +347,30 @@ class Request(swob.Request):
                 return '%s%s?%s' % (buf, path, '&'.join(params))
 
         return buf + path
+
+    def check_copy_source(self, app):
+        if 'X-Amz-Copy-Source' in self.headers:
+            src_path = self.headers['X-Amz-Copy-Source']
+            src_path = src_path if src_path.startswith('/') else \
+                ('/' + src_path)
+            src_bucket, src_obj = split_path(src_path, 0, 2, True)
+
+            if src_bucket:
+                try:
+                    self.get_response(app, 'HEAD', src_bucket, src_obj,
+                                      permission='READ')
+                    return
+                except NoSuchBucket:
+                    raise
+                except:
+                    if src_obj:
+                        raise
+
+            msg = 'Copy Source must mention the source bucket and key: ' \
+                  'sourcebucket/sourcekey'
+            raise InvalidArgument('x-amz-copy-source',
+                                  self.headers['X-Amz-Copy-Source'],
+                                  msg)
 
     @property
     def controller(self):
@@ -653,12 +677,14 @@ class Request(swob.Request):
                 permission = acl_check['Permission']
 
             if permission:
+                org_container = container[:-len(MULTIUPLOAD_SUFFIX)] \
+                    if container.endswith(MULTIUPLOAD_SUFFIX) else container
                 match_resource = True
                 if resource == 'object':
-                    resp = self._get_response(app, 'HEAD', container, obj)
+                    resp = self._get_response(app, 'HEAD', org_container, obj)
                     acl = resp.object_acl
                 elif resource == 'container':
-                    resp = self._get_response(app, 'HEAD', container, None)
+                    resp = self._get_response(app, 'HEAD', org_container, None)
                     acl = resp.bucket_acl
                     if obj:
                         match_resource = False
@@ -698,11 +724,20 @@ ACL_MAP = {
     # GET Service
     ('GET', 'HEAD', 'container'):
     {'Permission': 'OWNER'},
-    # GET Bucket
+    # GET Bucket, List Parts, List Multipart Upload
     ('GET', 'GET', 'container'):
     {'Permission': 'READ'},
     # PUT Object, PUT Object Copy
     ('PUT', 'HEAD', 'container'):
+    {'Permission': 'WRITE'},
+    # Complete Multipart Upload
+    ('POST', 'GET', 'container'):
+    {'Permission': 'WRITE'},
+    # Initiate Multipart Upload
+    ('POST', 'PUT', 'container'):
+    {'Permission': 'WRITE'},
+    # Abort Multipart Upload
+    ('DELETE', 'HEAD', 'container'):
     {'Permission': 'WRITE'},
     # DELETE Bucket
     ('DELETE', 'DELETE', 'container'):
@@ -716,6 +751,10 @@ ACL_MAP = {
     # PUT Object, PUT Object Copy
     ('PUT', 'HEAD', 'object'):
     {'Permission': 'WRITE'},
+    # Upload Part
+    ('PUT', 'PUT', 'object'):
+    {'Resource': 'container',
+     'Permission': 'WRITE'},
     # Delete Object
     ('DELETE', 'DELETE', 'object'):
     {'Resource': 'container',
