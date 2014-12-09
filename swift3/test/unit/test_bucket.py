@@ -79,6 +79,7 @@ class TestSwift3Bucket(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '404')
 
+    @s3acl
     def test_bucket_GET_error(self):
         code = self._test_method_error('GET', '/bucket', swob.HTTPUnauthorized)
         self.assertEquals(code, 'SignatureDoesNotMatch')
@@ -196,6 +197,7 @@ class TestSwift3Bucket(Swift3TestCase):
         self.assertEquals(args['marker'], '\xef\xbc\xa2')
         self.assertEquals(args['prefix'], '\xef\xbc\xa3')
 
+    @s3acl
     def test_bucket_PUT_error(self):
         code = self._test_method_error('PUT', '/bucket', swob.HTTPCreated,
                                        headers={'Content-Length': 'a'})
@@ -268,6 +270,7 @@ class TestSwift3Bucket(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'MalformedXML')
 
+    @s3acl
     def test_bucket_DELETE_error(self):
         code = self._test_method_error('DELETE', '/bucket',
                                        swob.HTTPUnauthorized)
