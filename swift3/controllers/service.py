@@ -17,7 +17,8 @@ from simplejson import loads
 
 from swift3.controllers.base import Controller
 from swift3.etree import Element, SubElement, tostring
-from swift3.response import HTTPOk
+from swift3.response import HTTPOk, AccessDenied, NoSuchBucket
+from swift3.cfg import CONF
 
 
 class ServiceController(Controller):
@@ -28,7 +29,8 @@ class ServiceController(Controller):
         """
         Handle GET Service request
         """
-        resp = req.get_response(self.app, query={'format': 'json'})
+        resp = req.get_response(self.app, query={'format': 'json'},
+                                skip_check=True)
 
         containers = loads(resp.body)
         # we don't keep the creation time of a backet (s3cmd doesn't
@@ -41,6 +43,14 @@ class ServiceController(Controller):
 
         buckets = SubElement(elem, 'Buckets')
         for c in containers:
+            if CONF.s3_acl:
+                try:
+                    req.get_response(self.app, 'HEAD', c['name'])
+                except AccessDenied:
+                    continue
+                except NoSuchBucket:
+                    continue
+
             bucket = SubElement(buckets, 'Bucket')
             SubElement(bucket, 'Name').text = c['name']
             SubElement(bucket, 'CreationDate').text = \
