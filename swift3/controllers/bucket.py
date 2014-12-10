@@ -22,7 +22,7 @@ from swift3.controllers.acl import handle_acl_header
 from swift3.etree import Element, SubElement, tostring, fromstring, \
     XMLSyntaxError, DocumentInvalid
 from swift3.response import HTTPOk, S3NotImplemented, InvalidArgument, \
-    MalformedXML, InvalidLocationConstraint
+    MalformedXML, InvalidLocationConstraint, NoSuchKey
 from swift3.cfg import CONF
 from swift3.subresource import ACL, Owner
 from swift3.utils import LOGGER
@@ -91,17 +91,35 @@ class BucketController(Controller):
             is_truncated = 'false'
         SubElement(elem, 'IsTruncated').text = is_truncated
 
-        for o in objects[:max_keys]:
-            if 'subdir' not in o:
+        for obj in objects[:max_keys]:
+            if 'subdir' not in obj:
                 contents = SubElement(elem, 'Contents')
-                SubElement(contents, 'Key').text = o['name']
+                SubElement(contents, 'Key').text = obj['name']
                 SubElement(contents, 'LastModified').text = \
-                    o['last_modified'] + 'Z'
-                SubElement(contents, 'ETag').text = o['hash']
-                SubElement(contents, 'Size').text = str(o['bytes'])
+                    obj['last_modified'] + 'Z'
+                SubElement(contents, 'ETag').text = obj['hash']
+                SubElement(contents, 'Size').text = str(obj['bytes'])
                 owner = SubElement(contents, 'Owner')
-                SubElement(owner, 'ID').text = req.user_id
-                SubElement(owner, 'DisplayName').text = req.user_id
+
+                if CONF.s3_acl:
+                    # A container of swift does not have an owner information
+                    # of the object.
+                    # So, it is needed to acquire that information directly of
+                    # the object.
+                    try:
+                        o_resp = req.get_response(self.app, 'HEAD',
+                                                  obj=obj['name'],
+                                                  skip_check=True)
+                        SubElement(owner, 'ID').text = \
+                            o_resp.object_acl.owner.id
+                        SubElement(owner, 'DisplayName').text = \
+                            o_resp.object_acl.owner.id
+                    except NoSuchKey:
+                        continue
+                else:
+                    SubElement(owner, 'ID').text = req.user_id
+                    SubElement(owner, 'DisplayName').text = req.user_id
+
                 SubElement(contents, 'StorageClass').text = 'STANDARD'
 
         for o in objects[:max_keys]:

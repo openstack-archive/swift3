@@ -308,12 +308,6 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
 
     @s3acl(s3acl_only=True)
-    def test_object_GET_with_owner_permission(self):
-        status, headers, body = self._test_object_for_s3acl('GET',
-                                                            'test:tester')
-        self.assertEquals(status.split()[0], '200')
-
-    @s3acl(s3acl_only=True)
     def test_object_PUT_without_permission(self):
         status, headers, body = self._test_object_for_s3acl('PUT',
                                                             'test:other')
@@ -329,12 +323,6 @@ class TestSwift3Obj(Swift3TestCase):
     def test_object_PUT_with_fullcontrol_permission(self):
         status, headers, body = \
             self._test_object_for_s3acl('PUT', 'test:full_control')
-        self.assertEquals(status.split()[0], '200')
-
-    @s3acl(s3acl_only=True)
-    def test_object_PUT_with_owner_permission(self):
-        status, headers, body = self._test_object_for_s3acl('PUT',
-                                                            'test:tester')
         self.assertEquals(status.split()[0], '200')
 
     @s3acl(s3acl_only=True)
@@ -366,12 +354,6 @@ class TestSwift3Obj(Swift3TestCase):
     def test_object_DELETE_with_fullcontrol_permission(self):
         status, headers, body = \
             self._test_object_for_s3acl('DELETE', 'test:full_control')
-        self.assertEquals(status.split()[0], '204')
-
-    @s3acl(s3acl_only=True)
-    def test_object_DELETE_with_owner_permission(self):
-        status, headers, body = self._test_object_for_s3acl('DELETE',
-                                                            'test:tester')
         self.assertEquals(status.split()[0], '204')
 
     def _test_object_copy_for_s3acl(self, account, src_permission=None):

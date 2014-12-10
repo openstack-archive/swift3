@@ -22,6 +22,7 @@ from swift.common.swob import Request
 from swift3.test.unit import Swift3TestCase
 from swift3.etree import Element, SubElement, fromstring, tostring
 from swift3.test.unit.test_s3_acl import s3acl
+from swift3.subresource import ACL, encode_acl, Owner
 
 
 class TestSwift3Bucket(Swift3TestCase):
@@ -293,7 +294,39 @@ class TestSwift3Bucket(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '204')
 
+    def _get_object_list_for_s3acl(self):
+        self.owners = {}
+        self.objects = []
+        for var in range(0, 5):
+            user_id = 'test:tester%s' % var
+            obj = 'obj%s' % var
+            owner = Owner(id=user_id, name=user_id)
+            self.owners[obj] = owner
+            headers = \
+                encode_acl('object', ACL(owner, []))
+            # set register to get owner of objects
+            self.swift.register('HEAD', '/v1/AUTH_test/bucket/%s' % obj,
+                                swob.HTTPOk, headers, None)
+            self.objects.append((obj,
+                                 '%s-01-05T02:19:14.275290' % str(2010 + var),
+                                 '%s' % var, 300 + var))
+
+        json_pattern = ['"name":"%s"', '"last_modified":"%s"', '"hash":"%s"',
+                        '"bytes":%s']
+        json_pattern = '{' + ','.join(json_pattern) + '}'
+        json_out = []
+
+        for b in self.objects:
+            json_out.append(json_pattern % b)
+        object_list = '[' + ','.join(json_out) + ']'
+
+        return object_list
+
     def _test_bucket_for_s3acl(self, method, account):
+        object_list = self._get_object_list_for_s3acl()
+        self.swift.register('GET', '/v1/AUTH_test/bucket', swob.HTTPNoContent,
+                            {}, object_list)
+
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': method},
                             headers={'Authorization': 'AWS %s:hmac' % account})
@@ -343,12 +376,30 @@ class TestSwift3Bucket(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
 
     @s3acl(s3acl_only=True)
-    def test_bucket_PUT_with_already_exist(self):
-        self.swift.register('PUT', '/v1/AUTH_test/bucket',
-                            swob.HTTPAccepted, {}, None)
-        status, headers, body = self._test_bucket_for_s3acl('PUT',
-                                                            'test:tester')
-        self.assertEquals(self._get_error_code(body), 'BucketAlreadyExists')
+    def test_bucket_GET_object_list(self):
+        status, headers, body = \
+            self._test_bucket_for_s3acl('GET', 'test:tester')
+        self.assertEquals(status.split()[0], '200')
+
+        bucket_name = 'bucket'
+        elem = fromstring(body, 'ListBucketResult')
+        name = elem.find('./Name').text
+        self.assertEquals(name, bucket_name)
+
+        resp_objects = elem.iterchildren('Contents')
+        for i, o in enumerate(resp_objects):
+            for obj in self.objects:
+                if o.find('./Key').text == obj[0]:
+                    self.assertEquals(obj[1] + 'Z',
+                                      o.find('./LastModified').text)
+                    self.assertEquals(obj[2], o.find('./ETag').text)
+                    self.assertEquals(str(obj[3]), o.find('./Size').text)
+                    self.assertEqual(self.owners[obj[0]].id,
+                                     o.find('./Owner/ID').text)
+                    self.assertEqual(self.owners[obj[0]].name,
+                                     o.find('./Owner/DisplayName').text)
+        else:
+            self.assertEquals(i + 1, len(self.objects))
 
     @s3acl(s3acl_only=True)
     def test_bucket_DELETE_without_permission(self):
@@ -367,12 +418,6 @@ class TestSwift3Bucket(Swift3TestCase):
         status, headers, body = \
             self._test_bucket_for_s3acl('DELETE', 'test:full_control')
         self.assertEquals(self._get_error_code(body), 'AccessDenied')
-
-    @s3acl(s3acl_only=True)
-    def test_bucket_DELETE_with_owner_permission(self):
-        status, headers, body = self._test_bucket_for_s3acl('DELETE',
-                                                            'test:tester')
-        self.assertEquals(status.split()[0], '204')
 
 if __name__ == '__main__':
     unittest.main()
