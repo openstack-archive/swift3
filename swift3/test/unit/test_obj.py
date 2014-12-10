@@ -65,6 +65,7 @@ class TestSwift3Obj(Swift3TestCase):
         if method == 'GET':
             self.assertEquals(body, self.object_body)
 
+    @s3acl
     def test_object_HEAD_error(self):
         # HEAD does not return the body even an error resonse in the
         # specifications of the REST API.
@@ -100,6 +101,7 @@ class TestSwift3Obj(Swift3TestCase):
     def test_object_HEAD(self):
         self._test_object_GETorHEAD('HEAD')
 
+    @s3acl
     def test_object_GET_error(self):
         code = self._test_method_error('GET', '/bucket/object',
                                        swob.HTTPUnauthorized)
@@ -136,6 +138,7 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertTrue('content-range' in headers)
         self.assertTrue(headers['content-range'].startswith('bytes 0-3'))
 
+    @s3acl
     def test_object_GET_Range_error(self):
         code = self._test_method_error('GET', '/bucket/object',
                                        swob.HTTPRequestedRangeNotSatisfiable)
@@ -175,6 +178,7 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertTrue('content-encoding' in headers)
         self.assertEquals(headers['content-encoding'], 'gzip')
 
+    @s3acl
     def test_object_PUT_error(self):
         code = self._test_method_error('PUT', '/bucket/object',
                                        swob.HTTPUnauthorized)
@@ -253,6 +257,7 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEquals(headers['X-Copy-From'], '/some/source')
         self.assertEquals(headers['Content-Length'], '0')
 
+    @s3acl
     def test_object_DELETE_error(self):
         code = self._test_method_error('DELETE', '/bucket/object',
                                        swob.HTTPUnauthorized)
