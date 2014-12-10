@@ -416,9 +416,10 @@ class Request(swob.Request):
                 env['HTTP_X_OBJECT_META_' + key[16:]] = env[key]
                 del env[key]
 
-            if key == 'HTTP_X_AMZ_COPY_SOURCE':
-                env['HTTP_X_COPY_FROM'] = env[key]
-                del env[key]
+        if 'HTTP_X_AMZ_COPY_SOURCE' in env:
+            env['HTTP_X_COPY_FROM'] = env['HTTP_X_AMZ_COPY_SOURCE']
+            del env['HTTP_X_AMZ_COPY_SOURCE']
+            env['CONTENT_LENGTH'] = '0'
 
         env['swift.source'] = 'S3'
         if method is not None:
