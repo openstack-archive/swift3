@@ -182,6 +182,22 @@ class TestSwift3Subresource(unittest.TestCase):
         self.assertFalse(self.check_permission(acl, 'test:tester2',
                                                'WRITE_ACP'))
 
+    def test_acl_from_elem_by_id_only(self):
+        elem = ACLPrivate(Owner(id='test:tester',
+                                name='test:tester')).elem()
+        elem.find('./Owner').remove(elem.find('./Owner/DisplayName'))
+        acl = ACL.from_elem(elem)
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'READ'))
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'WRITE'))
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'READ_ACP'))
+        self.assertTrue(self.check_permission(acl, 'test:tester', 'WRITE_ACP'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2', 'READ'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2', 'WRITE'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2',
+                                               'READ_ACP'))
+        self.assertFalse(self.check_permission(acl, 'test:tester2',
+                                               'WRITE_ACP'))
+
     def test_decode_acl_container(self):
         access_control_policy = \
             {'Owner': 'test:tester',
