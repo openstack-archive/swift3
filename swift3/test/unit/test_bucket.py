@@ -21,6 +21,7 @@ from swift.common.swob import Request
 
 from swift3.test.unit import Swift3TestCase
 from swift3.etree import Element, SubElement, fromstring, tostring
+from swift3.test.unit.test_s3_acl import s3acl
 
 
 class TestSwift3Bucket(Swift3TestCase):
@@ -211,6 +212,7 @@ class TestSwift3Bucket(Swift3TestCase):
         code = self._test_method_error('PUT', '/bucket', swob.HTTPServerError)
         self.assertEquals(code, 'InternalError')
 
+    @s3acl
     def test_bucket_PUT(self):
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'PUT'},
@@ -219,6 +221,7 @@ class TestSwift3Bucket(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(headers['Location'], '/bucket')
 
+    @s3acl
     def test_bucket_PUT_with_location(self):
         elem = Element('CreateBucketConfiguration')
         SubElement(elem, 'LocationConstraint').text = 'US'
@@ -242,6 +245,7 @@ class TestSwift3Bucket(Swift3TestCase):
         self.assertTrue('X-Container-Read' in headers)
         self.assertEquals(headers.get('X-Container-Read'), '.r:*,.rlistings')
 
+    @s3acl
     def test_bucket_PUT_with_location_error(self):
         elem = Element('CreateBucketConfiguration')
         SubElement(elem, 'LocationConstraint').text = 'XXX'
@@ -255,6 +259,7 @@ class TestSwift3Bucket(Swift3TestCase):
         self.assertEquals(self._get_error_code(body),
                           'InvalidLocationConstraint')
 
+    @s3acl
     def test_bucket_PUT_with_location_invalid_xml(self):
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'PUT'},
@@ -277,6 +282,7 @@ class TestSwift3Bucket(Swift3TestCase):
                                        swob.HTTPServerError)
         self.assertEquals(code, 'InternalError')
 
+    @s3acl
     def test_bucket_DELETE(self):
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'DELETE'},

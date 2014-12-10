@@ -21,6 +21,7 @@ from swift.common import swob
 from swift.common.swob import Request
 
 from swift3.test.unit import Swift3TestCase
+from swift3.test.unit.test_s3_acl import s3acl
 
 
 class TestSwift3Obj(Swift3TestCase):
@@ -119,9 +120,11 @@ class TestSwift3Obj(Swift3TestCase):
                                        swob.HTTPServiceUnavailable)
         self.assertEquals(code, 'InternalError')
 
+    @s3acl
     def test_object_GET(self):
         self._test_object_GETorHEAD('GET')
 
+    @s3acl
     def test_object_GET_Range(self):
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': 'GET'},
@@ -138,6 +141,7 @@ class TestSwift3Obj(Swift3TestCase):
                                        swob.HTTPRequestedRangeNotSatisfiable)
         self.assertEquals(code, 'InvalidRange')
 
+    @s3acl
     def test_object_GET_Response(self):
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': 'GET',
@@ -197,6 +201,7 @@ class TestSwift3Obj(Swift3TestCase):
                                        swob.HTTPServiceUnavailable)
         self.assertEquals(code, 'InternalError')
 
+    @s3acl
     def test_object_PUT(self):
         etag = self.response_headers['etag']
         content_md5 = etag.decode('hex').encode('base64').strip()
@@ -265,6 +270,7 @@ class TestSwift3Obj(Swift3TestCase):
                                        swob.HTTPServiceUnavailable)
         self.assertEquals(code, 'InternalError')
 
+    @s3acl
     def test_object_DELETE(self):
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': 'DELETE'},
