@@ -58,7 +58,7 @@ from paste.deploy import loadwsgi
 from swift.common.wsgi import PipelineWrapper, loadcontext
 
 from swift3.exception import NotS3Request
-from swift3.request import Request
+from swift3.request import Request, S3ACLRequest
 from swift3.response import ErrorResponse, InternalError, MethodNotAllowed, \
     ResponseBase
 from swift3.cfg import CONF
@@ -102,10 +102,10 @@ class Swift3Middleware(object):
 
     def __call__(self, env, start_response):
         try:
-            req = Request(env, self.slo_enabled)
             if CONF.s3_acl:
-                req.authenticate(self.app)
-
+                req = S3ACLRequest(env, self.app, self.slo_enabled)
+            else:
+                req = Request(env, self.slo_enabled)
             resp = self.handle_request(req)
         except NotS3Request:
             resp = self.app
@@ -128,7 +128,6 @@ class Swift3Middleware(object):
         LOGGER.debug(req.__dict__)
 
         controller = req.controller(self.app)
-
         if hasattr(controller, req.method):
             res = getattr(controller, req.method)(req)
         else:
