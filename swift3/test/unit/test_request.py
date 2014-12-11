@@ -14,15 +14,16 @@
 # limitations under the License.
 
 from contextlib import nested
-from mock import patch
+from mock import patch, MagicMock
 import unittest
 
 from swift.common.swob import Request
 
-from swift3.subresource import ACL, User, Owner, Grant
+from swift3.subresource import ACL, User, Owner, Grant, encode_acl
 from swift3.test.unit.test_middleware import Swift3TestCase
 from swift3.cfg import CONF
 from swift3.request import Request as S3_Request
+from swift3.request import S3ACLRequest
 
 
 Fake_ACL_MAP = {
@@ -45,23 +46,27 @@ Fake_ACL_MAP = {
 }
 
 
-def _gen_test_acl(owner, permission=None, grantee=None):
+def _gen_test_acl_header(owner, permission=None, grantee=None,
+                         resource='container'):
     if permission is None:
         return ACL(owner, [])
 
     if grantee is None:
         grantee = User('test:tester')
-    return ACL(owner, [Grant(grantee, permission)])
+    return encode_acl(resource, ACL(owner, [Grant(grantee, permission)]))
 
 
 class FakeResponse(object):
     def __init__(self, s3_acl):
-        self.bucket_acl = None
-        self.object_acl = None
+        self.sysmeta_headers = {}
         if s3_acl:
             owner = Owner(id='test:tester', name='test:tester')
-            self.bucket_acl = _gen_test_acl(owner, 'FULL_CONTROL')
-            self.object_acl = _gen_test_acl(owner, 'FULL_CONTROL')
+            self.sysmeta_headers.update(
+                _gen_test_acl_header(owner, 'FULL_CONTROL',
+                                     resource='container'))
+            self.sysmeta_headers.update(
+                _gen_test_acl_header(owner, 'FULL_CONTROL',
+                                     resource='object'))
 
 
 class TestRequest(Swift3TestCase):
@@ -74,14 +79,19 @@ class TestRequest(Swift3TestCase):
         CONF.s3_acl = False
 
     @patch('swift3.request.ACL_MAP', Fake_ACL_MAP)
+    @patch('swift3.request.S3ACLRequest.authenticate', lambda x, y: None)
     def _test_get_response(self, method, container='bucket', obj=None,
-                           permission=None, skip_check=False):
+                           permission=None, skip_check=False,
+                           req_klass=S3_Request):
         path = '/' + container + ('/' + obj if obj else '')
         req = Request.blank(path,
                             environ={'REQUEST_METHOD': method},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        s3_req = S3_Request(req.environ)
-
+        if issubclass(req_klass, S3ACLRequest):
+            s3_req = req_klass(req.environ, MagicMock())
+        else:
+            s3_req = req_klass(req.environ)
+        # target = 'swift3.request.%s._get_response' % req_klass.__name__
         with nested(patch('swift3.request.Request._get_response'),
                     patch('swift3.subresource.ACL.check_permission')) \
                 as (mock_get_resp, m_check_permission):
@@ -91,18 +101,18 @@ class TestRequest(Swift3TestCase):
                                     skip_check=skip_check)
 
     def test_get_response_without_s3_acl(self):
-        CONF.s3_acl = False
-        mock_get_resp, m_check_permission, s3_resp = \
-            self._test_get_response('HEAD')
-        CONF.s3_acl = True
-        self.assertTrue(s3_resp.bucket_acl is None)
-        self.assertTrue(s3_resp.object_acl is None)
+        with patch('swift3.cfg.CONF.s3_acl', False):
+            mock_get_resp, m_check_permission, s3_resp = \
+                self._test_get_response('HEAD')
+        self.assertFalse(hasattr(s3_resp, 'bucket_acl'))
+        self.assertFalse(hasattr(s3_resp, 'object_acl'))
         self.assertEqual(mock_get_resp.call_count, 1)
         self.assertEqual(m_check_permission.call_count, 0)
 
     def test_get_response_without_check_permission(self):
         mock_get_resp, m_check_permission, s3_resp = \
-            self._test_get_response('HEAD', skip_check=True)
+            self._test_get_response('HEAD', skip_check=True,
+                                    req_klass=S3ACLRequest)
         self.assertTrue(s3_resp.bucket_acl is not None)
         self.assertTrue(s3_resp.object_acl is not None)
         self.assertEqual(mock_get_resp.call_count, 1)
@@ -112,7 +122,8 @@ class TestRequest(Swift3TestCase):
         obj = 'object'
         mock_get_resp, m_check_permission, s3_resp = \
             self._test_get_response('GET', obj=obj,
-                                    permission='READ_ACP')
+                                    permission='READ_ACP',
+                                    req_klass=S3ACLRequest)
         self.assertTrue(s3_resp.bucket_acl is not None)
         self.assertTrue(s3_resp.object_acl is not None)
         self.assertEqual(mock_get_resp.call_count, 2)
@@ -126,7 +137,8 @@ class TestRequest(Swift3TestCase):
 
     def test_get_response_without_match_ACL_MAP(self):
         mock_get_resp, m_check_permission, s3_resp = \
-            self._test_get_response('POST')
+            self._test_get_response('POST',
+                                    req_klass=S3ACLRequest)
         self.assertTrue(s3_resp.bucket_acl is not None)
         self.assertTrue(s3_resp.object_acl is not None)
         self.assertEqual(mock_get_resp.call_count, 1)
@@ -135,7 +147,8 @@ class TestRequest(Swift3TestCase):
     def test_get_response_without_duplication_HEAD_request(self):
         obj = 'object'
         mock_get_resp, m_check_permission, s3_resp = \
-            self._test_get_response('HEAD', obj=obj)
+            self._test_get_response('HEAD', obj=obj,
+                                    req_klass=S3ACLRequest)
         self.assertTrue(s3_resp.bucket_acl is not None)
         self.assertTrue(s3_resp.object_acl is not None)
         self.assertEqual(mock_get_resp.call_count, 1)
@@ -150,7 +163,8 @@ class TestRequest(Swift3TestCase):
     def test_get_response_with_check_object_permission(self):
         obj = 'object'
         mock_get_resp, m_check_permission, s3_resp = \
-            self._test_get_response('GET', obj=obj)
+            self._test_get_response('GET', obj=obj,
+                                    req_klass=S3ACLRequest)
         self.assertTrue(s3_resp.bucket_acl is not None)
         self.assertTrue(s3_resp.object_acl is not None)
         self.assertEqual(mock_get_resp.call_count, 2)
@@ -164,7 +178,8 @@ class TestRequest(Swift3TestCase):
 
     def test_get_response_with_check_container_permission(self):
         mock_get_resp, m_check_permission, s3_resp = \
-            self._test_get_response('GET')
+            self._test_get_response('GET',
+                                    req_klass=S3ACLRequest)
         self.assertTrue(s3_resp.bucket_acl is not None)
         self.assertTrue(s3_resp.object_acl is not None)
         self.assertEqual(mock_get_resp.call_count, 2)
