@@ -19,7 +19,7 @@ from swift3.controllers.bucket import BucketController
 from swift3.controllers.obj import ObjectController
 
 from swift3.controllers.acl import AclController
-from swift3.controllers.s3_acl import AclController as S3AclController
+from swift3.controllers.s3_acl import S3AclController
 from swift3.controllers.multi_delete import MultiObjectDeleteController
 from swift3.controllers.multi_upload import UploadController, \
     PartController, UploadsController
