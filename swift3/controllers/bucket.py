@@ -24,7 +24,6 @@ from swift3.etree import Element, SubElement, tostring, fromstring, \
 from swift3.response import HTTPOk, S3NotImplemented, InvalidArgument, \
     MalformedXML, InvalidLocationConstraint
 from swift3.cfg import CONF
-from swift3.subresource import ACL, Owner
 from swift3.utils import LOGGER
 
 MAX_PUT_BUCKET_BODY_SIZE = 10240
@@ -133,25 +132,10 @@ class BucketController(Controller):
                 # Swift3 cannot support multiple reagions now.
                 raise InvalidLocationConstraint()
 
-        if CONF.s3_acl:
-            req_acl = ACL.from_headers(req.headers,
-                                       Owner(req.user_id, req.user_id))
+        if 'HTTP_X_AMZ_ACL' in req.environ:
+            handle_acl_header(req)
 
-            # To avoid overwriting the existing bucket's ACL, we send PUT
-            # request first before setting the ACL to make sure that the target
-            # container does not exist.
-            resp = req.get_response(self.app)
-
-            # update metadata
-            req.bucket_acl = req_acl
-            # FIXME If this request is failed, there is a possibility that the
-            # bucket which has no ACL is left.
-            req.get_response(self.app, 'POST')
-        else:
-            if 'HTTP_X_AMZ_ACL' in req.environ:
-                handle_acl_header(req)
-
-            resp = req.get_response(self.app)
+        resp = req.get_response(self.app)
 
         resp.status = HTTP_OK
         resp.location = '/' + req.container_name
