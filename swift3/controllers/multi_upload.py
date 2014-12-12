@@ -69,8 +69,7 @@ def _check_upload_info(req, app, upload_id):
     obj = '%s/%s' % (req.object_name, upload_id)
 
     try:
-        req.get_response(app, 'HEAD', container=container, obj=obj,
-                         skip_check=True)
+        req.get_response(app, 'HEAD', container=container, obj=obj)
     except NoSuchKey:
         raise NoSuchUpload(upload_id=upload_id)
 
@@ -103,8 +102,6 @@ class PartController(Controller):
 
         upload_id = req.params['uploadId']
         _check_upload_info(req, self.app, upload_id)
-
-        req.check_copy_source(self.app)
 
         req.container_name += MULTIUPLOAD_SUFFIX
         req.object_name = '%s/%s/%d' % (req.object_name, upload_id,
@@ -337,8 +334,7 @@ class UploadController(Controller):
         objects = loads(resp.body)
         for o in objects:
             container = req.container_name + MULTIUPLOAD_SUFFIX
-            req.get_response(self.app, container=container, obj=o['name'],
-                             skip_check=True)
+            req.get_response(self.app, container=container, obj=o['name'])
 
         return HTTPNoContent()
 
