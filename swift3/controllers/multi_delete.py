@@ -45,9 +45,8 @@ class MultiObjectDeleteController(Controller):
 
                 yield key, version
 
-        # check bucket permission
-        if CONF.s3_acl:
-            req.get_response(self.app, 'HEAD')
+        # check bucket existence
+        req.get_response(self.app, 'HEAD')
 
         try:
             xml = req.xml(MAX_MULTI_DELETE_BODY_SIZE, check_md5=True)
