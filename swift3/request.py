@@ -46,6 +46,7 @@ from swift3.utils import utf8encode, LOGGER, check_path_header
 from swift3.cfg import CONF
 from swift3.subresource import decode_acl, encode_acl
 from swift3.utils import sysmeta_header
+from swift3.acl_handlers import get_acl_handler
 
 # List of sub-resources that must be maintained as part of the HMAC
 # signature string.
@@ -328,6 +329,10 @@ class Request(swob.Request):
         return buf + path
 
     @property
+    def controller_name(self):
+        return self.controller.__name__[:-len('Controller')]
+
+    @property
     def controller(self):
         if self.is_service_request:
             return ServiceController
@@ -555,6 +560,14 @@ class Request(swob.Request):
         Calls the application with this request's environment.  Returns a
         Response object that wraps up the application's result.
         """
+
+        method = method or self.environ['REQUEST_METHOD']
+
+        if container is None:
+            container = self.container_name
+        if obj is None:
+            obj = self.object_name
+
         sw_req = self.to_swift_req(method, container, obj, headers=headers,
                                    body=body, query=query)
 
@@ -599,37 +612,30 @@ class Request(swob.Request):
         raise InternalError('unexpected status code %d' % status)
 
     def get_response(self, app, method=None, container=None, obj=None,
-                     headers=None, body=None, query=None, permission=None,
-                     skip_check=False):
+                     headers=None, body=None, query=None):
         """
-        Calls the application with this request's environment.  Returns a
-        Response object that wraps up the application's result.
+        get_response is an entry point to be extended for chiled classes.
+        If additional tasks needed at that time of getting swift response,
+        we can override this method. swift3.request.Request need to just call
+        _get_response to get pure swift response.
         """
-
-        method = method or self.environ['REQUEST_METHOD']
-
-        if container is None:
-            container = self.container_name
-        if obj is None:
-            obj = self.object_name
-
         return self._get_response(app, method, container, obj,
                                   headers, body, query)
 
 
-class S3ACLRequest(Request):
+class S3AclRequest(Request):
     """
-    S3ACL request object.
+    S3Acl request object.
     """
     def __init__(self, env, app, slo_enabled=True):
-        super(S3ACLRequest, self).__init__(env, slo_enabled)
+        super(S3AclRequest, self).__init__(env, slo_enabled)
         self.authenticate(app)
 
     @property
     def controller(self):
         if 'acl' in self.params:
             return S3AclController
-        return super(S3ACLRequest, self).controller
+        return super(S3AclRequest, self).controller
 
     def authenticate(self, app):
         """
@@ -663,7 +669,7 @@ class S3ACLRequest(Request):
 
     def to_swift_req(self, method, container, obj, query=None,
                      body=None, headers=None):
-        sw_req = super(S3ACLRequest, self).to_swift_req(
+        sw_req = super(S3AclRequest, self).to_swift_req(
             method, container, obj, query, body, headers)
         if self.account:
             sw_req.environ['swift_owner'] = True  # needed to set ACL
@@ -671,100 +677,32 @@ class S3ACLRequest(Request):
             sw_req.environ['swift.authorize'] = lambda req: None
         return sw_req
 
-    def _get_response_acl(self, app, method, container, obj,
-                          headers=None, body=None, query=None):
+    def get_acl_response(self, app, method=None, container=None, obj=None,
+                         headers=None, body=None, query=None):
+        """
+        Wrapper method of _get_response to add s3 acl information
+        from response sysmeta headers.
+        """
+
         resp = self._get_response(
             app, method, container, obj, headers, body, query)
+
         resp.bucket_acl = decode_acl('container', resp.sysmeta_headers)
         resp.object_acl = decode_acl('object', resp.sysmeta_headers)
         return resp
 
     def get_response(self, app, method=None, container=None, obj=None,
-                     headers=None, body=None, query=None, permission=None,
-                     skip_check=False):
+                     headers=None, body=None, query=None):
+        """
+        Wrap up get_response call to hook with acl handling method.
+        """
+        acl_handler = get_acl_handler(self.controller_name)(self)
+        resp = acl_handler.handle_acl(app, method)
 
-        if container is None:
-            container = self.container_name
-        if obj is None:
-            obj = self.object_name
+        # possible to skip recalling get_resposne_acl if resp is not
+        # None (e.g. HEAD)
+        if resp:
+            return resp
 
-        sw_method = method or self.environ['REQUEST_METHOD']
-        resource = 'object' if obj else 'container'
-        s3_method = self.environ['REQUEST_METHOD']
-        if not skip_check:
-            if not permission and (s3_method, sw_method, resource) in ACL_MAP:
-                acl_check = ACL_MAP[(s3_method, sw_method, resource)]
-                resource = acl_check.get('Resource') or resource
-                permission = acl_check['Permission']
-
-            if permission:
-                match_resource = True
-                if resource == 'object':
-                    resp = self._get_response_acl(app, 'HEAD', container, obj)
-                    acl = resp.object_acl
-                elif resource == 'container':
-                    resp = self._get_response_acl(app, 'HEAD', container, None)
-                    acl = resp.bucket_acl
-                    if obj:
-                        match_resource = False
-
-                acl.check_permission(self.user_id, permission)
-
-                if sw_method == 'HEAD' and match_resource:
-                    # If the request to swift is HEAD and the resource is
-                    # consistent with the confirmation subject of ACL, not
-                    # request again. This is because that contains the
-                    # information required in the HEAD response at the time of
-                    # ACL acquisition.
-                    return resp
-        return self._get_response_acl(app, sw_method, container, obj,
-                                      headers, body, query)
-
-"""
-ACL_MAP =
-    {
-        ('<s3_method>', '<swift_method>', '<swift_resource>'):
-        {'Resource': '<check_resource>',
-         'Permission': '<check_permission>'},
-        ...
-    }
-
-s3_method: Method of S3 Request from user to swift3
-swift_method: Method of Swift Request from swift3 to swift
-swift_resource: Resource of Swift Request from swift3 to swift
-check_resource: <container/object>
-check_permission: <OWNER/READ/WRITE/READ_ACP/WRITE_ACP>
-"""
-ACL_MAP = {
-    # HEAD Bucket
-    ('HEAD', 'HEAD', 'container'):
-    {'Permission': 'READ'},
-    # GET Service
-    ('GET', 'HEAD', 'container'):
-    {'Permission': 'OWNER'},
-    # GET Bucket
-    ('GET', 'GET', 'container'):
-    {'Permission': 'READ'},
-    # PUT Object, PUT Object Copy
-    ('PUT', 'HEAD', 'container'):
-    {'Permission': 'WRITE'},
-    # DELETE Bucket
-    ('DELETE', 'DELETE', 'container'):
-    {'Permission': 'OWNER'},
-    # HEAD Object
-    ('HEAD', 'HEAD', 'object'):
-    {'Permission': 'READ'},
-    # GET Object
-    ('GET', 'GET', 'object'):
-    {'Permission': 'READ'},
-    # PUT Object, PUT Object Copy
-    ('PUT', 'HEAD', 'object'):
-    {'Permission': 'WRITE'},
-    # Delete Object
-    ('DELETE', 'DELETE', 'object'):
-    {'Resource': 'container',
-     'Permission': 'WRITE'},
-    # DELETE Multiple Objects
-    ('POST', 'HEAD', 'container'):
-    {'Permission': 'WRITE'},
-}
+        return self.get_acl_response(app, method, container, obj,
+                                     headers, body, query)

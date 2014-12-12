@@ -209,6 +209,12 @@ class TestSwift3Middleware(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
 
     def test_token_generation(self):
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket+segments/'
+                                    'object/123456789abcdef',
+                            swob.HTTPOk, {}, None)
+        self.swift.register('PUT', '/v1/AUTH_test/bucket+segments/'
+                                   'object/123456789abcdef/1',
+                            swob.HTTPCreated, {}, None)
         req = Request.blank('/bucket/object?uploadId=123456789abcdef'
                             '&partNumber=1',
                             environ={'REQUEST_METHOD': 'PUT'})
