@@ -27,7 +27,8 @@ from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, HTTP_REQUEST_ENTITY_TOO_LARGE, \
     HTTP_PARTIAL_CONTENT, HTTP_NOT_MODIFIED, HTTP_PRECONDITION_FAILED, \
     HTTP_REQUESTED_RANGE_NOT_SATISFIABLE, HTTP_LENGTH_REQUIRED, \
-    HTTP_BAD_REQUEST
+    HTTP_BAD_REQUEST, HTTP_REQUEST_TIMEOUT
+
 from swift.common.constraints import check_utf8
 
 from swift3.controllers import ServiceController, BucketController, \
@@ -40,7 +41,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
-    MalformedXML, InvalidRequest
+    MalformedXML, InvalidRequest, RequestTimeout
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.utils import utf8encode, LOGGER, check_path_header
 from swift3.cfg import CONF
@@ -570,6 +571,7 @@ class Request(swob.Request):
                     HTTP_UNPROCESSABLE_ENTITY: InvalidDigest,
                     HTTP_REQUEST_ENTITY_TOO_LARGE: EntityTooLarge,
                     HTTP_LENGTH_REQUIRED: MissingContentLength,
+                    HTTP_REQUEST_TIMEOUT: RequestTimeout,
                 },
                 'POST': {
                     HTTP_NOT_FOUND: (NoSuchKey, obj),
