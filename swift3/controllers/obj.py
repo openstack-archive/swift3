@@ -14,7 +14,6 @@
 # limitations under the License.
 
 from swift.common.http import HTTP_OK
-from swift.common.utils import split_path
 
 from swift3.controllers.base import Controller
 from swift3.response import AccessDenied, HTTPOk, NoSuchKey
@@ -58,13 +57,8 @@ class ObjectController(Controller):
         Handle PUT Object and PUT Object (Copy) request
         """
         if CONF.s3_acl:
-            if 'X-Amz-Copy-Source' in req.headers:
-                src_path = req.headers['X-Amz-Copy-Source']
-                src_path = src_path if src_path.startswith('/') else \
-                    ('/' + src_path)
-                src_bucket, src_obj = split_path(src_path, 0, 2, True)
-                req.get_response(self.app, 'HEAD', src_bucket, src_obj,
-                                 permission='READ')
+            req.check_copy_source(self.app)
+
             b_resp = req.get_response(self.app, 'HEAD', obj='')
             # To avoid overwriting the existing object by unauthorized user,
             # we send HEAD request first before writing the object to make
