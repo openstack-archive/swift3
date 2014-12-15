@@ -40,12 +40,12 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
-    MalformedXML, InvalidRequest
+    MalformedXML, InvalidRequest, InvalidBucketName
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.utils import utf8encode, LOGGER, check_path_header
 from swift3.cfg import CONF
 from swift3.subresource import decode_acl, encode_acl
-from swift3.utils import sysmeta_header
+from swift3.utils import sysmeta_header, validate_bucket_name
 
 # List of sub-resources that must be maintained as part of the HMAC
 # signature string.
@@ -133,7 +133,12 @@ class Request(swob.Request):
             obj = self.environ['PATH_INFO'][1:] or None
             return self.bucket_in_host, obj
 
-        return self.split_path(0, 2, True)
+        bucket, obj = self.split_path(0, 2, True)
+
+        if bucket and not validate_bucket_name(bucket):
+            # Ignore GET service case
+            raise InvalidBucketName(bucket)
+        return (bucket, obj)
 
     def _parse_authorization(self):
         if 'AWSAccessKeyId' in self.params:
