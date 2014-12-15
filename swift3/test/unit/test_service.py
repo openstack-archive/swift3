@@ -19,6 +19,7 @@ import simplejson
 from swift.common import swob
 from swift.common.swob import Request
 
+from swift3.test.unit.test_s3_acl import s3acl
 from swift3.test.unit import Swift3TestCase
 from swift3.etree import fromstring
 
@@ -52,6 +53,7 @@ class TestSwift3Service(Swift3TestCase):
         code = self._test_method_error('GET', '', swob.HTTPServerError)
         self.assertEquals(code, 'InternalError')
 
+    @s3acl
     def test_service_GET(self):
         req = Request.blank('/',
                             environ={'REQUEST_METHOD': 'GET'},
@@ -74,6 +76,7 @@ class TestSwift3Service(Swift3TestCase):
         for i in self.buckets:
             self.assertTrue(i[0] in names)
 
+    @s3acl
     def test_service_GET_subresource(self):
         req = Request.blank('/?acl',
                             environ={'REQUEST_METHOD': 'GET'},
