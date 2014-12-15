@@ -16,6 +16,7 @@
 import unittest
 from datetime import datetime
 import hashlib
+from os.path import join
 
 from swift.common import swob
 from swift.common.swob import Request
@@ -205,6 +206,22 @@ class TestSwift3Obj(Swift3TestCase):
         code = self._test_method_error('PUT', '/bucket/object',
                                        swob.HTTPServiceUnavailable)
         self.assertEquals(code, 'InternalError')
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPCreated,
+                                       {'X-Amz-Copy-Source': ''})
+        self.assertEquals(code, 'InvalidArgument')
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPCreated,
+                                       {'X-Amz-Copy-Source': '/'})
+        self.assertEquals(code, 'InvalidArgument')
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPCreated,
+                                       {'X-Amz-Copy-Source': '/bucket'})
+        self.assertEquals(code, 'InvalidArgument')
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPCreated,
+                                       {'X-Amz-Copy-Source': '/bucket/'})
+        self.assertEquals(code, 'InvalidArgument')
 
     @s3acl
     def test_object_PUT(self):
@@ -357,20 +374,22 @@ class TestSwift3Obj(Swift3TestCase):
             self._test_object_for_s3acl('DELETE', 'test:full_control')
         self.assertEquals(status.split()[0], '204')
 
-    def _test_object_copy_for_s3acl(self, account, src_permission=None):
+    def _test_object_copy_for_s3acl(self, account, src_permission=None,
+                                    src_path='/src_bucket/src_obj'):
         owner = 'test:tester'
         grants = [Grant(User(account), src_permission)] \
             if src_permission else [Grant(User(owner), 'FULL_CONTROL')]
         src_o_headers = \
             encode_acl('object', ACL(Owner(owner, owner), grants))
-        self.swift.register('HEAD', '/v1/AUTH_test/src_bucket/src_obj',
-                            swob.HTTPOk, src_o_headers, None)
+        self.swift.register(
+            'HEAD', join('/v1/AUTH_test', src_path.lstrip('/')),
+            swob.HTTPOk, src_o_headers, None)
 
         req = Request.blank(
             '/bucket/object',
             environ={'REQUEST_METHOD': 'PUT'},
             headers={'Authorization': 'AWS %s:hmac' % account,
-                     'X-Amz-Copy-Source': '/src_bucket/src_obj'})
+                     'X-Amz-Copy-Source': src_path})
 
         return self.call_swift3(req)
 
@@ -416,6 +435,15 @@ class TestSwift3Obj(Swift3TestCase):
         status, headers, body = \
             self._test_object_copy_for_s3acl(account, 'READ')
         self.assertEquals(status.split()[0], '403')
+
+    @s3acl(s3acl_only=True)
+    def test_object_PUT_copy_empty_src_path(self):
+        self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPPreconditionFailed, {}, None)
+        status, headers, body = self._test_object_copy_for_s3acl(
+            'test:write', 'READ', src_path='')
+        self.assertEquals(status.split()[0], '400')
+
 
 if __name__ == '__main__':
     unittest.main()
