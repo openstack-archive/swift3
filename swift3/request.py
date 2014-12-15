@@ -720,4 +720,7 @@ ACL_MAP = {
     ('DELETE', 'DELETE', 'object'):
     {'Resource': 'container',
      'Permission': 'WRITE'},
+    # DELETE Multiple Objects
+    ('POST', 'HEAD', 'container'):
+    {'Permission': 'WRITE'},
 }
