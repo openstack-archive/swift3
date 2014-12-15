@@ -41,7 +41,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
-    MalformedXML, InvalidRequest
+    MalformedXML, InvalidRequest, InvalidBucketName
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.utils import utf8encode, LOGGER
 from swift3.cfg import CONF
@@ -134,7 +134,39 @@ class Request(swob.Request):
             obj = self.environ['PATH_INFO'][1:] or None
             return self.bucket_in_host, obj
 
-        return self.split_path(0, 2, True)
+        bucket, obj = self.split_path(0, 2, True)
+
+        if bucket:
+            # Ignore GET service case
+            self._validate_bucket_name(bucket)
+        return (bucket, obj)
+
+    def _validate_bucket_name(self, name):
+        """
+        Validates the name of the bucket against S3 criteria,
+        http://docs.amazonwebservices.com/AmazonS3/latest/BucketRestrictions.html
+        If invalid, rase InvalidBucketName exception.
+        TODO:
+            - Create an option to follow which region's rule
+        """
+
+        if len(name) < 3 or len(name) > 63 or not name[-1].isalnum():
+            # FIXME: Bucket names should not contain underscores (_)
+            # Bucket names must end with a letter or number
+            # Bucket names should be between 3 and 63 characters long
+            raise InvalidBucketName(name)
+        elif '.-' in name or '-.' in name or '..' in name or '+' in name or \
+                not name[0].isalnum():
+            # Bucket names cannot contain dashes next to periods
+            # Bucket names cannot contain two adjacent periods
+            # Bucket names cannot contain plus character
+            # Bucket names Must start with a lowercase letter or a number
+            raise InvalidBucketName(name)
+        elif re.match("^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.)"
+                      "{3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$",
+                      name):
+            # Bucket names cannot be formatted as an IP Address
+            raise InvalidBucketName(name)
 
     def _parse_authorization(self):
         if 'AWSAccessKeyId' in self.params:
