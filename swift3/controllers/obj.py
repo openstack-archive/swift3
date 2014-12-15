@@ -76,7 +76,7 @@ class ObjectController(Controller):
             except NoSuchKey:
                 pass
             req_acl = ACL.from_headers(req.headers,
-                                       b_resp.bucket_acl.owner,
+                                       b_resp.bucket_info['acl'].owner,
                                        Owner(req.user_id, req.user_id))
 
             req.object_acl = req_acl

@@ -20,7 +20,7 @@ import base64
 import email.utils
 import datetime
 
-from swift.common.utils import split_path
+from swift.common.utils import split_path, cache_from_env
 from swift.common import swob
 from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_NO_CONTENT, HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, HTTP_NOT_FOUND, \
@@ -45,7 +45,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.utils import utf8encode, LOGGER
 from swift3.cfg import CONF
-from swift3.subresource import decode_acl, encode_acl
+from swift3.subresource import decode_acl, encode_acl, ACL
 from swift3.utils import sysmeta_header
 
 # List of sub-resources that must be maintained as part of the HMAC
@@ -102,6 +102,10 @@ class Request(swob.Request):
         # Avoids that swift.swob.Response replaces Location header value
         # by full URL when absolute path given. See swift.swob for more detail.
         self.environ['swift.leave_relative_location'] = True
+
+        # cached resource metadata
+        self._deleted_cache = {}
+        self._cache = {}
 
     def _parse_host(self):
         storage_domain = CONF.storage_domain
@@ -587,13 +591,13 @@ class Request(swob.Request):
             sw_req.environ['swift.authorize_override'] = True
             sw_req.environ['swift.authorize'] = lambda req: None
 
+            if method in ('PUT', 'POST', 'DELETE') and container:
+                # clear cache
+                self.delete_cache_info(container, obj)
+
         sw_resp = sw_req.get_response(app)
         resp = Response.from_swift_resp(sw_resp)
         status = resp.status_int  # pylint: disable-msg=E1101
-
-        if CONF.s3_acl:
-            resp.bucket_acl = decode_acl('container', resp.sysmeta_headers)
-            resp.object_acl = decode_acl('object', resp.sysmeta_headers)
 
         if not self.user_id:
             if 'HTTP_X_USER_NAME' in sw_resp.environ:
@@ -608,6 +612,28 @@ class Request(swob.Request):
 
         success_codes = self._swift_success_codes(method, container, obj)
         error_codes = self._swift_error_codes(method, container, obj)
+
+        if CONF.s3_acl and container:
+            resource_info = \
+                getattr(resp, '%s_info' % ('object' if obj else 'bucket'))
+            resource_info['acl'] = \
+                decode_acl('%s' % 'object' if obj else 'container',
+                           resp.sysmeta_headers)
+
+            if method in ('HEAD', 'GET'):
+                if status in success_codes:
+                    # cache metadata
+                    self.set_cache_info(resource_info, container, obj)
+                elif status == HTTP_NOT_FOUND:
+                    # clear cache
+                    self.delete_cache_info(container, obj)
+            elif method in ('PUT', 'POST'):
+                if status in success_codes:
+                    # cache metadata
+                    try:
+                        self._get_response(app, 'HEAD', container, obj)
+                    except (NoSuchBucket, NoSuchKey):
+                        pass
 
         if status in success_codes:
             return resp
@@ -656,10 +682,10 @@ class Request(swob.Request):
                 match_resource = True
                 if resource == 'object':
                     resp = self._get_response(app, 'HEAD', container, obj)
-                    acl = resp.object_acl
+                    acl = resp.object_info['acl']
                 elif resource == 'container':
                     resp = self._get_response(app, 'HEAD', container, None)
-                    acl = resp.bucket_acl
+                    acl = resp.bucket_info['acl']
                     if obj:
                         match_resource = False
 
@@ -675,6 +701,90 @@ class Request(swob.Request):
 
         return self._get_response(app, sw_method, container, obj,
                                   headers, body, query)
+
+    def cache_key(self, container, obj=None):
+        if obj:
+            return 'swift3/%s/%s/%s' % (self.account, container, obj)
+        else:
+            return 'swift3/%s/%s' % (self.account, container)
+
+    def set_cache_info(self, info, container, obj=None):
+        key = self.cache_key(container, obj)
+        self._cache[key] = info
+
+        memcache = cache_from_env(self.environ)
+        if memcache:
+            info = info.copy()
+            for key, value in info.iteritems():
+                if isinstance(value, ACL):
+                    # convert to an json serializable object
+                    resource = 'object' if obj else 'container'
+                    info[key] = ['acl', encode_acl(resource, value)]
+            memcache.set(key, info)
+
+    def get_cache_info(self, container, obj=None):
+        key = self.cache_key(container, obj)
+        if key in self._cache:
+            return self._cache[key]
+
+        memcache = cache_from_env(self.environ)
+        if memcache:
+            info = memcache.get(key)
+            if info is None:
+                return None
+
+            info = info.copy()
+            for key, value in info.iteritems():
+                if isinstance(value, list):
+                    # convert from an json serializable object
+                    cls, data = value
+                    resource = 'object' if obj else 'container'
+                    info[key] = decode_acl(resource, data)
+            return info
+
+        return None
+
+    def delete_cache_info(self, container, obj=None):
+        key = self.cache_key(container, obj)
+
+        if key in self._cache:
+            self._deleted_cache[key] = self._cache[key]
+            del self._cache[key]
+
+        memcache = cache_from_env(self.environ)
+        if memcache:
+            memcache.delete(key)
+
+    def get_bucket_info(self, app, container=None):
+        container = container or self.container_name
+        if '+' in container:
+            container = container.split('+')[0]
+
+        if not container:
+            return None
+
+        bucket_info = self.get_cache_info(container)
+        if not bucket_info:
+            # fetch bucket info
+            self._get_response(app, 'HEAD', container, None)
+            bucket_info = self.get_cache_info(container)
+
+        return bucket_info
+
+    def get_object_info(self, app, container=None, obj=None):
+        container = container or self.container_name
+        obj = obj or self.object_name
+
+        if not obj:
+            return None
+
+        object_info = self.get_cache_info(container, obj)
+        if not object_info:
+            # fetch object info
+            self._get_response(app, 'HEAD', container, obj)
+            object_info = self.get_cache_info(container, obj)
+
+        return object_info
 
 """
 ACL_MAP =

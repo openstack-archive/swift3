@@ -67,8 +67,8 @@ class AclController(Controller):
         Handles GET Bucket acl and GET Object acl.
         """
         resp = req.get_response(self.app, 'HEAD', permission='READ_ACP')
-        acl = getattr(resp, '%s_acl' %
-                      ('object' if req.is_object_request else 'bucket'))
+        acl = getattr(resp, '%s_info' %
+                      ('object' if req.is_object_request else 'bucket'))['acl']
 
         resp = HTTPOk()
         resp.body = tostring(acl.elem())
@@ -84,11 +84,11 @@ class AclController(Controller):
                                       skip_check=True)
             o_resp = req.get_response(self.app, 'HEAD', permission='WRITE_ACP')
             req_acl = get_acl(req.headers, req.xml(ACL.max_xml_length),
-                              b_resp.bucket_acl.owner,
-                              o_resp.object_acl.owner)
+                              b_resp.bucket_info['acl'].owner,
+                              o_resp.object_info['acl'].owner)
 
             # Don't change the owner of the resource by PUT acl request.
-            o_resp.object_acl.check_owner(req_acl.owner.id)
+            o_resp.object_info['acl'].check_owner(req_acl.owner.id)
 
             for g in req_acl.grants:
                 LOGGER.debug('Grant %s %s permission on the object /%s/%s' %
@@ -109,10 +109,10 @@ class AclController(Controller):
             resp = req.get_response(self.app, 'HEAD', permission='WRITE_ACP')
 
             req_acl = get_acl(req.headers, req.xml(ACL.max_xml_length),
-                              resp.bucket_acl.owner)
+                              resp.bucket_info['acl'].owner)
 
             # Don't change the owner of the resource by PUT acl request.
-            resp.bucket_acl.check_owner(req_acl.owner.id)
+            resp.bucket_info['acl'].check_owner(req_acl.owner.id)
 
             for g in req_acl.grants:
                 LOGGER.debug('Grant %s %s permission on the bucket /%s' %

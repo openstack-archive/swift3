@@ -115,6 +115,15 @@ class Response(ResponseBase, swob.Response):
 
         self.headers = headers
         self.sysmeta_headers = sw_sysmeta_headers
+        self.bucket_info = {
+            'ts': sw_headers['x-timestamp'],
+        }
+        self.object_info = {
+            'ts': sw_headers['x-timestamp'],
+            'etag': self.etag,
+            'bytes': self.content_length,
+            'last_modified': str(self.last_modified),
+        }
 
     @classmethod
     def from_swift_resp(cls, sw_resp):

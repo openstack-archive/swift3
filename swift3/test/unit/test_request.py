@@ -55,13 +55,22 @@ def _gen_test_acl(owner, permission=None, grantee=None):
 
 
 class FakeResponse(object):
-    def __init__(self, s3_acl):
-        self.bucket_acl = None
-        self.object_acl = None
+    def __init__(self, s3_acl, req=None, container='bucket', obj=None):
+        self.bucket_info = {}
+        self.object_info = {}
+        self.bucket_info['acl'] = None
+        self.object_info['acl'] = None
+
         if s3_acl:
             owner = Owner(id='test:tester', name='test:tester')
-            self.bucket_acl = _gen_test_acl(owner, 'FULL_CONTROL')
-            self.object_acl = _gen_test_acl(owner, 'FULL_CONTROL')
+            self.bucket_info['acl'] = _gen_test_acl(owner, 'FULL_CONTROL')
+            self.object_info['acl'] = _gen_test_acl(owner, 'FULL_CONTROL')
+
+        if req:
+            if obj:
+                req.set_cache_info(self.object_info, container, obj)
+            else:
+                req.set_cache_info(self.bucket_info, container)
 
 
 class TestRequest(Swift3TestCase):
@@ -95,16 +104,16 @@ class TestRequest(Swift3TestCase):
         mock_get_resp, m_check_permission, s3_resp = \
             self._test_get_response('HEAD')
         CONF.s3_acl = True
-        self.assertTrue(s3_resp.bucket_acl is None)
-        self.assertTrue(s3_resp.object_acl is None)
+        self.assertTrue(s3_resp.bucket_info['acl'] is None)
+        self.assertTrue(s3_resp.object_info['acl'] is None)
         self.assertEqual(mock_get_resp.call_count, 1)
         self.assertEqual(m_check_permission.call_count, 0)
 
     def test_get_response_without_check_permission(self):
         mock_get_resp, m_check_permission, s3_resp = \
             self._test_get_response('HEAD', skip_check=True)
-        self.assertTrue(s3_resp.bucket_acl is not None)
-        self.assertTrue(s3_resp.object_acl is not None)
+        self.assertTrue(s3_resp.bucket_info['acl'] is not None)
+        self.assertTrue(s3_resp.object_info['acl'] is not None)
         self.assertEqual(mock_get_resp.call_count, 1)
         self.assertEqual(m_check_permission.call_count, 0)
 
@@ -113,8 +122,8 @@ class TestRequest(Swift3TestCase):
         mock_get_resp, m_check_permission, s3_resp = \
             self._test_get_response('GET', obj=obj,
                                     permission='READ_ACP')
-        self.assertTrue(s3_resp.bucket_acl is not None)
-        self.assertTrue(s3_resp.object_acl is not None)
+        self.assertTrue(s3_resp.bucket_info['acl'] is not None)
+        self.assertTrue(s3_resp.object_info['acl'] is not None)
         self.assertEqual(mock_get_resp.call_count, 2)
         args, kargs = mock_get_resp.call_args_list[0]
         get_resp_obj = args[3]
@@ -127,8 +136,8 @@ class TestRequest(Swift3TestCase):
     def test_get_response_without_match_ACL_MAP(self):
         mock_get_resp, m_check_permission, s3_resp = \
             self._test_get_response('POST')
-        self.assertTrue(s3_resp.bucket_acl is not None)
-        self.assertTrue(s3_resp.object_acl is not None)
+        self.assertTrue(s3_resp.bucket_info['acl'] is not None)
+        self.assertTrue(s3_resp.object_info['acl'] is not None)
         self.assertEqual(mock_get_resp.call_count, 1)
         self.assertEqual(m_check_permission.call_count, 0)
 
@@ -136,8 +145,8 @@ class TestRequest(Swift3TestCase):
         obj = 'object'
         mock_get_resp, m_check_permission, s3_resp = \
             self._test_get_response('HEAD', obj=obj)
-        self.assertTrue(s3_resp.bucket_acl is not None)
-        self.assertTrue(s3_resp.object_acl is not None)
+        self.assertTrue(s3_resp.bucket_info['acl'] is not None)
+        self.assertTrue(s3_resp.object_info['acl'] is not None)
         self.assertEqual(mock_get_resp.call_count, 1)
         args, kargs = mock_get_resp.call_args_list[0]
         get_resp_obj = args[3]
@@ -151,8 +160,8 @@ class TestRequest(Swift3TestCase):
         obj = 'object'
         mock_get_resp, m_check_permission, s3_resp = \
             self._test_get_response('GET', obj=obj)
-        self.assertTrue(s3_resp.bucket_acl is not None)
-        self.assertTrue(s3_resp.object_acl is not None)
+        self.assertTrue(s3_resp.bucket_info['acl'] is not None)
+        self.assertTrue(s3_resp.object_info['acl'] is not None)
         self.assertEqual(mock_get_resp.call_count, 2)
         args, kargs = mock_get_resp.call_args_list[0]
         get_resp_obj = args[3]
@@ -165,8 +174,8 @@ class TestRequest(Swift3TestCase):
     def test_get_response_with_check_container_permission(self):
         mock_get_resp, m_check_permission, s3_resp = \
             self._test_get_response('GET')
-        self.assertTrue(s3_resp.bucket_acl is not None)
-        self.assertTrue(s3_resp.object_acl is not None)
+        self.assertTrue(s3_resp.bucket_info['acl'] is not None)
+        self.assertTrue(s3_resp.object_info['acl'] is not None)
         self.assertEqual(mock_get_resp.call_count, 2)
         args, kargs = mock_get_resp.call_args_list[0]
         get_resp_obj = args[3]
