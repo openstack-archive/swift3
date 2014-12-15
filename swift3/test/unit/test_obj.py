@@ -205,6 +205,9 @@ class TestSwift3Obj(Swift3TestCase):
         code = self._test_method_error('PUT', '/bucket/object',
                                        swob.HTTPServiceUnavailable)
         self.assertEquals(code, 'InternalError')
+        code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPRequestTimeout)
+        self.assertEquals(code, 'RequestTimeout')
 
     @s3acl
     def test_object_PUT(self):
