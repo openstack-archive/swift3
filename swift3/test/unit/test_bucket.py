@@ -213,6 +213,9 @@ class TestSwift3Bucket(Swift3TestCase):
         self.assertEquals(code, 'BucketAlreadyExists')
         code = self._test_method_error('PUT', '/bucket', swob.HTTPServerError)
         self.assertEquals(code, 'InternalError')
+        code = self._test_method_error(
+            'PUT', '/bucket+bucket', swob.HTTPCreated)
+        self.assertEqual(code, 'InvalidBucketName')
 
     @s3acl
     def test_bucket_PUT(self):

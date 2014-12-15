@@ -41,7 +41,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
-    MalformedXML, InvalidRequest
+    MalformedXML, InvalidRequest, InvalidBucketName
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.utils import utf8encode, LOGGER
 from swift3.cfg import CONF
@@ -134,7 +134,12 @@ class Request(swob.Request):
             obj = self.environ['PATH_INFO'][1:] or None
             return self.bucket_in_host, obj
 
-        return self.split_path(0, 2, True)
+        bucket, obj = self.split_path(0, 2, True)
+
+        if '+' in bucket:
+            raise InvalidBucketName(bucket)
+
+        return (bucket, obj)
 
     def _parse_authorization(self):
         if 'AWSAccessKeyId' in self.params:
