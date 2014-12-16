@@ -96,5 +96,43 @@ class TestSwift3Service(Swift3TestCase):
         for i in self.buckets:
             self.assertTrue(i[0] in names)
 
+    def test_service_GET_with_blind_resource(self):
+        buckets = (('apple', 1, 200), ('orange', 3, 430),
+                   ('apple+segment', 1, 200))
+        expected = buckets[:-1]
+        json_pattern = ['"name":%s', '"count":%s', '"bytes":%s']
+        json_pattern = '{' + ','.join(json_pattern) + '}'
+        json_out = []
+        for b in buckets:
+            name = simplejson.dumps(b[0])
+            json_out.append(json_pattern %
+                            (name, b[1], b[2]))
+        bucket_list = '[' + ','.join(json_out) + ']'
+
+        self.swift.register('GET', '/v1/AUTH_test', swob.HTTPOk, {},
+                            bucket_list)
+
+        req = Request.blank('/',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+
+        elem = fromstring(body, 'ListAllMyBucketsResult')
+        all_buckets = elem.find('./Buckets')
+        buckets = all_buckets.iterchildren('Bucket')
+        listing = list(list(buckets)[0])
+        self.assertEquals(len(listing), 2)
+
+        names = []
+        for b in all_buckets.iterchildren('Bucket'):
+            names.append(b.find('./Name').text)
+
+        self.assertEquals(len(names), len(expected))
+        for i in expected:
+            self.assertTrue(i[0] in names)
+
+
 if __name__ == '__main__':
     unittest.main()
