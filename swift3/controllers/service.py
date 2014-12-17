@@ -18,6 +18,7 @@ from simplejson import loads
 from swift3.controllers.base import Controller
 from swift3.etree import Element, SubElement, tostring
 from swift3.response import HTTPOk
+from swift3.utils import validate_bucket_name
 
 
 class ServiceController(Controller):
@@ -31,6 +32,10 @@ class ServiceController(Controller):
         resp = req.get_response(self.app, query={'format': 'json'})
 
         containers = loads(resp.body)
+
+        containers = filter(
+            lambda item: validate_bucket_name(item['name']), containers)
+
         # we don't keep the creation time of a backet (s3cmd doesn't
         # work without that) so we use something bogus.
         elem = Element('ListAllMyBucketsResult')
