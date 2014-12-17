@@ -658,6 +658,10 @@ class Request(swob.Request):
         if obj is None:
             obj = self.object_name
 
+        # Skip ACL check for all requests of Account
+        if not container:
+            skip_check = True
+
         if CONF.s3_acl and not skip_check:
             resource = 'object' if obj else 'container'
             s3_method = self.environ['REQUEST_METHOD']
