@@ -76,6 +76,17 @@ class BucketController(Controller):
         SubElement(elem, 'Name').text = req.container_name
         SubElement(elem, 'Prefix').text = req.params.get('prefix')
         SubElement(elem, 'Marker').text = req.params.get('marker')
+
+        is_truncated = max_keys > 0 and len(objects) >= (max_keys + 1)
+
+        if is_truncated and 'delimiter' in req.params:
+            if 'name' in objects[max_keys - 1]:
+                SubElement(elem, 'NextMarker').text = \
+                    objects[max_keys - 1]['name']
+            if 'subdir' in objects[max_keys - 1]:
+                SubElement(elem, 'NextMarker').text = \
+                    objects[max_keys - 1]['subdir']
+
         SubElement(elem, 'MaxKeys').text = str(max_keys)
 
         if 'delimiter' in req.params:
@@ -84,11 +95,8 @@ class BucketController(Controller):
         if encoding_type is not None:
             SubElement(elem, 'EncodingType').text = encoding_type
 
-        if max_keys > 0 and len(objects) == max_keys + 1:
-            is_truncated = 'true'
-        else:
-            is_truncated = 'false'
-        SubElement(elem, 'IsTruncated').text = is_truncated
+        SubElement(elem, 'IsTruncated').text = \
+            'true' if is_truncated else 'false'
 
         for o in objects[:max_keys]:
             if 'subdir' not in o:
