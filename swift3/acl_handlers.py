@@ -14,8 +14,8 @@
 # limitations under the License.
 
 from swift3.subresource import ACL, Owner
-from swift3.response import NoSuchKey, \
-    MissingSecurityHeader, MalformedACLError, UnexpectedContent
+from swift3.response import MissingSecurityHeader, \
+    MalformedACLError, UnexpectedContent
 from swift3.etree import fromstring, XMLSyntaxError, DocumentInvalid
 from swift3.utils import LOGGER, MULTIUPLOAD_SUFFIX
 
@@ -185,14 +185,6 @@ class ObjectAclHandler(BaseAclHandler):
         self._check_copy_source(app)
 
         b_resp = self._handle_acl(app, 'HEAD', obj='')
-        # To avoid overwriting the existing object by unauthorized user,
-        # we send HEAD request first before writing the object to make
-        # sure that the target object does not exist or the user that sent
-        # the PUT request have write permission.
-        try:
-            self._handle_acl(app, 'HEAD')
-        except NoSuchKey:
-            pass
         req_acl = ACL.from_headers(self.req.headers,
                                    b_resp.bucket_acl.owner,
                                    Owner(self.user_id, self.user_id))
@@ -365,9 +357,6 @@ ACL_MAP = {
     # GET Object
     ('GET', 'GET', 'object'):
     {'Permission': 'READ'},
-    # PUT Object, PUT Object Copy
-    ('PUT', 'HEAD', 'object'):
-    {'Permission': 'WRITE'},
     # Initiate Multipart Upload
     ('POST', 'PUT', 'container'):
     {'Permission': 'WRITE'},
