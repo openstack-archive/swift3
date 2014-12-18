@@ -25,6 +25,7 @@ from swift3.test.unit import Swift3TestCase
 from swift3.etree import fromstring
 from swift3.subresource import Owner, Grant, User, ACL, encode_acl
 from swift3.test.unit.test_s3_acl import s3acl
+from swift3.cfg import CONF
 
 xml = '<CompleteMultipartUpload>' \
     '<Part>' \
@@ -36,6 +37,10 @@ xml = '<CompleteMultipartUpload>' \
     '<ETag>"HASH"</ETag>' \
     '</Part>' \
     '</CompleteMultipartUpload>'
+
+objects_template = \
+    (('object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 100),
+     ('object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 200))
 
 multiparts_template = \
     (('object/X', '2014-05-07T19:47:50.592270', 'HASH', 1),
@@ -56,12 +61,9 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
         segment_bucket = '/v1/AUTH_test/bucket+segments'
 
-        objects = \
-            (('object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 100),
-             ('object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 200))
         objects = map(lambda item: {'name': item[0], 'last_modified': item[1],
                                     'hash': item[2], 'bytes': item[3]},
-                      objects)
+                      objects_template)
         object_list = json.dumps(objects)
 
         self.swift.register('PUT',
@@ -412,7 +414,119 @@ class TestSwift3MultiUpload(Swift3TestCase):
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        fromstring(body, 'ListPartsResult')
+        elem = fromstring(body, 'ListPartsResult')
+        self.assertEquals(elem.find('Bucket').text, 'bucket')
+        self.assertEquals(elem.find('Key').text, 'object')
+        self.assertEquals(elem.find('UploadId').text, 'X')
+        self.assertEquals(elem.find('Initiator/ID').text, 'test:tester')
+        self.assertEquals(elem.find('Initiator/ID').text, 'test:tester')
+        self.assertEquals(elem.find('Owner/ID').text, 'test:tester')
+        self.assertEquals(elem.find('Owner/ID').text, 'test:tester')
+        self.assertEquals(elem.find('StorageClass').text, 'STANDARD')
+        self.assertEquals(elem.find('PartNumberMarker').text, '0')
+        self.assertEquals(elem.find('NextPartNumberMarker').text, '2')
+        self.assertEquals(elem.find('MaxParts').text, '1000')
+        self.assertEquals(elem.find('IsTruncated').text, 'false')
+        self.assertEquals(len(elem.findall('Part')), 2)
+        for p in elem.findall('Part'):
+            partnum = int(p.find('PartNumber').text)
+            self.assertEquals(p.find('LastModified').text,
+                              objects_template[partnum - 1][1][:-3]
+                              + 'Z')
+            self.assertEquals(p.find('ETag').text,
+                              objects_template[partnum - 1][2])
+            self.assertEquals(p.find('Size').text,
+                              str(objects_template[partnum - 1][3]))
+        self.assertEquals(status.split()[0], '200')
+
+    def test_object_list_parts_encoding_type(self):
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket+segments/object@@/X',
+                            swob.HTTPOk, {}, None)
+        req = Request.blank('/bucket/object@@?uploadId=X&encoding-type=url',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        elem = fromstring(body, 'ListPartsResult')
+        self.assertEquals(elem.find('Key').text, quote('object@@'))
+        self.assertEquals(elem.find('EncodingType').text, 'url')
+        self.assertEquals(status.split()[0], '200')
+
+    def test_object_list_parts_without_encoding_type(self):
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket+segments/object@@/X',
+                            swob.HTTPOk, {}, None)
+        req = Request.blank('/bucket/object@@?uploadId=X',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        elem = fromstring(body, 'ListPartsResult')
+        self.assertEquals(elem.find('Key').text, 'object@@')
+        self.assertEquals(status.split()[0], '200')
+
+    def test_object_list_parts_encoding_type_error(self):
+        req = Request.blank('/bucket/object?uploadId=X&encoding-type=xml',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+
+    def test_object_list_parts_max_parts(self):
+        req = Request.blank('/bucket/object?uploadId=X&max-parts=1',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        elem = fromstring(body, 'ListPartsResult')
+        self.assertEquals(elem.find('IsTruncated').text, 'true')
+        self.assertEquals(len(elem.findall('Part')), 1)
+        self.assertEquals(status.split()[0], '200')
+
+    def test_object_list_parts_str_max_parts(self):
+        req = Request.blank('/bucket/object?uploadId=X&max-parts=invalid',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+
+    def test_object_list_parts_negative_max_parts(self):
+        req = Request.blank('/bucket/object?uploadId=X&max-parts=-1',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+
+    def test_object_list_parts_over_max_parts(self):
+        req = Request.blank('/bucket/object?uploadId=X&max-parts=%d' %
+                            (CONF.max_parts + 1),
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+
+    def test_object_list_parts_with_part_number_marker(self):
+        req = Request.blank('/bucket/object?uploadId=X&'
+                            'part-number-marker=1',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        elem = fromstring(body, 'ListPartsResult')
+        self.assertEquals(len(elem.findall('Part')), 1)
+        self.assertEquals(elem.find('Part/PartNumber').text, '2')
+        self.assertEquals(status.split()[0], '200')
+
+    def test_object_list_parts_invalid_part_number_marker(self):
+        req = Request.blank('/bucket/object?uploadId=X&part-number-marker='
+                            'invalid',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+
+    def test_object_list_parts_same_max_marts_as_objects_num(self):
+        req = Request.blank('/bucket/object?uploadId=X&max-parts=2',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        elem = fromstring(body, 'ListPartsResult')
+        self.assertEquals(len(elem.findall('Part')), 2)
         self.assertEquals(status.split()[0], '200')
 
     def _test_for_s3acl(self, method, query, account, hasObj=True, body=None):
