@@ -44,6 +44,9 @@ use = egg:swift3#swift3
 # response.
 # max_bucket_listing = 1000
 #
+# Set the maximum number of parts returned in the List Parts operation.
+# max_max_parts = 10000
+#
 # Set the maximum number of objects we can delete with the Multi-Object Delete
 # operation.
 # max_multi_delete_objects = 1000

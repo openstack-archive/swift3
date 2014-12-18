@@ -56,6 +56,7 @@ from swift3.exception import BadSwiftRequest
 from swift3.utils import LOGGER, unique_id, MULTIUPLOAD_SUFFIX
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
+from swift3.cfg import CONF
 
 DEFAULT_MAX_PARTS = 1000
 DEFAULT_MAX_UPLOADS = 1000
@@ -249,11 +250,29 @@ class UploadController(Controller):
         upload_id = req.params['uploadId']
         _check_upload_info(req, self.app, upload_id)
 
+        maxparts = DEFAULT_MAX_UPLOADS
         part_num_marker = 0
 
-        # TODO: add support for max-parts and part-number-marker queries.
+        if 'max-parts' in req.params:
+            try:
+                maxparts = int(req.params['max-parts'])
+                if maxparts < 1 or CONF.max_max_parts < maxparts:
+                    raise Exception()
+            except Exception:
+                err_msg = 'Part number must be an integer between 1 and ' \
+                    '%d, inclusive' % CONF.max_max_parts
+                raise InvalidArgument('partNumber', req.params['max-parts'],
+                                      err_msg)
+
+        if 'part-number-marker' in req.params:
+            try:
+                part_num_marker = int(req.params['part-number-marker'])
+            except Exception:
+                part_num_marker = 0
+
         query = {
             'format': 'json',
+            'limit': maxparts + 1,
             'prefix': '%s/%s/' % (req.object_name, upload_id),
             'delimiter': '/'
         }
@@ -265,11 +284,32 @@ class UploadController(Controller):
 
         last_part = 0
 
-        # pylint: disable-msg=E1103
-        objects.sort(key=lambda o: int(o['name'].split('/')[-1]))
+        objList = []
+        #
+        # If the caller requested a list starting at a specific part number,
+        # construct a sub-set of the object list.
+        #
+        if part_num_marker > 0 and len(objects) > 0:
+            for o in objects:
+                try:
+                    num = int(os.path.basename(o['name']))
+                except Exception:
+                    num = 0
+                if num > part_num_marker:
+                    objList.append(o)
+        else:
+            objList = objects
 
-        if len(objects) > 0:
-            o = objects[-1]
+        # pylint: disable-msg=E1103
+        objList.sort(key=lambda o: int(o['name'].split('/')[-1]))
+
+        if maxparts > 0 and len(objList) == (maxparts + 1):
+            truncated = True
+        else:
+            truncated = False
+
+        if len(objList) > 0:
+            o = objList[-1]
             last_part = os.path.basename(o['name'])
 
         result_elem = Element('ListPartsResult')
@@ -287,11 +327,14 @@ class UploadController(Controller):
         SubElement(result_elem, 'StorageClass').text = 'STANDARD'
         SubElement(result_elem, 'PartNumberMarker').text = str(part_num_marker)
         SubElement(result_elem, 'NextPartNumberMarker').text = str(last_part)
-        SubElement(result_elem, 'MaxParts').text = str(DEFAULT_MAX_PARTS)
-        # TODO: add support for EncodingType
-        SubElement(result_elem, 'IsTruncated').text = 'false'
+        SubElement(result_elem, 'MaxParts').text = str(maxparts)
+        if 'encoding-type' in req.params:
+            SubElement(result_elem, 'EncodingType').text = \
+                req.params['encoding-type']
+        SubElement(result_elem, 'IsTruncated').text = \
+            'true' if truncated else 'false'
 
-        for i in objects:
+        for i in objList[:maxparts]:
             part_elem = SubElement(result_elem, 'Part')
             SubElement(part_elem, 'PartNumber').text = i['name'].split('/')[-1]
             SubElement(part_elem, 'LastModified').text = \
