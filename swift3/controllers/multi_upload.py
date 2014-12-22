@@ -131,32 +131,74 @@ class UploadsController(Controller):
         """
         Handles List Multipart Uploads
         """
+        def filter_max_uploads(o):
+            name = o.get('name')
+            if name is None:
+                return True
+            return name.count('/') <= 1
+
         encoding_type = req.params.get('encoding-type')
         if encoding_type is not None and encoding_type != 'url':
             err_msg = 'Invalid Encoding Method specified in Request'
             raise InvalidArgument('encoding-type', encoding_type, err_msg)
 
-        # TODO: add support for prefix, key-marker, upload-id-marker, and
-        # max-uploads queries.
+        # TODO: add support for delimiter query.
+
+        keymarker = req.params.get('key-marker', '')
+        uploadid = req.params.get('upload-id-marker', '')
+
+        if 'max-uploads' in req.params:
+            if req.params.get('max-uploads').isdigit():
+                maxuploads = int(req.params.get('max-uploads'))
+                if maxuploads < 0 or 2147483647 < maxuploads:
+                    err_msg = 'Argument max-uploads must be an integer ' \
+                              'between 0 and 2147483647'
+                    raise InvalidArgument('max-uploads', maxuploads, err_msg)
+            else:
+                err_msg = 'Provided max-uploads not an integer or within ' \
+                    'integer range'
+                raise InvalidArgument('max-uploads', req.params['max-uploads'],
+                                      err_msg)
+        maxuploads = int(req.params.get('max-uploads', DEFAULT_MAX_UPLOADS))
+        maxuploads = min(maxuploads, DEFAULT_MAX_UPLOADS)
+
         query = {
             'format': 'json',
+            'limit': maxuploads + 1,
         }
+
+        if uploadid and keymarker:
+            query.update({'marker': '%s/%s' % (keymarker, uploadid)})
+        elif keymarker:
+            query.update({'marker': '%s/~' % (keymarker)})
+        if 'prefix' in req.params:
+            query.update({'prefix': req.params['prefix']})
+
         container = req.container_name + MULTIUPLOAD_SUFFIX
         resp = req.get_response(self.app, container=container, query=query)
         objects = loads(resp.body)
 
-        uploads = []
-        for o in objects:
-            obj, upid = split_path('/' + o['name'], 1, 2, True)
-            if '/' in upid:
-                # This is a part object.
-                continue
+        objects = filter(filter_max_uploads, objects)
 
-            uploads.append(
-                {'key': obj,
-                 'upload_id': upid,
-                 'last_modified': o['last_modified']}
-            )
+        if len(objects) > maxuploads:
+            objects = objects[:maxuploads]
+            truncated = True
+        else:
+            truncated = False
+
+        uploads = []
+        prefixes = []
+        for o in objects:
+            try:
+                obj, upid = split_path('/' + o['name'], 1, 2)
+                uploads.append(
+                    {'key': obj,
+                     'upload_id': upid,
+                     'last_modified': o['last_modified']}
+                )
+            except ValueError:
+                # This is a part object, probably.
+                continue
 
         nextkeymarker = ''
         nextuploadmarker = ''
@@ -166,17 +208,17 @@ class UploadsController(Controller):
 
         result_elem = Element('ListMultipartUploadsResult')
         SubElement(result_elem, 'Bucket').text = req.container_name
-        SubElement(result_elem, 'KeyMarker').text = ''
-        SubElement(result_elem, 'UploadIdMarker').text = ''
+        SubElement(result_elem, 'KeyMarker').text = keymarker
+        SubElement(result_elem, 'UploadIdMarker').text = uploadid
         SubElement(result_elem, 'NextKeyMarker').text = nextkeymarker
         SubElement(result_elem, 'NextUploadIdMarker').text = nextuploadmarker
-
-        SubElement(result_elem, 'MaxUploads').text = str(DEFAULT_MAX_UPLOADS)
-
+        if 'prefix' in req.params:
+            SubElement(result_elem, 'Prefix').text = req.params['prefix']
+        SubElement(result_elem, 'MaxUploads').text = str(maxuploads)
         if encoding_type is not None:
             SubElement(result_elem, 'EncodingType').text = encoding_type
-
-        SubElement(result_elem, 'IsTruncated').text = 'false'
+        SubElement(result_elem, 'IsTruncated').text = \
+            'true' if truncated else 'false'
 
         # TODO: don't show uploads which are initiated before this bucket is
         # created.
@@ -193,6 +235,10 @@ class UploadsController(Controller):
             SubElement(upload_elem, 'StorageClass').text = 'STANDARD'
             SubElement(upload_elem, 'Initiated').text = \
                 u['last_modified'][:-3] + 'Z'
+
+        for p in prefixes:
+            elem = SubElement(result_elem, 'CommonPrefixes')
+            SubElement(elem, 'Prefix').text = p
 
         body = tostring(result_elem, encoding_type=encoding_type)
 
