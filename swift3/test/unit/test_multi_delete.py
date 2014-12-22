@@ -173,13 +173,11 @@ class TestSwift3MultiDelete(Swift3TestCase):
         self.assertEquals(self._get_error_code(body), 'MalformedXML')
 
     def _test_object_multi_DELETE(self, account):
-        self.swift.register('DELETE', '/v1/AUTH_test/bucket/Key1',
-                            swob.HTTPNoContent, {}, None)
-        self.swift.register('DELETE', '/v1/AUTH_test/bucket/Key2',
-                            swob.HTTPNotFound, {}, None)
-
+        self.keys = ['Key1', 'Key2']
         elem = Element('Delete')
-        for key in ['Key1', 'Key2']:
+        for key in self.keys:
+            self.swift.register('DELETE', '/v1/AUTH_test/bucket/%s' % key,
+                                swob.HTTPNoContent, {}, None)
             obj = SubElement(elem, 'Object')
             SubElement(obj, 'Key').text = key
         body = tostring(elem, use_s3ns=False)
@@ -198,14 +196,21 @@ class TestSwift3MultiDelete(Swift3TestCase):
     @s3acl(s3acl_only=True)
     def test_object_multi_DELETE_without_permission(self):
         status, headers, body = self._test_object_multi_DELETE('test:other')
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEquals(status.split()[0], '200')
+        elem = fromstring(body)
+        errors = elem.findall('Error')
+        self.assertEquals(len(errors), len(self.keys))
+        for e in errors:
+            self.assertTrue(e.find('Key').text in self.keys)
+            self.assertEquals(e.find('Code').text, 'AccessDenied')
+            self.assertEquals(e.find('Message').text, 'Access Denied.')
 
     @s3acl(s3acl_only=True)
     def test_object_multi_DELETE_with_write_permission(self):
         status, headers, body = self._test_object_multi_DELETE('test:write')
         self.assertEquals(status.split()[0], '200')
         elem = fromstring(body)
-        self.assertEquals(len(elem.findall('Deleted')), 2)
+        self.assertEquals(len(elem.findall('Deleted')), len(self.keys))
 
     @s3acl(s3acl_only=True)
     def test_object_multi_DELETE_with_fullcontrol_permission(self):
@@ -213,7 +218,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
             self._test_object_multi_DELETE('test:full_control')
         self.assertEquals(status.split()[0], '200')
         elem = fromstring(body)
-        self.assertEquals(len(elem.findall('Deleted')), 2)
+        self.assertEquals(len(elem.findall('Deleted')), len(self.keys))
 
 if __name__ == '__main__':
     unittest.main()
