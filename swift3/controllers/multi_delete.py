@@ -17,7 +17,7 @@ from swift3.controllers.base import Controller, bucket_operation
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
 from swift3.response import HTTPOk, S3NotImplemented, NoSuchKey, \
-    ErrorResponse, MalformedXML, UserKeyMustBeSpecified
+    ErrorResponse, MalformedXML, UserKeyMustBeSpecified, AccessDenied
 from swift3.cfg import CONF
 from swift3.utils import LOGGER
 
@@ -46,7 +46,11 @@ class MultiObjectDeleteController(Controller):
                 yield key, version
 
         # check bucket existence
-        req.get_response(self.app, 'HEAD')
+        respAccessDenied = None
+        try:
+            req.get_response(self.app, 'HEAD')
+        except AccessDenied as e:
+            respAccessDenied = e
 
         try:
             xml = req.xml(MAX_MULTI_DELETE_BODY_SIZE, check_md5=True)
@@ -78,20 +82,27 @@ class MultiObjectDeleteController(Controller):
 
             req.object_name = key
 
-            try:
-                req.get_response(self.app, method='DELETE')
-            except NoSuchKey:
-                pass
-            except ErrorResponse as e:
+            if not respAccessDenied:
+                try:
+                    req.get_response(self.app, method='DELETE')
+                except NoSuchKey:
+                    pass
+                except ErrorResponse as e:
+                    error = SubElement(elem, 'Error')
+                    SubElement(error, 'Key').text = key
+                    SubElement(error, 'Code').text = e.__class__.__name__
+                    SubElement(error, 'Message').text = e._msg
+                    continue
+
+                if not self.quiet:
+                    deleted = SubElement(elem, 'Deleted')
+                    SubElement(deleted, 'Key').text = key
+            else:
                 error = SubElement(elem, 'Error')
                 SubElement(error, 'Key').text = key
-                SubElement(error, 'Code').text = e.__class__.__name__
-                SubElement(error, 'Message').text = e._msg
-                continue
-
-            if not self.quiet:
-                deleted = SubElement(elem, 'Deleted')
-                SubElement(deleted, 'Key').text = key
+                SubElement(error, 'Code').text = \
+                    respAccessDenied.__class__.__name__
+                SubElement(error, 'Message').text = respAccessDenied._msg
 
         body = tostring(elem)
 
