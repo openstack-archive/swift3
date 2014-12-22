@@ -16,6 +16,7 @@
 import unittest
 import simplejson as json
 from mock import patch
+from urllib import quote
 
 from swift.common import swob
 from swift.common.swob import Request
@@ -44,21 +45,25 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
         segment_bucket = '/v1/AUTH_test/bucket+segments'
 
+        self.objects = \
+            [{'name': 'object/X/1',
+              'last_modified':
+              '2014-05-07T19:47:51.592270',
+              'hash': 'HASH',
+              'bytes': 100},
+             {'name': 'object/X/2',
+              'last_modified':
+              '2014-05-07T19:47:52.592270',
+              'hash': 'HASH',
+              'bytes': 200},
+             ]
+        object_list = json.dumps(self.objects)
+
         self.swift.register('PUT',
                             '/v1/AUTH_test/bucket+segments',
                             swob.HTTPAccepted, {}, None)
         self.swift.register('GET', segment_bucket, swob.HTTPOk, {},
-                            json.dumps([{'name': 'object/X/1',
-                                         'last_modified':
-                                             '2014-05-07T19:47:54.592270',
-                                         'hash': 'HASH',
-                                         'bytes': 100},
-                                        {'name': 'object/X/2',
-                                         'last_modified':
-                                             '2014-05-07T19:47:54.592270',
-                                         'hash': 'HASH',
-                                         'bytes': 100},
-                                        ]))
+                            object_list)
         self.swift.register('HEAD', segment_bucket + '/object/X',
                             swob.HTTPOk, {}, None)
         self.swift.register('PUT', segment_bucket + '/object/X',
@@ -72,6 +77,32 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.swift.register('DELETE', segment_bucket + '/object/X/1',
                             swob.HTTPNoContent, {}, None)
         self.swift.register('DELETE', segment_bucket + '/object/X/2',
+                            swob.HTTPNoContent, {}, None)
+
+        self.swift.register('HEAD', segment_bucket + '/object/Y',
+                            swob.HTTPOk, {}, None)
+        self.swift.register('PUT', segment_bucket + '/object/Y',
+                            swob.HTTPCreated, {}, None)
+        self.swift.register('DELETE', segment_bucket + '/object/Y',
+                            swob.HTTPNoContent, {}, None)
+        self.swift.register('PUT', segment_bucket + '/object/Y/1',
+                            swob.HTTPCreated, {}, None)
+        self.swift.register('DELETE', segment_bucket + '/object/Y/1',
+                            swob.HTTPNoContent, {}, None)
+        self.swift.register('DELETE', segment_bucket + '/object/Y/2',
+                            swob.HTTPNoContent, {}, None)
+
+        self.swift.register('HEAD', segment_bucket + '/object2/Z',
+                            swob.HTTPOk, {}, None)
+        self.swift.register('PUT', segment_bucket + '/object2/Z',
+                            swob.HTTPCreated, {}, None)
+        self.swift.register('DELETE', segment_bucket + '/object2/Z',
+                            swob.HTTPNoContent, {}, None)
+        self.swift.register('PUT', segment_bucket + '/object2/Z/1',
+                            swob.HTTPCreated, {}, None)
+        self.swift.register('DELETE', segment_bucket + '/object2/Z/1',
+                            swob.HTTPNoContent, {}, None)
+        self.swift.register('DELETE', segment_bucket + '/object2/Z/2',
                             swob.HTTPNoContent, {}, None)
 
     @s3acl
@@ -122,14 +153,279 @@ class TestSwift3MultiUpload(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidRequest')
 
-    @s3acl
-    def test_bucket_multipart_uploads_GET(self):
-        req = Request.blank('/bucket/?uploads',
+    def _test_bucket_multipart_uploads_GET(self, query=None,
+                                           multiparts=None):
+        segment_bucket = '/v1/AUTH_test/bucket+segments'
+
+        self.multi_objects = \
+            [{'name': 'object/X',
+              'last_modified':
+              '2014-05-07T19:47:50.592270',
+              'hash': 'HASH',
+              'bytes': 1},
+             {'name': 'object/X/1',
+              'last_modified':
+              '2014-05-07T19:47:51.592270',
+              'hash': 'HASH',
+              'bytes': 10},
+             {'name': 'object/X/2',
+              'last_modified':
+              '2014-05-07T19:47:52.592270',
+              'hash': 'HASH',
+              'bytes': 200},
+             {'name': 'object/Y',
+              'last_modified':
+              '2014-05-07T19:47:53.592270',
+              'hash': 'HASH',
+              'bytes': 2},
+             {'name': 'object/Y/1',
+              'last_modified':
+              '2014-05-07T19:47:54.592270',
+              'hash': 'HASH',
+              'bytes': 11},
+             {'name': 'object/Y/2',
+              'last_modified':
+              '2014-05-07T19:47:55.592270',
+              'hash': 'HASH',
+              'bytes': 21},
+             {'name': 'object/Z',
+              'last_modified':
+              '2014-05-07T19:47:56.592270',
+              'hash': 'HASH',
+              'bytes': 2},
+             {'name': 'object/Z/1',
+              'last_modified':
+              '2014-05-07T19:47:57.592270',
+              'hash': 'HASH',
+              'bytes': 12},
+             {'name': 'object/Z/2',
+              'last_modified':
+              '2014-05-07T19:47:58.592270',
+              'hash': 'HASH',
+              'bytes': 22},
+             ]
+        object_list = \
+            multiparts if multiparts else self.multi_objects
+        object_list = json.dumps(object_list)
+
+        self.swift.register('GET', segment_bucket, swob.HTTPOk, {},
+                            object_list)
+
+        query = '?uploads&' + query if query else '?uploads'
+        req = Request.blank('/bucket/%s' % query,
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
-        status, headers, body = self.call_swift3(req)
-        fromstring(body, 'ListMultipartUploadsResult')
+        return self.call_swift3(req)
+
+    @s3acl
+    def test_bucket_multipart_uploads_GET(self):
+        status, headers, body = self._test_bucket_multipart_uploads_GET()
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(elem.find('Bucket').text, 'bucket')
+        self.assertEquals(elem.find('KeyMarker').text, None)
+        self.assertEquals(elem.find('UploadIdMarker').text, None)
+        self.assertEquals(elem.find('NextUploadIdMarker').text, 'Z')
+        self.assertEquals(elem.find('MaxUploads').text, '1000')
+        self.assertEquals(elem.find('IsTruncated').text, 'false')
+        self.assertEquals(len(elem.findall('Upload')), 3)
+        objects = [(o['name'], o['last_modified'][:-3] + 'Z')
+                   for o in self.multi_objects]
+        for u in elem.findall('Upload'):
+            name = u.find('Key').text + '/' + u.find('UploadId').text
+            initiated = u.find('Initiated').text
+            self.assertTrue((name, initiated) in objects)
+            self.assertEquals(u.find('Initiator/ID').text, 'test:tester')
+            self.assertEquals(u.find('Initiator/DisplayName').text,
+                              'test:tester')
+            self.assertEquals(u.find('Owner/ID').text, 'test:tester')
+            self.assertEquals(u.find('Owner/DisplayName').text, 'test:tester')
+            self.assertEquals(u.find('StorageClass').text, 'STANDARD')
         self.assertEquals(status.split()[0], '200')
+
+    @s3acl
+    def test_bucket_multipart_uploads_GET_encoding_type_error(self):
+        query = 'encoding-type=xml'
+        status, headers, body = \
+            self._test_bucket_multipart_uploads_GET(query)
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+
+    @s3acl
+    def test_bucket_multipart_uploads_GET_maxuploads(self):
+        query = 'max-uploads=2'
+        status, headers, body = \
+            self._test_bucket_multipart_uploads_GET(query)
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(len(elem.findall('Upload/UploadId')), 2)
+        self.assertEquals(elem.find('NextKeyMarker').text, 'object')
+        self.assertEquals(elem.find('NextUploadIdMarker').text, 'Y')
+        self.assertEquals(elem.find('MaxUploads').text, '2')
+        self.assertEquals(elem.find('IsTruncated').text, 'true')
+        self.assertEquals(status.split()[0], '200')
+
+    @s3acl
+    def test_bucket_multipart_uploads_GET_str_maxuploads(self):
+        query = 'max-uploads=invalid'
+        status, headers, body = \
+            self._test_bucket_multipart_uploads_GET(query)
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+
+    @s3acl
+    def test_bucket_multipart_uploads_GET_negative_maxuploads(self):
+        query = 'max-uploads=-1'
+        status, headers, body = \
+            self._test_bucket_multipart_uploads_GET(query)
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+
+    @s3acl
+    def test_bucket_multipart_uploads_GET_maxuploads_over_default(self):
+        query = 'max-uploads=1001'
+        status, headers, body = \
+            self._test_bucket_multipart_uploads_GET(query)
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+
+    @s3acl
+    def test_bucket_multipart_uploads_GET_with_id_and_key_marker(self):
+        query = 'upload-id-marker=Y&key-marker=object'
+        multiparts = \
+            [{'name': 'object/Y',
+              'last_modified':
+              '2014-05-07T19:47:53.592270',
+              'hash': 'HASH',
+              'bytes': 2},
+             {'name': 'object/Y/1',
+              'last_modified':
+              '2014-05-07T19:47:54.592270',
+              'hash': 'HASH',
+              'bytes': 12},
+             {'name': 'object/Y/2',
+              'last_modified':
+              '2014-05-07T19:47:55.592270',
+              'hash': 'HASH',
+              'bytes': 22}]
+
+        status, headers, body = \
+            self._test_bucket_multipart_uploads_GET(query, multiparts)
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(elem.find('KeyMarker').text, 'object')
+        self.assertEquals(elem.find('UploadIdMarker').text, 'Y')
+        self.assertEquals(len(elem.findall('Upload')), 1)
+        objects = [(o['name'], o['last_modified'][:-3] + 'Z')
+                   for o in self.multi_objects]
+        for u in elem.findall('Upload'):
+            name = u.find('Key').text + '/' + u.find('UploadId').text
+            initiated = u.find('Initiated').text
+            self.assertTrue((name, initiated) in objects)
+        self.assertEquals(status.split()[0], '200')
+
+        _, path, _ = self.swift.calls_with_headers[-1]
+        path, query_string = path.split('?', 1)
+        query = {}
+        for q in query_string.split('&'):
+            key, arg = q.split('=')
+            query[key] = arg
+        self.assertEquals(query['format'], 'json')
+        self.assertEquals(query['limit'], '1001')
+        self.assertEquals(query['marker'], 'object/Y')
+
+    @s3acl
+    def test_bucket_multipart_uploads_GET_with_key_marker(self):
+        query = 'key-marker=object'
+        multiparts = \
+            [{'name': 'object/X',
+              'last_modified':
+              '2014-05-07T19:47:50.592270',
+              'hash': 'HASH',
+              'bytes': 1},
+             {'name': 'object/X/1',
+              'last_modified':
+              '2014-05-07T19:47:51.592270',
+              'hash': 'HASH',
+              'bytes': 11},
+             {'name': 'object/X/2',
+              'last_modified':
+              '2014-05-07T19:47:52.592270',
+              'hash': 'HASH',
+              'bytes': 21},
+             {'name': 'object/Y',
+              'last_modified':
+              '2014-05-07T19:47:53.592270',
+              'hash': 'HASH',
+              'bytes': 2},
+             {'name': 'object/Y/1',
+              'last_modified':
+              '2014-05-07T19:47:54.592270',
+              'hash': 'HASH',
+              'bytes': 12},
+             {'name': 'object/Y/2',
+              'last_modified':
+              '2014-05-07T19:47:55.592270',
+              'hash': 'HASH',
+              'bytes': 22}]
+        status, headers, body = \
+            self._test_bucket_multipart_uploads_GET(query, multiparts)
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(elem.find('KeyMarker').text, 'object')
+        self.assertEquals(elem.find('NextKeyMarker').text, 'object')
+        self.assertEquals(elem.find('NextUploadIdMarker').text, 'Y')
+        self.assertEquals(len(elem.findall('Upload')), 2)
+        objects = [(o['name'], o['last_modified'][:-3] + 'Z')
+                   for o in self.multi_objects]
+        for u in elem.findall('Upload'):
+            name = u.find('Key').text + '/' + u.find('UploadId').text
+            initiated = u.find('Initiated').text
+            self.assertTrue((name, initiated) in objects)
+        self.assertEquals(status.split()[0], '200')
+
+        _, path, _ = self.swift.calls_with_headers[-1]
+        path, query_string = path.split('?', 1)
+        query = {}
+        for q in query_string.split('&'):
+            key, arg = q.split('=')
+            query[key] = arg
+        self.assertEquals(query['format'], 'json')
+        self.assertEquals(query['limit'], '1001')
+        self.assertEquals(query['marker'], quote('object/~'))
+
+    @s3acl
+    def test_bucket_multipart_uploads_GET_with_prefix(self):
+        query = 'prefix=X'
+        multiparts = \
+            [{'name': 'object/X',
+              'last_modified':
+              '2014-05-07T19:47:50.592270',
+              'hash': 'HASH',
+              'bytes': 1},
+             {'name': 'object/X/1',
+              'last_modified':
+              '2014-05-07T19:47:51.592270',
+              'hash': 'HASH',
+              'bytes': 11},
+             {'name': 'object/X/2',
+              'last_modified':
+              '2014-05-07T19:47:52.592270',
+              'hash': 'HASH',
+              'bytes': 21}]
+        status, headers, body = \
+            self._test_bucket_multipart_uploads_GET(query, multiparts)
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(len(elem.findall('Upload')), 1)
+        objects = [(o['name'], o['last_modified'][:-3] + 'Z')
+                   for o in self.multi_objects]
+        for u in elem.findall('Upload'):
+            name = u.find('Key').text + '/' + u.find('UploadId').text
+            initiated = u.find('Initiated').text
+            self.assertTrue((name, initiated) in objects)
+        self.assertEquals(status.split()[0], '200')
+
+        _, path, _ = self.swift.calls_with_headers[-1]
+        path, query_string = path.split('?', 1)
+        query = {}
+        for q in query_string.split('&'):
+            key, arg = q.split('=')
+            query[key] = arg
+        self.assertEquals(query['format'], 'json')
+        self.assertEquals(query['limit'], '1001')
+        self.assertEquals(query['prefix'], 'X')
 
     @s3acl
     @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
