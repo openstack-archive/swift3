@@ -17,7 +17,7 @@ from swift3.controllers.base import Controller, bucket_operation
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
 from swift3.response import HTTPOk, S3NotImplemented, NoSuchKey, \
-    ErrorResponse, MalformedXML, UserKeyMustBeSpecified
+    ErrorResponse, MalformedXML, UserKeyMustBeSpecified, AccessDenied
 from swift3.cfg import CONF
 from swift3.utils import LOGGER
 
@@ -29,6 +29,19 @@ class MultiObjectDeleteController(Controller):
     Handles Delete Multiple Objects, which is logged as a MULTI_OBJECT_DELETE
     operation in the S3 server log.
     """
+    def _gen_access_denied_body(self, error, elem, delete_list):
+        for key, version in delete_list:
+            if version is not None:
+                # TODO: delete the specific version of the object
+                raise S3NotImplemented()
+
+            error_elem = SubElement(elem, 'Error')
+            SubElement(error_elem, 'Key').text = key
+            SubElement(error_elem, 'Code').text = error.__class__.__name__
+            SubElement(error_elem, 'Message').text = error._msg
+
+        return tostring(elem)
+
     @bucket_operation
     def POST(self, req):
         """
@@ -44,9 +57,6 @@ class MultiObjectDeleteController(Controller):
                     version = version.text
 
                 yield key, version
-
-        # check bucket existence
-        req.get_response(self.app, 'HEAD')
 
         try:
             xml = req.xml(MAX_MULTI_DELETE_BODY_SIZE, check_md5=True)
@@ -70,6 +80,13 @@ class MultiObjectDeleteController(Controller):
             raise
 
         elem = Element('DeleteResult')
+
+        # check bucket existence
+        try:
+            req.get_response(self.app, 'HEAD')
+        except AccessDenied as error:
+            body = self._gen_access_denied_body(error, elem, delete_list)
+            return HTTPOk(body=body)
 
         for key, version in delete_list:
             if version is not None:
