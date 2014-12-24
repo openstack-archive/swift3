@@ -54,6 +54,7 @@ class ObjectController(Controller):
         """
         Handle PUT Object and PUT Object (Copy) request
         """
+        req.check_copy_source(self.app)
         resp = req.get_response(self.app)
 
         if 'X-Amz-Copy-Source' in req.headers:

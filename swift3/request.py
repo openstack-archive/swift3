@@ -292,6 +292,37 @@ class Request(swob.Request):
         if self.environ['HTTP_CONTENT_MD5'] != digest:
             raise InvalidDigest(content_md5=self.environ['HTTP_CONTENT_MD5'])
 
+    def _copy_source_headers(self):
+        env = {}
+        for key, value in self.environ.items():
+            if key.startswith('HTTP_X_AMZ_COPY_SOURCE_'):
+                env[key.replace('X_AMZ_COPY_SOURCE_', '')] = value
+
+        return swob.HeaderEnvironProxy(env)
+
+    def check_copy_source(self, app):
+        if 'X-Amz-Copy-Source' in self.headers:
+            src_path = self.headers['X-Amz-Copy-Source']
+            src_path = src_path if src_path.startswith('/') else \
+                ('/' + src_path)
+            src_bucket, src_obj = split_path(src_path, 0, 2, True)
+            headers = swob.HeaderKeyDict()
+            headers.update(self._copy_source_headers())
+
+            src_resp = self.get_response(app, 'HEAD', src_bucket, src_obj,
+                                         headers=headers)
+
+            if src_resp.status_int == 304:
+                raise PreconditionFailed()
+
+            # Swift doesn't allow 'if-none-match' to PUT currently.  We
+            # have to manually check the returned status code and remove
+            # the header manually for now.
+            if 'if-none-match' in headers:
+                if src_resp.etag == headers['if-none-match']:
+                    raise PreconditionFailed()
+                del headers['if-none-match']
+
     def _canonical_uri(self):
         raw_path_info = self.environ.get('RAW_PATH_INFO', self.path)
         if self.bucket_in_host:
@@ -549,6 +580,8 @@ class Request(swob.Request):
                     HTTP_REQUEST_ENTITY_TOO_LARGE: EntityTooLarge,
                     HTTP_LENGTH_REQUIRED: MissingContentLength,
                     HTTP_REQUEST_TIMEOUT: RequestTimeout,
+                    HTTP_PRECONDITION_FAILED: PreconditionFailed,
+                    HTTP_NOT_MODIFIED: PreconditionFailed,
                 },
                 'POST': {
                     HTTP_NOT_FOUND: (NoSuchKey, obj),
@@ -704,7 +737,7 @@ class S3AclRequest(Request):
         Wrap up get_response call to hook with acl handling method.
         """
         acl_handler = get_acl_handler(self.controller_name)(
-            self, container, obj)
+            self, container, obj, headers=headers)
         resp = acl_handler.handle_acl(app, method)
 
         # possible to skip recalling get_resposne_acl if resp is not
