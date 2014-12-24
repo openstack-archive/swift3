@@ -182,6 +182,9 @@ class TestSwift3Obj(Swift3TestCase):
 
     @s3acl
     def test_object_PUT_error(self):
+        etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
+        last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
+
         code = self._test_method_error('PUT', '/bucket/object',
                                        swob.HTTPUnauthorized)
         self.assertEquals(code, 'SignatureDoesNotMatch')
@@ -225,6 +228,32 @@ class TestSwift3Obj(Swift3TestCase):
         code = self._test_method_error('PUT', '/bucket/object',
                                        swob.HTTPRequestTimeout)
         self.assertEquals(code, 'RequestTimeout')
+        code = \
+            self._test_method_error('PUT', '/bucket/object',
+                                    swob.HTTPPreconditionFailed,
+                                    {'X-Amz-Copy-Source': '/bucket/object',
+                                     'X-Amz-Copy-Source-If-Match': etag})
+        self.assertEquals(code, 'PreconditionFailed')
+        code = \
+            self._test_method_error('PUT', '/bucket/object',
+                                    swob.HTTPPreconditionFailed,
+                                    {'X-Amz-Copy-Source': '/bucket/object',
+                                     'X-Amz-Copy-Source-If-None-Match': etag})
+        self.assertEquals(code, 'PreconditionFailed')
+        code = \
+            self._test_method_error('PUT', '/bucket/object',
+                                    swob.HTTPPreconditionFailed,
+                                    {'X-Amz-Copy-Source': '/bucket/object',
+                                     'X-Amz-Copy-Source-If-Unmodified-Since':
+                                         last_modified_since})
+        self.assertEquals(code, 'PreconditionFailed')
+        code = \
+            self._test_method_error('PUT', '/bucket/object',
+                                    swob.HTTPNotModified,
+                                    {'X-Amz-Copy-Source': '/bucket/object',
+                                     'X-Amz-Copy-Source-If-Modified-Since':
+                                         last_modified_since})
+        self.assertEquals(code, 'PreconditionFailed')
 
     @s3acl
     def test_object_PUT(self):
@@ -251,8 +280,11 @@ class TestSwift3Obj(Swift3TestCase):
 
     def test_object_PUT_headers(self):
         etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
+        last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
         content_md5 = etag.decode('hex').encode('base64').strip()
 
+        self.swift.register('HEAD', '/v1/AUTH_test/some/source',
+                            swob.HTTPOk, {}, None)
         self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
                             swob.HTTPCreated,
                             {'etag': etag},
@@ -277,6 +309,82 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEquals(headers['X-Object-Meta-Something'], 'oh hai')
         self.assertEquals(headers['X-Copy-From'], '/some/source')
         self.assertEquals(headers['Content-Length'], '0')
+
+    def _test_object_PUT_copy_headers(self, head_resp, put_header):
+        account = 'test:tester'
+        grants = [Grant(User(account), 'FULL_CONTROL')]
+        head_headers = \
+            encode_acl('object',
+                       ACL(Owner(account, account), grants))
+        self.swift.register('HEAD', '/v1/AUTH_test/some/source',
+                            head_resp, head_headers, None)
+        self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPCreated, {}, None)
+
+        put_headers = {'Authorization': 'AWS test:tester:hmac',
+                       'X-Amz-Copy-Source': '/some/source'}
+        put_headers.update(put_header)
+
+        req = Request.blank('/bucket/object',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers=put_headers)
+
+        req.date = datetime.now()
+        req.content_type = 'text/plain'
+        return  self.call_swift3(req)
+
+    @s3acl
+    def test_object_PUT_copy_headers_error(self):
+        etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
+        last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
+
+        header = {'X-Amz-Copy-Source-If-Match': etag}
+        status, header, body = \
+            self._test_object_PUT_copy_headers(swob.HTTPPreconditionFailed,
+                                               header)
+        self.assertEquals(self._get_error_code(body), 'PreconditionFailed')
+
+        header = {'X-Amz-Copy-Source-If-None-Match': etag}
+        status, header, body = \
+            self._test_object_PUT_copy_headers(swob.HTTPNotModified,
+                                               header)
+        self.assertEquals(self._get_error_code(body), 'PreconditionFailed')
+
+        header = {'X-Amz-Copy-Source-If-Modified-Since': last_modified_since}
+        status, header, body = \
+            self._test_object_PUT_copy_headers(swob.HTTPNotModified,
+                                               header)
+        self.assertEquals(self._get_error_code(body), 'PreconditionFailed')
+
+        header = \
+            {'X-Amz-Copy-Source-If-Unmodified-Since': last_modified_since}
+        status, header, body = \
+            self._test_object_PUT_copy_headers(swob.HTTPPreconditionFailed,
+                                               header)
+        self.assertEquals(self._get_error_code(body), 'PreconditionFailed')
+
+    @s3acl
+    def test_object_PUT_copy_headers(self):
+        etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
+        last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
+
+        header = {'X-Amz-Copy-Source-If-Match': etag,
+                  'X-Amz-Copy-Source-If-Modified-Since': last_modified_since}
+        status, header, body = \
+            self._test_object_PUT_copy_headers(swob.HTTPOk,
+                                               header)
+        _, _, headers = self.swift.calls_with_headers[-1]
+        self.assertTrue(headers.get('If-Match') is None)
+        self.assertTrue(headers.get('If-Modified') is None)
+
+        header = {'X-Amz-Copy-Source-If-None-Match': etag,
+                  'X-Amz-Copy-Source-If-Unmodified-Since': last_modified_since}
+        status, header, body = \
+            self._test_object_PUT_copy_headers(swob.HTTPOk,
+                                               header)
+        _, _, headers = self.swift.calls_with_headers[-1]
+        self.assertTrue(headers.get('If-None-Match') is None)
+        self.assertTrue(headers.get('If-Unmodified') is None)
 
     @s3acl
     def test_object_DELETE_error(self):
