@@ -15,6 +15,7 @@
 
 import unittest
 import cgi
+import json
 
 from swift.common import swob
 from swift.common.swob import Request
@@ -39,12 +40,20 @@ class TestSwift3Bucket(Swift3TestCase):
         for b in self.objects:
             json_out.append(json_pattern % b)
         object_list = '[' + ','.join(json_out) + ']'
+
+        self.prefixes = ['rose', 'viola', 'lily']
+        object_list_subdir = []
+        for p in self.prefixes:
+            object_list_subdir.append({"subdir": p})
+
         self.swift.register('HEAD', '/v1/AUTH_test/junk', swob.HTTPNoContent,
                             {}, None)
         self.swift.register('HEAD', '/v1/AUTH_test/nojunk', swob.HTTPNotFound,
                             {}, None)
         self.swift.register('GET', '/v1/AUTH_test/junk', swob.HTTPOk, {},
                             object_list)
+        self.swift.register('GET', '/v1/AUTH_test/junk_subdir', swob.HTTPOk,
+                            {}, json.dumps(object_list_subdir))
 
     def setUp(self):
         super(TestSwift3Bucket, self).setUp()
@@ -113,20 +122,35 @@ class TestSwift3Bucket(Swift3TestCase):
         for i in self.objects:
             self.assertTrue(i[0] in names)
 
+    def test_bucket_GET_subdir(self):
+        bucket_name = 'junk_subdir'
+        req = Request.blank('/%s' % bucket_name,
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+        elem = fromstring(body, 'ListBucketResult')
+        name = elem.find('./Name').text
+        self.assertEquals(name, bucket_name)
+
+        prefixes = elem.findall('CommonPrefixes')
+
+        self.assertEquals(len(prefixes), len(self.prefixes))
+        for p in prefixes:
+            self.assertTrue(p.find('./Prefix').text in self.prefixes)
+
     def test_bucket_GET_is_truncated(self):
         bucket_name = 'junk'
 
-        req = Request.blank('/%s' % bucket_name,
-                            environ={'REQUEST_METHOD': 'GET',
-                                     'QUERY_STRING': 'max-keys=5'},
+        req = Request.blank('/%s?max-keys=5' % bucket_name,
+                            environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
         self.assertEquals(elem.find('./IsTruncated').text, 'false')
 
-        req = Request.blank('/%s' % bucket_name,
-                            environ={'REQUEST_METHOD': 'GET',
-                                     'QUERY_STRING': 'max-keys=4'},
+        req = Request.blank('/%s?max-keys=4' % bucket_name,
+                            environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
@@ -135,9 +159,8 @@ class TestSwift3Bucket(Swift3TestCase):
     def test_bucket_GET_max_keys(self):
         bucket_name = 'junk'
 
-        req = Request.blank('/%s' % bucket_name,
-                            environ={'REQUEST_METHOD': 'GET',
-                                     'QUERY_STRING': 'max-keys=5'},
+        req = Request.blank('/%s?max-keys=5' % bucket_name,
+                            environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
@@ -147,9 +170,8 @@ class TestSwift3Bucket(Swift3TestCase):
         args = dict(cgi.parse_qsl(query_string))
         self.assert_(args['limit'] == '6')
 
-        req = Request.blank('/%s' % bucket_name,
-                            environ={'REQUEST_METHOD': 'GET',
-                                     'QUERY_STRING': 'max-keys=5000'},
+        req = Request.blank('/%s?max-keys=5000' % bucket_name,
+                            environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
@@ -161,9 +183,8 @@ class TestSwift3Bucket(Swift3TestCase):
 
     def test_bucket_GET_passthroughs(self):
         bucket_name = 'junk'
-        req = Request.blank('/%s' % bucket_name,
-                            environ={'REQUEST_METHOD': 'GET', 'QUERY_STRING':
-                                     'delimiter=a&marker=b&prefix=c'},
+        req = Request.blank('/%s?delimiter=a&marker=b&prefix=c' % bucket_name,
+                            environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
@@ -180,10 +201,9 @@ class TestSwift3Bucket(Swift3TestCase):
     def test_bucket_GET_with_nonascii_queries(self):
         bucket_name = 'junk'
         req = Request.blank(
-            '/%s' % bucket_name,
-            environ={'REQUEST_METHOD': 'GET', 'QUERY_STRING':
-                     'delimiter=\xef\xbc\xa1&marker=\xef\xbc\xa2&'
-                     'prefix=\xef\xbc\xa3'},
+            '/%s?delimiter=\xef\xbc\xa1&marker=\xef\xbc\xa2&'
+            'prefix=\xef\xbc\xa3' % bucket_name,
+            environ={'REQUEST_METHOD': 'GET'},
             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
