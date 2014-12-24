@@ -182,8 +182,6 @@ class ObjectAclHandler(BaseAclHandler):
     ObjectAclHandler: Handler for ObjectController
     """
     def PUT(self, app):
-        self._check_copy_source(app)
-
         b_resp = self._handle_acl(app, 'HEAD', obj='')
         req_acl = ACL.from_headers(self.req.headers,
                                    b_resp.bucket_acl.owner,
@@ -356,6 +354,9 @@ ACL_MAP = {
     {'Permission': 'READ'},
     # GET Object
     ('GET', 'GET', 'object'):
+    {'Permission': 'READ'},
+    # PUT Object Copy
+    ('PUT', 'HEAD', 'object'):
     {'Permission': 'READ'},
     # Initiate Multipart Upload
     ('POST', 'PUT', 'container'):
