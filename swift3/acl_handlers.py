@@ -93,13 +93,14 @@ class BaseAclHandler(object):
     """
     BaseAclHandler: Handling ACL for basic requests mapped on ACL_MAP
     """
-    def __init__(self, req, container, obj):
+    def __init__(self, req, container, obj, headers=None):
         self.req = req
         self.container = self.req.container_name if container is None \
             else container
         self.obj = self.req.object_name if obj is None else obj
         self.method = req.environ['REQUEST_METHOD']
         self.user_id = self.req.user_id
+        self.headers = headers
 
     def _check_copy_source(self, app):
         if 'X-Amz-Copy-Source' in self.req.headers:
@@ -143,7 +144,8 @@ class BaseAclHandler(object):
 
         if resource == 'object':
             resp = self.req.get_acl_response(app, 'HEAD',
-                                             container, obj)
+                                             container, obj,
+                                             self.headers)
             acl = resp.object_acl
         elif resource == 'container':
             resp = self.req.get_acl_response(app, 'HEAD',
@@ -182,8 +184,6 @@ class ObjectAclHandler(BaseAclHandler):
     ObjectAclHandler: Handler for ObjectController
     """
     def PUT(self, app):
-        self._check_copy_source(app)
-
         b_resp = self._handle_acl(app, 'HEAD', obj='')
         req_acl = ACL.from_headers(self.req.headers,
                                    b_resp.bucket_acl.owner,
@@ -269,8 +269,9 @@ class MultiUploadAclHandler(BaseAclHandler):
      -------------------------------------------------
 
     """
-    def __init__(self, req, container, obj):
-        super(MultiUploadAclHandler, self).__init__(req, container, obj)
+    def __init__(self, req, container, obj, headers=None):
+        super(MultiUploadAclHandler, self).__init__(req, container, obj,
+                                                    headers)
         self.container = self.container[:-len(MULTIUPLOAD_SUFFIX)]
 
     def handle_acl(self, app, method):
@@ -356,6 +357,9 @@ ACL_MAP = {
     {'Permission': 'READ'},
     # GET Object
     ('GET', 'GET', 'object'):
+    {'Permission': 'READ'},
+    # PUT Object Copy
+    ('PUT', 'HEAD', 'object'):
     {'Permission': 'READ'},
     # Initiate Multipart Upload
     ('POST', 'PUT', 'container'):
