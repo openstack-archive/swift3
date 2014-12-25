@@ -279,6 +279,11 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEquals(headers['Content-Length'], '0')
 
     @s3acl
+    def test_object_POST_error(self):
+        code = self._test_method_error('POST', '/bucket/object', None)
+        self.assertEquals(code, 'NotImplemented')
+
+    @s3acl
     def test_object_DELETE_error(self):
         code = self._test_method_error('DELETE', '/bucket/object',
                                        swob.HTTPUnauthorized)
