@@ -217,6 +217,30 @@ class TestSwift3Bucket(Swift3TestCase):
         self.assertEquals(args['marker'], '\xef\xbc\xa2')
         self.assertEquals(args['prefix'], '\xef\xbc\xa3')
 
+    def test_bucket_GET_with_delimiter_max_keys(self):
+        bucket_name = 'junk'
+        req = Request.blank('/%s?delimiter=a&max-keys=2' % bucket_name,
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+        elem = fromstring(body, 'ListBucketResult')
+        self.assertEquals(elem.find('./NextMarker').text, 'viola')
+        self.assertEquals(elem.find('./MaxKeys').text, '2')
+        self.assertEquals(elem.find('./IsTruncated').text, 'true')
+
+    def test_bucket_GET_subdir_with_delimiter_max_keys(self):
+        bucket_name = 'junk_subdir'
+        req = Request.blank('/%s?delimiter=a&max-keys=1' % bucket_name,
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+        elem = fromstring(body, 'ListBucketResult')
+        self.assertEquals(elem.find('./NextMarker').text, 'rose')
+        self.assertEquals(elem.find('./MaxKeys').text, '1')
+        self.assertEquals(elem.find('./IsTruncated').text, 'true')
+
     @s3acl
     def test_bucket_PUT_error(self):
         code = self._test_method_error('PUT', '/bucket', swob.HTTPCreated,
