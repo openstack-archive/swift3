@@ -76,6 +76,20 @@ class BucketController(Controller):
         SubElement(elem, 'Name').text = req.container_name
         SubElement(elem, 'Prefix').text = req.params.get('prefix')
         SubElement(elem, 'Marker').text = req.params.get('marker')
+
+        # in order to judge that truncated is valid, check whether
+        # max_keys + 1 th element exists in swift.
+        is_truncated = max_keys > 0 and len(objects) >= (max_keys + 1)
+        objects = objects[:max_keys]
+
+        if is_truncated and 'delimiter' in req.params:
+            if 'name' in objects[-1]:
+                SubElement(elem, 'NextMarker').text = \
+                    objects[-1]['name']
+            if 'subdir' in objects[-1]:
+                SubElement(elem, 'NextMarker').text = \
+                    objects[-1]['subdir']
+
         SubElement(elem, 'MaxKeys').text = str(max_keys)
 
         if 'delimiter' in req.params:
@@ -84,13 +98,10 @@ class BucketController(Controller):
         if encoding_type is not None:
             SubElement(elem, 'EncodingType').text = encoding_type
 
-        if max_keys > 0 and len(objects) == max_keys + 1:
-            is_truncated = 'true'
-        else:
-            is_truncated = 'false'
-        SubElement(elem, 'IsTruncated').text = is_truncated
+        SubElement(elem, 'IsTruncated').text = \
+            'true' if is_truncated else 'false'
 
-        for o in objects[:max_keys]:
+        for o in objects:
             if 'subdir' not in o:
                 contents = SubElement(elem, 'Contents')
                 SubElement(contents, 'Key').text = o['name']
@@ -103,7 +114,7 @@ class BucketController(Controller):
                 SubElement(owner, 'DisplayName').text = req.user_id
                 SubElement(contents, 'StorageClass').text = 'STANDARD'
 
-        for o in objects[:max_keys]:
+        for o in objects:
             if 'subdir' in o:
                 common_prefixes = SubElement(elem, 'CommonPrefixes')
                 SubElement(common_prefixes, 'Prefix').text = o['subdir']
