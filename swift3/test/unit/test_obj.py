@@ -310,6 +310,14 @@ class TestSwift3Obj(Swift3TestCase):
                             headers={'Authorization': 'AWS %s:hmac' % account})
         return self.call_swift3(req)
 
+    def _test_set_container_permission(self, account, permission):
+        grants = [Grant(User(account), permission)]
+        headers = \
+            encode_acl('container',
+                       ACL(Owner('test:tester', 'test:tester'), grants))
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket',
+                            swob.HTTPNoContent, headers, None)
+
     @s3acl(s3acl_only=True)
     def test_object_GET_without_permission(self):
         status, headers, body = self._test_object_for_s3acl('GET',
@@ -335,46 +343,52 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEquals(self._get_error_code(body), 'AccessDenied')
 
     @s3acl(s3acl_only=True)
-    def test_object_PUT_with_write_permission(self):
+    def test_object_PUT_with_owner_permission(self):
         status, headers, body = self._test_object_for_s3acl('PUT',
-                                                            'test:write')
+                                                            'test:tester')
+        self.assertEquals(status.split()[0], '200')
+
+    @s3acl(s3acl_only=True)
+    def test_object_PUT_with_write_permission(self):
+        account = 'test:other'
+        self._test_set_container_permission(account, 'WRITE')
+        status, headers, body = self._test_object_for_s3acl('PUT', account)
         self.assertEquals(status.split()[0], '200')
 
     @s3acl(s3acl_only=True)
     def test_object_PUT_with_fullcontrol_permission(self):
+        account = 'test:other'
+        self._test_set_container_permission(account, 'FULL_CONTROL')
         status, headers, body = \
-            self._test_object_for_s3acl('PUT', 'test:full_control')
-        self.assertEquals(status.split()[0], '200')
-
-    @s3acl(s3acl_only=True)
-    def test_object_PUT_without_overwriting_permission(self):
-        status, headers, body = self._test_object_for_s3acl('PUT',
-                                                            'test:other')
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
-
-    @s3acl(s3acl_only=True)
-    def test_object_PUT_with_overwriting_permission(self):
-        # FIXME: handle object existence
-        status, headers, body = self._test_object_for_s3acl('PUT',
-                                                            'test:write')
+            self._test_object_for_s3acl('PUT', account)
         self.assertEquals(status.split()[0], '200')
 
     @s3acl(s3acl_only=True)
     def test_object_DELETE_without_permission(self):
+        account = 'test:other'
         status, headers, body = self._test_object_for_s3acl('DELETE',
-                                                            'test:read')
+                                                            account)
         self.assertEquals(self._get_error_code(body), 'AccessDenied')
 
     @s3acl(s3acl_only=True)
-    def test_object_DELETE_with_write_permission(self):
+    def test_object_DELETE_with_owner_permission(self):
         status, headers, body = self._test_object_for_s3acl('DELETE',
-                                                            'test:write')
+                                                            'test:tester')
+        self.assertEquals(status.split()[0], '204')
+
+    @s3acl(s3acl_only=True)
+    def test_object_DELETE_with_write_permission(self):
+        account = 'test:other'
+        self._test_set_container_permission(account, 'WRITE')
+        status, headers, body = self._test_object_for_s3acl('DELETE',
+                                                            account)
         self.assertEquals(status.split()[0], '204')
 
     @s3acl(s3acl_only=True)
     def test_object_DELETE_with_fullcontrol_permission(self):
-        status, headers, body = \
-            self._test_object_for_s3acl('DELETE', 'test:full_control')
+        account = 'test:other'
+        self._test_set_container_permission(account, 'FULL_CONTROL')
+        status, headers, body = self._test_object_for_s3acl('DELETE', account)
         self.assertEquals(status.split()[0], '204')
 
     def _test_object_copy_for_s3acl(self, account, src_permission=None,
@@ -428,25 +442,12 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEquals(status.split()[0], '403')
 
     @s3acl(s3acl_only=True)
-    def test_object_PUT_copy_without_dst_obj_permission(self):
-        account = 'test:other'
-        grants = [Grant(User(account), 'WRITE')]
-        headers = encode_acl('container',
-                             ACL(Owner(account, account), grants))
-        self.swift.register('HEAD', '/v1/AUTH_test/bucket',
-                            swob.HTTPNoContent, headers, None)
-        status, headers, body = \
-            self._test_object_copy_for_s3acl(account, 'READ')
-        self.assertEquals(status.split()[0], '403')
-
-    @s3acl(s3acl_only=True)
     def test_object_PUT_copy_empty_src_path(self):
         self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
                             swob.HTTPPreconditionFailed, {}, None)
         status, headers, body = self._test_object_copy_for_s3acl(
             'test:write', 'READ', src_path='')
         self.assertEquals(status.split()[0], '400')
-
 
 if __name__ == '__main__':
     unittest.main()
