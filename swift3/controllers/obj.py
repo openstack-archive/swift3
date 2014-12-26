@@ -16,7 +16,7 @@
 from swift.common.http import HTTP_OK
 
 from swift3.controllers.base import Controller
-from swift3.response import AccessDenied, HTTPOk
+from swift3.response import HTTPOk, S3NotImplemented
 from swift3.etree import Element, SubElement, tostring
 
 
@@ -66,7 +66,7 @@ class ObjectController(Controller):
         return resp
 
     def POST(self, req):
-        raise AccessDenied()
+        raise S3NotImplemented()
 
     def DELETE(self, req):
         """
