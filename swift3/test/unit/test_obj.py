@@ -104,6 +104,20 @@ class TestSwift3Obj(Swift3TestCase):
         self._test_object_GETorHEAD('HEAD')
 
     @s3acl
+    def test_object_HEAD_Range(self):
+        req = Request.blank('/bucket/object',
+                            environ={'REQUEST_METHOD': 'HEAD'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Range': 'bytes=0-3'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '206')
+
+        self.assertTrue('content-length' in headers)
+        self.assertEqual(headers['content-length'], '4')
+        self.assertTrue('content-range' in headers)
+        self.assertTrue(headers['content-range'].startswith('bytes 0-3'))
+
+    @s3acl
     def test_object_GET_error(self):
         code = self._test_method_error('GET', '/bucket/object',
                                        swob.HTTPUnauthorized)

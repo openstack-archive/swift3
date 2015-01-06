@@ -24,8 +24,8 @@ class ObjectController(Controller):
     """
     Handles requests on objects
     """
-    def GETorHEAD(self, req):
-        resp = req.get_response(self.app)
+    def GETorHEAD(self, req, method=None):
+        resp = req.get_response(self.app, method)
 
         if req.method == 'HEAD':
             resp.app_iter = None
@@ -42,7 +42,13 @@ class ObjectController(Controller):
         """
         Handle HEAD Object request
         """
-        return self.GETorHEAD(req)
+        method = None
+        # Swift doesn't handle Range header for HEAD requests.  We
+        # send a GET request and drop the response body.
+        if 'range' in req.headers:
+            method = 'GET'
+
+        return self.GETorHEAD(req, method)
 
     def GET(self, req):
         """

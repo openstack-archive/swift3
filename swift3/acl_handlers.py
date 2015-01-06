@@ -354,6 +354,9 @@ ACL_MAP = {
     # HEAD Object
     ('HEAD', 'HEAD', 'object'):
     {'Permission': 'READ'},
+    # HEAD Object with specified range
+    ('HEAD', 'GET', 'object'):
+    {'Permission': 'READ'},
     # GET Object
     ('GET', 'GET', 'object'):
     {'Permission': 'READ'},
