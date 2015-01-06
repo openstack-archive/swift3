@@ -103,6 +103,81 @@ class TestSwift3Obj(Swift3TestCase):
     def test_object_HEAD(self):
         self._test_object_GETorHEAD('HEAD')
 
+    def _test_object_HEAD_Range(self, range_value):
+        req = Request.blank('/bucket/object',
+                            environ={'REQUEST_METHOD': 'HEAD'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Range': range_value})
+        return self.call_swift3(req)
+
+    @s3acl
+    def test_object_HEAD_Range_with_invalid_value(self):
+        range_value = 'hoge'
+        status, headers, body = self._test_object_HEAD_Range(range_value)
+        self.assertEquals(status.split()[0], '200')
+        self.assertTrue('content-length' in headers)
+        self.assertEqual(headers['content-length'], '5')
+        self.assertTrue('content-range' not in headers)
+
+        range_value = 'bytes='
+        status, headers, body = self._test_object_HEAD_Range(range_value)
+        self.assertEquals(status.split()[0], '200')
+        self.assertTrue('content-length' in headers)
+        self.assertEqual(headers['content-length'], '5')
+        self.assertTrue('content-range' not in headers)
+
+        range_value = 'bytes=1'
+        status, headers, body = self._test_object_HEAD_Range(range_value)
+        self.assertEquals(status.split()[0], '200')
+        self.assertTrue('content-length' in headers)
+        self.assertEqual(headers['content-length'], '5')
+        self.assertTrue('content-range' not in headers)
+
+        range_value = 'bytes=5-1'
+        status, headers, body = self._test_object_HEAD_Range(range_value)
+        self.assertEquals(status.split()[0], '200')
+        self.assertTrue('content-length' in headers)
+        self.assertEqual(headers['content-length'], '5')
+        self.assertTrue('content-range' not in headers)
+
+        range_value = 'bytes=5-10'
+        status, headers, body = self._test_object_HEAD_Range(range_value)
+        self.assertEquals(status.split()[0], '416')
+
+    @s3acl
+    def test_object_HEAD_Range(self):
+        range_value = 'bytes=0-3'
+        status, headers, body = self._test_object_HEAD_Range(range_value)
+        self.assertEquals(status.split()[0], '206')
+        self.assertTrue('content-length' in headers)
+        self.assertEqual(headers['content-length'], '4')
+        self.assertTrue('content-range' in headers)
+        self.assertTrue(headers['content-range'].startswith('bytes 0-3'))
+
+        range_value = 'bytes=3-3'
+        status, headers, body = self._test_object_HEAD_Range(range_value)
+        self.assertEquals(status.split()[0], '206')
+        self.assertTrue('content-length' in headers)
+        self.assertEqual(headers['content-length'], '1')
+        self.assertTrue('content-range' in headers)
+        self.assertTrue(headers['content-range'].startswith('bytes 3-3'))
+
+        range_value = 'bytes=1-'
+        status, headers, body = self._test_object_HEAD_Range(range_value)
+        self.assertEquals(status.split()[0], '206')
+        self.assertTrue('content-length' in headers)
+        self.assertEqual(headers['content-length'], '4')
+        self.assertTrue('content-range' in headers)
+        self.assertTrue(headers['content-range'].startswith('bytes 1-4'))
+
+        range_value = 'bytes=-3'
+        status, headers, body = self._test_object_HEAD_Range(range_value)
+        self.assertEquals(status.split()[0], '206')
+        self.assertTrue('content-length' in headers)
+        self.assertEqual(headers['content-length'], '3')
+        self.assertTrue('content-range' in headers)
+        self.assertTrue(headers['content-range'].startswith('bytes 2-4'))
+
     @s3acl
     def test_object_GET_error(self):
         code = self._test_method_error('GET', '/bucket/object',

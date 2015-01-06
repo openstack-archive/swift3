@@ -102,6 +102,8 @@ def generate_s3acl_environ(account, swift, owner):
     grants = map(gen_grant, PERMISSIONS)
     container_headers = _gen_test_headers(owner, grants)
     object_headers = _gen_test_headers(owner, grants, 'object')
+    object_body = 'hello'
+    object_headers['Content-Length'] = len(object_body)
 
     # TEST method is used to resolve a tenant name
     swift.register('TEST', '/v1/AUTH_test', swob.HTTPMethodNotAllowed,
