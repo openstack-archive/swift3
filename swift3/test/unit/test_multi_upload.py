@@ -22,10 +22,12 @@ from swift.common import swob
 from swift.common.swob import Request
 
 from swift3.test.unit import Swift3TestCase
-from swift3.etree import fromstring
-from swift3.subresource import Owner, Grant, User, ACL, encode_acl
+from swift3.etree import fromstring, tostring
+from swift3.subresource import Owner, Grant, User, ACL, encode_acl, \
+    decode_acl, ACLPublicRead
 from swift3.test.unit.test_s3_acl import s3acl
 from swift3.cfg import CONF
+from swift3.utils import sysmeta_header
 
 xml = '<CompleteMultipartUpload>' \
     '<Part>' \
@@ -335,7 +337,6 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEquals(query['limit'], '1001')
         self.assertEquals(query['prefix'], 'X')
 
-    @s3acl
     @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
     def test_object_multipart_upload_initiate(self):
         req = Request.blank('/bucket/object?uploads',
@@ -345,6 +346,27 @@ class TestSwift3MultiUpload(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         fromstring(body, 'InitiateMultipartUploadResult')
         self.assertEquals(status.split()[0], '200')
+
+    @s3acl(s3acl_only=True)
+    @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
+    def test_object_multipart_upload_initiate_s3acl(self):
+        req = Request.blank('/bucket/object?uploads',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization':
+                                     'AWS test:tester:hmac',
+                                     'x-amz-acl': 'public-read'})
+        status, headers, body = self.call_swift3(req)
+        fromstring(body, 'InitiateMultipartUploadResult')
+        self.assertEquals(status.split()[0], '200')
+
+        _, _, resp_headers = self.swift.calls_with_headers[-1]
+        resp_tmpacl = resp_headers.get(sysmeta_header('object', 'tmpacl'))
+        self.assertTrue(resp_tmpacl)
+        req_headers = encode_acl('object',
+                                 ACLPublicRead(Owner('test:tester',
+                                                     'test:tester')))
+        self.assertEquals(req_headers.get(sysmeta_header('object', 'acl')),
+                          resp_tmpacl)
 
     @s3acl
     def test_object_multipart_upload_complete_error(self):
@@ -356,7 +378,6 @@ class TestSwift3MultiUpload(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'MalformedXML')
 
-    @s3acl
     def test_object_multipart_upload_complete(self):
         req = Request.blank('/bucket/object?uploadId=X',
                             environ={'REQUEST_METHOD': 'POST'},
@@ -365,6 +386,28 @@ class TestSwift3MultiUpload(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         fromstring(body, 'CompleteMultipartUploadResult')
         self.assertEquals(status.split()[0], '200')
+
+    @s3acl(s3acl_only=True)
+    def test_object_multipart_upload_complete_s3acl(self):
+        acl_headers = encode_acl('object', ACLPublicRead(Owner('test:tester',
+                                                               'test:tester')))
+        headers = {}
+        headers[sysmeta_header('object', 'tmpacl')] = \
+            acl_headers.get(sysmeta_header('object', 'acl'))
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket+segments/object/X',
+                            swob.HTTPOk, headers, None)
+        req = Request.blank('/bucket/object?uploadId=X',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            body=xml)
+        status, headers, body = self.call_swift3(req)
+        fromstring(body, 'CompleteMultipartUploadResult')
+        self.assertEquals(status.split()[0], '200')
+
+        _, _, headers = self.swift.calls_with_headers[-1]
+        self.assertEquals(tostring(ACLPublicRead(Owner('test:tester',
+                                                       'test:tester')).elem()),
+                          tostring(decode_acl('object', headers).elem()))
 
     @s3acl
     def test_object_multipart_upload_abort_error(self):
