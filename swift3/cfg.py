@@ -57,5 +57,5 @@ CONF = Config({
     'max_multi_delete_objects': 1000,
     's3_acl': False,
     'storage_domain': '',
-    'pipeline_check': True,
+    'auth_pipeline_check': True,
 })

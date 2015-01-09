@@ -70,7 +70,6 @@ class Swift3Middleware(object):
     def __init__(self, app, conf, *args, **kwargs):
         self.app = app
         self.slo_enabled = True
-
         self.check_pipeline(conf)
 
     def __call__(self, env, start_response):
@@ -133,6 +132,10 @@ class Swift3Middleware(object):
                                'to support multi-part upload, please add it '
                                'in pipline')
 
+            if not conf.auth_pipeline_check:
+                LOGGER.debug('Skip pipeline auth check.')
+                return
+
             if 'tempauth' in auth_pipeline:
                 LOGGER.debug('Use tempauth middleware.')
                 return
@@ -148,8 +151,7 @@ class Swift3Middleware(object):
                 LOGGER.debug('Use third party(unknown) auth middleware.')
                 return
 
-        if conf.pipeline_check:
-            raise ValueError('Invalid proxy pipeline: %s' % pipeline)
+        raise ValueError('Invalid proxy pipeline: %s' % pipeline)
 
 
 def check_filter_order(pipeline, required_filters):
