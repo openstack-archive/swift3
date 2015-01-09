@@ -20,6 +20,7 @@ from swift.common.swob import Request, HTTPAccepted
 from swift3.test.unit import Swift3TestCase
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.controllers.acl import handle_acl_header
+from swift3.test.unit.test_s3_acl import s3acl
 
 XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
 
@@ -128,7 +129,22 @@ class TestSwift3Acl(Swift3TestCase):
         check_generated_acl_header('private',
                                    [('X-Container-Read', '.'),
                                     ('X-Container-Write', '.')])
+    @s3acl(s3acl_only=True)
+    def test_handle_acl_header_with_s3acl(self):
+        def check_generated_acl_header(acl, targets):
+            req = Request.blank('/bucket',
+                                headers={'X-Amz-Acl': acl})
+            handle_acl_header(req)
+            for target in targets:
+                self.assertTrue(target not in req.headers)
+            self.assertTrue('HTTP_X_AMZ_ACL' in req.environ)
 
+        check_generated_acl_header('public-read',
+                                   ['X-Container-Read'])
+        check_generated_acl_header('public-read-write',
+                                   ['X-Container-Read', 'X-Container-Write'])
+        check_generated_acl_header('private',
+                                   ['X-Container-Read', 'X-Container-Write'])
 
 if __name__ == '__main__':
     unittest.main()

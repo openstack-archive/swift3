@@ -23,6 +23,7 @@ from swift.common.swob import Request
 from swift3.test.unit import Swift3TestCase
 from swift3.etree import Element, SubElement, fromstring, tostring
 from swift3.test.unit.test_s3_acl import s3acl
+from swift3.subresource import Owner, encode_acl, ACLPublicRead
 
 
 class TestSwift3Bucket(Swift3TestCase):
@@ -310,6 +311,24 @@ class TestSwift3Bucket(Swift3TestCase):
         _, _, headers = self.swift.calls_with_headers[-1]
         self.assertTrue('X-Container-Read' in headers)
         self.assertEquals(headers.get('X-Container-Read'), '.r:*,.rlistings')
+        self.assertTrue('X-Container-Sysmeta-Swift3-Acl' not in headers)
+
+    @s3acl(s3acl_only=True)
+    def test_bucket_PUT_with_canned_s3acl(self):
+        account = 'test:tester'
+        acl = \
+            encode_acl('container', ACLPublicRead(Owner(account, account)))
+        req = Request.blank('/bucket',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'X-Amz-Acl': 'public-read'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+        _, _, headers = self.swift.calls_with_headers[-1]
+        self.assertTrue('X-Container-Read' not in headers)
+        self.assertTrue('X-Container-Sysmeta-Swift3-Acl' in headers)
+        self.assertEquals(headers.get('X-Container-Sysmeta-Swift3-Acl'),
+                          acl['x-container-sysmeta-swift3-acl'])
 
     @s3acl
     def test_bucket_PUT_with_location_error(self):
