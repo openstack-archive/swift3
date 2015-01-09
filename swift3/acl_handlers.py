@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from swift3.subresource import ACL, Owner
+from swift3.subresource import ACL, Owner, encode_acl
 from swift3.response import MissingSecurityHeader, \
     MalformedACLError, UnexpectedContent
 from swift3.etree import fromstring, XMLSyntaxError, DocumentInvalid
-from swift3.utils import LOGGER, MULTIUPLOAD_SUFFIX
+from swift3.utils import LOGGER, MULTIUPLOAD_SUFFIX, sysmeta_header
 
 from swift.common.utils import split_path
 
@@ -309,7 +309,16 @@ class UploadsAclHandler(MultiUploadAclHandler):
         if not self.obj:
             # Initiate Multipart Uploads (put +segment container)
             self._handle_acl(app, 'PUT', self.container)
-        # No check needed at Initiate Multipart Uploads (put upload id object)
+        else:
+            # No check needed at Initiate Multipart Uploads
+            # (put upload id object)
+            b_resp = self._handle_acl(app, 'HEAD', obj='')
+            req_acl = ACL.from_headers(self.req.headers,
+                                       b_resp.bucket_acl.owner,
+                                       Owner(self.user_id, self.user_id))
+            acl_headers = encode_acl('object', req_acl)
+            self.req.headers[sysmeta_header('object', 'tmpacl')] = \
+                acl_headers[sysmeta_header('object', 'acl')]
 
 
 class UploadAclHandler(MultiUploadAclHandler):
@@ -320,6 +329,13 @@ class UploadAclHandler(MultiUploadAclHandler):
         # FIXME: GET HEAD case conflicts with GET service
         method = 'GET' if self.method == 'GET' else 'HEAD'
         self._handle_acl(app, method, self.container, '')
+
+    def PUT(self, app):
+        container = self.req.container_name + MULTIUPLOAD_SUFFIX
+        obj = '%s/%s' % (self.obj, self.req.params['uploadId'])
+        resp = self.req.get_acl_response(app, 'HEAD', container, obj)
+        self.req.headers[sysmeta_header('object', 'acl')] = \
+            resp.sysmeta_headers.get(sysmeta_header('object', 'tmpacl'))
 
 
 """
