@@ -27,6 +27,7 @@ from swift.common.swob import Request
 from swift3.test.unit import Swift3TestCase
 from swift3.request import Request as S3Request
 from swift3.etree import fromstring
+from swift3.middleware import Swift3Middleware
 
 
 class TestSwift3Middleware(Swift3TestCase):
@@ -346,27 +347,34 @@ class TestSwift3Middleware(Swift3TestCase):
             with self.assertRaises(ValueError):
                 self.swift3.check_pipeline(conf)
 
+    def test_swift3_initialization_with_disabled_pipeline_check(self):
+        with nested(patch("swift3.middleware.CONF"),
+                    patch("swift3.middleware.PipelineWrapper"),
+                    patch("swift3.middleware.loadcontext")) as \
+                (conf, pipeline, _):
             # Disable pipeline check
             conf.pipeline_check = False
+            conf.__file__ = ''
+
             pipeline.return_value = 'swift3 tempauth proxy-server'
-            self.swift3.check_pipeline(conf)
+            Swift3Middleware(self.app, conf)
 
             pipeline.return_value = 'swift3 s3token authtoken keystoneauth ' \
                 'proxy-server'
-            self.swift3.check_pipeline(conf)
+            Swift3Middleware(self.app, conf)
 
             pipeline.return_value = 'swift3 swauth proxy-server'
-            self.swift3.check_pipeline(conf)
+            Swift3Middleware(self.app, conf)
 
             pipeline.return_value = 'swift3 authtoken s3token keystoneauth ' \
                 'proxy-server'
-            self.swift3.check_pipeline(conf)
+            Swift3Middleware(self.app, conf)
 
             pipeline.return_value = 'swift3 proxy-server'
-            self.swift3.check_pipeline(conf)
+            Swift3Middleware(self.app, conf)
 
             pipeline.return_value = 'proxy-server'
-            self.swift3.check_pipeline(conf)
+            Swift3Middleware(self.app, conf)
 
 
 if __name__ == '__main__':
