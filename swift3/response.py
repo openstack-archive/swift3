@@ -140,6 +140,7 @@ HTTPOk = partial(Response, status=200)
 HTTPCreated = partial(Response, status=201)
 HTTPAccepted = partial(Response, status=202)
 HTTPNoContent = partial(Response, status=204)
+HTTPPartialContent = partial(Response, status=206)
 
 
 class ErrorResponse(ResponseBase, swob.HTTPException):
