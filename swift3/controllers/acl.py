@@ -22,6 +22,7 @@ from swift3.response import HTTPOk, S3NotImplemented, MalformedACLError, \
     InvalidArgument, UnexpectedContent
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
+from swift3.cfg import CONF
 
 XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
 
@@ -126,6 +127,9 @@ def handle_acl_header(req):
     """
     Handle the x-amz-acl header.
     """
+    if CONF.s3_acl:
+        return
+
     amz_acl = req.environ['HTTP_X_AMZ_ACL']
     # Translate the Amazon ACL to something that can be
     # implemented in Swift, 501 otherwise. Swift uses POST
