@@ -68,6 +68,11 @@ use = egg:swift3#swift3
 # Specify a host name of your Swift cluster.  This enables virtual-hosted style
 # requests.
 # storage_domain =
+# 
+# Enable pipeline order check for SLO, s3token, authtoken, keystoneauth 
+# If the order is incorrect, it raises a except to stop proxy.
+# pipeline_check = True
+#
 
 [filter:catch_errors]
 use = egg:swift#catch_errors
