@@ -24,6 +24,7 @@ from swift3.test.unit.test_middleware import Swift3TestCase
 from swift3.cfg import CONF
 from swift3.request import Request as S3_Request
 from swift3.request import S3AclRequest
+from swift3.response import InvalidArgument
 
 
 Fake_ACL_MAP = {
@@ -159,6 +160,24 @@ class TestRequest(Swift3TestCase):
         args, kargs = m_check_permission.call_args
         permission = args[1]
         self.assertEqual(permission, 'READ')
+
+    def test_get_validate_param(self):
+        def create_s3request_with_param(param, value):
+            req = Request.blank(
+                '/bucket?%s=%s' % (param, value),
+                environ={'REQUEST_METHOD': 'GET'},
+                headers={'Authorization': 'AWS test:tester:hmac'})
+            return S3_Request(req.environ, True)
+
+        s3req = create_s3request_with_param('max-keys', '1')
+
+        # a param in the range
+        self.assertEquals(s3req.get_validated_param('max-keys', 1000, 1000), 1)
+        self.assertEquals(s3req.get_validated_param('max-keys', 0, 1), 1)
+
+        # a param in the out of the range
+        with self.assertRaises(InvalidArgument):
+            s3req.get_validated_param('max-keys', 0, 0)
 
 
 if __name__ == '__main__':

@@ -652,6 +652,24 @@ class Request(swob.Request):
         return self._get_response(app, method, container, obj,
                                   headers, body, query)
 
+    def get_validated_param(self, param, default, limit=None):
+        value = default
+        if param in self.params:
+            try:
+                value = int(self.params[param])
+                if value < 0 or (limit is not None and limit < value):
+                    err_msg = 'Argument %s must be an integer between 0 and' \
+                              ' %d' % (param, limit)
+                    raise InvalidArgument(param,
+                                          self.params[param],
+                                          err_msg)
+            except ValueError:
+                err_msg = 'Provided %s not an integer or within ' \
+                          'integer range' % param
+                raise InvalidArgument(param, self.params[param],
+                                      err_msg)
+        return value
+
 
 class S3AclRequest(Request):
     """
