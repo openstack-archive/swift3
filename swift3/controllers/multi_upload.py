@@ -109,7 +109,8 @@ class PartController(Controller):
 
         resp = req.get_response(self.app)
 
-        # TODO: set xml body for copy requests.
+        if 'X-Amz-Copy-Source' in req.headers:
+            resp.gen_copy_resp()
 
         resp.status = 200
         return resp
