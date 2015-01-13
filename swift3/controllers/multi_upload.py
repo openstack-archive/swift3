@@ -145,20 +145,8 @@ class UploadsController(Controller):
 
         keymarker = req.params.get('key-marker', '')
         uploadid = req.params.get('upload-id-marker', '')
-        maxuploads = DEFAULT_MAX_UPLOADS
-
-        if 'max-uploads' in req.params:
-            try:
-                maxuploads = int(req.params['max-uploads'])
-                if maxuploads < 0 or DEFAULT_MAX_UPLOADS < maxuploads:
-                    err_msg = 'Argument max-uploads must be an integer ' \
-                              'between 0 and %d' % DEFAULT_MAX_UPLOADS
-                    raise InvalidArgument('max-uploads', maxuploads, err_msg)
-            except ValueError:
-                err_msg = 'Provided max-uploads not an integer or within ' \
-                          'integer range'
-                raise InvalidArgument('max-uploads', req.params['max-uploads'],
-                                      err_msg)
+        maxuploads = req.get_validated_param(
+            'max-uploads', DEFAULT_MAX_UPLOADS, DEFAULT_MAX_UPLOADS)
 
         query = {
             'format': 'json',
@@ -296,39 +284,10 @@ class UploadController(Controller):
         upload_id = req.params['uploadId']
         _check_upload_info(req, self.app, upload_id)
 
-        maxparts = DEFAULT_MAX_PARTS
-        part_num_marker = 0
-
-        if 'max-parts' in req.params:
-            try:
-                maxparts = int(req.params['max-parts'])
-                if maxparts < 0 or CONF.max_parts < maxparts:
-                    err_msg = 'Argument max-parts must be an integer between 0 and' \
-                              ' %d' % CONF.max_parts
-                    raise InvalidArgument('max-parts',
-                                          req.params['max-parts'],
-                                          err_msg)
-            except ValueError:
-                err_msg = 'Provided max-parts not an integer or within ' \
-                          'integer range'
-                raise InvalidArgument('max-parts', req.params['max-parts'],
-                                      err_msg)
-
-        if 'part-number-marker' in req.params:
-            try:
-                part_num_marker = int(req.params['part-number-marker'])
-                if part_num_marker < 0 or CONF.max_parts < part_num_marker:
-                    err_msg = 'Argument part-number-marker must be an integer ' \
-                              'between 0 and %d' % CONF.max_parts
-                    raise InvalidArgument('part-number-marker',
-                                          req.params['part-number-marker'],
-                                          err_msg)
-            except ValueError:
-                err_msg = 'Provided part-number-marker not an integer or ' \
-                          'within integer range'
-                raise InvalidArgument('part-number-marker',
-                                      req.params['part-number-marker'],
-                                      err_msg)
+        maxparts = req.get_validated_param(
+            'max-parts', DEFAULT_MAX_PARTS, CONF.max_parts)
+        part_num_marker = req.get_validated_param(
+            'part-number-marker', 0, CONF.max_parts)
 
         query = {
             'format': 'json',

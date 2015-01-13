@@ -45,11 +45,9 @@ class BucketController(Controller):
         """
         Handle GET Bucket (List Objects) request
         """
-        if 'max-keys' in req.params:
-            if req.params.get('max-keys').isdigit() is False:
-                raise InvalidArgument('max-keys', req.params['max-keys'])
 
-        max_keys = int(req.params.get('max-keys', CONF.max_bucket_listing))
+        max_keys = req.get_validated_param('max-keys', CONF.max_bucket_listing)
+        # TODO: Separate max_bucket_listing and default_bucket_listing
         max_keys = min(max_keys, CONF.max_bucket_listing)
 
         encoding_type = req.params.get('encoding-type')
