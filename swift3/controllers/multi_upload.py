@@ -107,6 +107,7 @@ class PartController(Controller):
         req.object_name = '%s/%s/%d' % (req.object_name, upload_id,
                                         part_number)
 
+        req.check_copy_source(self.app)
         resp = req.get_response(self.app)
 
         # TODO: set xml body for copy requests.
