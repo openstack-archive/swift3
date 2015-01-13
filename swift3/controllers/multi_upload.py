@@ -94,10 +94,12 @@ class PartController(Controller):
                                   'Unexpected query string parameter')
 
         try:
-            # TODO: check the range of partNumber
             part_number = int(req.params['partNumber'])
+            if part_number < 1 or DEFAULT_MAX_PARTS < part_number:
+                raise Exception()
         except Exception:
-            err_msg = 'Part number must be an integer'
+            err_msg = 'Part number must be an integer between 1 and %d,' \
+                      ' inclusive' % DEFAULT_MAX_PARTS
             raise InvalidArgument('partNumber', req.params['partNumber'],
                                   err_msg)
 
