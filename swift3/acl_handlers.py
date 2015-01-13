@@ -19,7 +19,6 @@ from swift3.response import MissingSecurityHeader, \
 from swift3.etree import fromstring, XMLSyntaxError, DocumentInvalid
 from swift3.utils import LOGGER, MULTIUPLOAD_SUFFIX
 
-from swift.common.utils import split_path
 
 """
 Acl Handlers:
@@ -101,14 +100,6 @@ class BaseAclHandler(object):
         self.method = req.environ['REQUEST_METHOD']
         self.user_id = self.req.user_id
         self.headers = self.req.headers if headers is None else headers
-
-    def _check_copy_source(self, app):
-        if 'X-Amz-Copy-Source' in self.req.headers:
-            src_path = self.req.headers['X-Amz-Copy-Source']
-            src_path = src_path if src_path.startswith('/') else \
-                ('/' + src_path)
-            src_bucket, src_obj = split_path(src_path, 0, 2, True)
-            self._handle_acl(app, 'HEAD', src_bucket, src_obj, 'READ')
 
     def handle_acl(self, app, method):
         method = method or self.method
@@ -292,9 +283,23 @@ class PartAclHandler(MultiUploadAclHandler):
     """
     PartAclHandler: Handler for PartController
     """
-    def PUT(self, app):
-        # Upload Part
-        self._check_copy_source(app)
+    def __init__(self, req, container, obj, headers):
+        # pylint: disable-msg=E1003
+        super(MultiUploadAclHandler, self).__init__(req, container, obj,
+                                                    headers)
+        self.check_copy_src = False
+        if self.container.endswith(MULTIUPLOAD_SUFFIX):
+            self.container = self.container[:-len(MULTIUPLOAD_SUFFIX)]
+        else:
+            self.check_copy_src = True
+
+    def HEAD(self, app):
+        if self.check_copy_src:
+            # For check_copy_source
+            return self._handle_acl(app, 'HEAD', self.container, self.obj)
+        else:
+            # For _check_upload_info
+            self._handle_acl(app, 'HEAD', self.container, '')
 
 
 class UploadsAclHandler(MultiUploadAclHandler):
@@ -359,7 +364,7 @@ ACL_MAP = {
     # GET Object
     ('GET', 'GET', 'object'):
     {'Permission': 'READ'},
-    # PUT Object Copy
+    # PUT Object Copy, Upload Part Copy
     ('PUT', 'HEAD', 'object'):
     {'Permission': 'READ'},
     # Initiate Multipart Upload

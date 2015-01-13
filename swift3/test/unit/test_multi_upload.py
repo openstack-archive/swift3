@@ -544,19 +544,22 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
 
     def _test_copy_for_s3acl(self, account, src_permission=None,
-                             src_path='/src_bucket/src_obj'):
+                             src_path='/src_bucket/src_obj',
+                             head_resp=swob.HTTPOk, put_header={}):
         owner = 'test:tester'
         grants = [Grant(User(account), src_permission)] \
             if src_permission else [Grant(User(owner), 'FULL_CONTROL')]
         src_o_headers = encode_acl('object', ACL(Owner(owner, owner), grants))
         self.swift.register('HEAD', '/v1/AUTH_test/src_bucket/src_obj',
-                            swob.HTTPOk, src_o_headers, None)
+                            head_resp, src_o_headers, None)
 
+        put_headers = {'Authorization': 'AWS %s:hmac' % account,
+                       'X-Amz-Copy-Source': src_path}
+        put_headers.update(put_header)
         req = Request.blank(
             '/bucket/object?partNumber=1&uploadId=X',
             environ={'REQUEST_METHOD': 'PUT'},
-            headers={'Authorization': 'AWS %s:hmac' % account,
-                     'X-Amz-Copy-Source': src_path})
+            headers=put_headers)
         return self.call_swift3(req)
 
     @s3acl(s3acl_only=True)
@@ -606,6 +609,144 @@ class TestSwift3MultiUpload(Swift3TestCase):
         status, headers, body = \
             self._test_copy_for_s3acl('test:write', 'WRITE', '/bucket/')
         self.assertEquals(status.split()[0], '400')
+
+    @s3acl
+    def test_upload_part_copy_headers_error(self):
+        account = 'test:tester'
+        etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
+        last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
+
+        header = {'X-Amz-Copy-Source-If-Match': etag}
+        status, header, body = \
+            self._test_copy_for_s3acl(account,
+                                      head_resp=swob.HTTPPreconditionFailed,
+                                      put_header=header)
+        self.assertEquals(self._get_error_code(body), 'PreconditionFailed')
+
+        header = {'X-Amz-Copy-Source-If-None-Match': etag}
+        status, header, body = \
+            self._test_copy_for_s3acl(account,
+                                      head_resp=swob.HTTPNotModified,
+                                      put_header=header)
+        self.assertEquals(self._get_error_code(body), 'PreconditionFailed')
+
+        header = {'X-Amz-Copy-Source-If-Modified-Since': last_modified_since}
+        status, header, body = \
+            self._test_copy_for_s3acl(account,
+                                      head_resp=swob.HTTPNotModified,
+                                      put_header=header)
+        self.assertEquals(self._get_error_code(body), 'PreconditionFailed')
+
+        header = \
+            {'X-Amz-Copy-Source-If-Unmodified-Since': last_modified_since}
+        status, header, body = \
+            self._test_copy_for_s3acl(account,
+                                      head_resp=swob.HTTPPreconditionFailed,
+                                      put_header=header)
+        self.assertEquals(self._get_error_code(body), 'PreconditionFailed')
+
+    def test_upload_part_copy_headers_with_match(self):
+        account = 'test:tester'
+        etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
+        last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
+
+        header = {'X-Amz-Copy-Source-If-Match': etag,
+                  'X-Amz-Copy-Source-If-Modified-Since': last_modified_since}
+        status, header, body = \
+            self._test_copy_for_s3acl(account, put_header=header)
+
+        self.assertEquals(status.split()[0], '200')
+
+        self.assertEquals(len(self.swift.calls_with_headers), 3)
+        _, _, headers = self.swift.calls_with_headers[-2]
+        self.assertEquals(headers['If-Match'], etag)
+        self.assertEquals(headers['If-Modified-Since'], last_modified_since)
+        _, _, headers = self.swift.calls_with_headers[-1]
+        self.assertTrue(headers.get('If-Match') is None)
+        self.assertTrue(headers.get('If-Modified-Since') is None)
+        _, _, headers = self.swift.calls_with_headers[0]
+        self.assertTrue(headers.get('If-Match') is None)
+        self.assertTrue(headers.get('If-Modified-Since') is None)
+
+    @s3acl(s3acl_only=True)
+    def test_upload_part_copy_headers_with_match_and_s3acl(self):
+        account = 'test:tester'
+        etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
+        last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
+
+        header = {'X-Amz-Copy-Source-If-Match': etag,
+                  'X-Amz-Copy-Source-If-Modified-Since': last_modified_since}
+        status, header, body = \
+            self._test_copy_for_s3acl(account, put_header=header)
+
+        self.assertEquals(status.split()[0], '200')
+        self.assertEquals(len(self.swift.calls_with_headers), 4)
+        # Before the check of the copy source in the case of s3acl is valid,
+        # Swift3 check the bucket write permissions and the object existence
+        # of the destination.
+        _, _, headers = self.swift.calls_with_headers[-3]
+        self.assertTrue(headers.get('If-Match') is None)
+        self.assertTrue(headers.get('If-Modified-Since') is None)
+        _, _, headers = self.swift.calls_with_headers[-2]
+        self.assertEquals(headers['If-Match'], etag)
+        self.assertEquals(headers['If-Modified-Since'], last_modified_since)
+        _, _, headers = self.swift.calls_with_headers[-1]
+        self.assertTrue(headers.get('If-Match') is None)
+        self.assertTrue(headers.get('If-Modified-Since') is None)
+        _, _, headers = self.swift.calls_with_headers[0]
+        self.assertTrue(headers.get('If-Match') is None)
+        self.assertTrue(headers.get('If-Modified-Since') is None)
+
+    def test_upload_part_copy_headers_with_not_match(self):
+        account = 'test:tester'
+        etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
+        last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
+
+        header = {'X-Amz-Copy-Source-If-None-Match': etag,
+                  'X-Amz-Copy-Source-If-Unmodified-Since': last_modified_since}
+        status, header, body = \
+            self._test_copy_for_s3acl(account, put_header=header)
+
+        self.assertEquals(status.split()[0], '200')
+        self.assertEquals(len(self.swift.calls_with_headers), 3)
+        _, _, headers = self.swift.calls_with_headers[-2]
+        self.assertEquals(headers['If-None-Match'], etag)
+        self.assertEquals(headers['If-Unmodified-Since'], last_modified_since)
+        _, _, headers = self.swift.calls_with_headers[-1]
+        self.assertTrue(headers.get('If-None-Match') is None)
+        self.assertTrue(headers.get('If-Unmodified-Since') is None)
+        _, _, headers = self.swift.calls_with_headers[0]
+        self.assertTrue(headers.get('If-None-Match') is None)
+        self.assertTrue(headers.get('If-Unmodified-Since') is None)
+
+    @s3acl(s3acl_only=True)
+    def test_upload_part_copy_headers_with_not_match_and_s3acl(self):
+        account = 'test:tester'
+        etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
+        last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
+
+        header = {'X-Amz-Copy-Source-If-None-Match': etag,
+                  'X-Amz-Copy-Source-If-Unmodified-Since': last_modified_since}
+        status, header, body = \
+            self._test_copy_for_s3acl(account, put_header=header)
+
+        self.assertEquals(status.split()[0], '200')
+        self.assertEquals(len(self.swift.calls_with_headers), 4)
+        # Before the check of the copy source in the case of s3acl is valid,
+        # Swift3 check the bucket write permissions and the object existence
+        # of the destination.
+        _, _, headers = self.swift.calls_with_headers[-3]
+        self.assertTrue(headers.get('If-Match') is None)
+        self.assertTrue(headers.get('If-Modified-Since') is None)
+        _, _, headers = self.swift.calls_with_headers[-2]
+        self.assertEquals(headers['If-None-Match'], etag)
+        self.assertEquals(headers['If-Unmodified-Since'], last_modified_since)
+        self.assertTrue(headers.get('If-Match') is None)
+        self.assertTrue(headers.get('If-Modified-Since') is None)
+        _, _, headers = self.swift.calls_with_headers[-1]
+        self.assertTrue(headers.get('If-None-Match') is None)
+        self.assertTrue(headers.get('If-Unmodified-Since') is None)
+        _, _, headers = self.swift.calls_with_headers[0]
 
 if __name__ == '__main__':
     unittest.main()
