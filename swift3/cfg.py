@@ -59,4 +59,5 @@ CONF = Config({
     's3_acl': False,
     'storage_domain': '',
     'pipeline_check': True,
+    'check_bucket_owner': False,
 })
