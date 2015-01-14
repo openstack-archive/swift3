@@ -120,7 +120,8 @@ class Swift3Middleware(object):
         pipeline = str(PipelineWrapper(ctx)).split(' ')
 
         # Add compatible with 3rd party middleware.
-        if check_filter_order(pipeline, ['swift3', 'proxy-server']):
+        if check_filter_order(pipeline,
+                              ['swift3', 'proxy-server']):
 
             auth_pipeline = pipeline[pipeline.index('swift3') + 1:
                                      pipeline.index('proxy-server')]
@@ -136,9 +137,10 @@ class Swift3Middleware(object):
                 LOGGER.debug('Use tempauth middleware.')
                 return
             elif 'keystoneauth' in auth_pipeline:
-                if check_filter_order(auth_pipeline, ['s3token',
-                                                      'authtoken',
-                                                      'keystoneauth']):
+                if check_filter_order(auth_pipeline,
+                                      ['s3token',
+                                       'authtoken',
+                                       'keystoneauth']):
                     LOGGER.debug('Use keystone middleware.')
                     return
 
@@ -146,7 +148,8 @@ class Swift3Middleware(object):
                 LOGGER.debug('Use third party(unknown) auth middleware.')
                 return
 
-        raise ValueError('Invalid proxy pipeline: %s' % pipeline)
+        if conf.pipeline_check:
+            raise ValueError('Invalid proxy pipeline: %s' % pipeline)
 
 
 def check_filter_order(pipeline, required_filters):
