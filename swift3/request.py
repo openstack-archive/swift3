@@ -663,6 +663,10 @@ class Request(swob.Request):
                     raise InvalidArgument(param,
                                           self.params[param],
                                           err_msg)
+                if not isinstance(value, int):
+                    # check the instance because int() could build
+                    # a long instance
+                    raise ValueError
             except ValueError:
                 err_msg = 'Provided %s not an integer or within ' \
                           'integer range' % param
