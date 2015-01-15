@@ -24,6 +24,7 @@ from swift.common.swob import Request
 from swift3.test.unit import Swift3TestCase
 from swift3.test.unit.test_s3_acl import s3acl
 from swift3.subresource import ACL, User, encode_acl, Owner, Grant
+from swift3.etree import fromstring
 
 
 class TestSwift3Obj(Swift3TestCase):
@@ -32,17 +33,23 @@ class TestSwift3Obj(Swift3TestCase):
         super(TestSwift3Obj, self).setUp()
 
         self.object_body = 'hello'
-        etag = hashlib.md5(self.object_body).hexdigest()
+        self.etag = hashlib.md5(self.object_body).hexdigest()
+        self.last_modified = 'Fri, 01 Apr 2014 12:00:00 GMT'
 
         self.response_headers = {'Content-Type': 'text/html',
                                  'Content-Length': len(self.object_body),
                                  'x-object-meta-test': 'swift',
-                                 'etag': etag,
-                                 'last-modified': '2011-01-05T02:19:14.275290'}
+                                 'etag': self.etag,
+                                 'last-modified': self.last_modified}
 
         self.swift.register('GET', '/v1/AUTH_test/bucket/object',
                             swob.HTTPOk, self.response_headers,
                             self.object_body)
+        self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPCreated,
+                            {'etag': self.etag,
+                             'last-modified': self.last_modified},
+                            None)
 
     def _test_object_GETorHEAD(self, method):
         req = Request.blank('/bucket/object',
@@ -332,15 +339,10 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEquals(headers['etag'], etag)
 
     def test_object_PUT_headers(self):
-        etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
-        content_md5 = etag.decode('hex').encode('base64').strip()
+        content_md5 = self.etag.decode('hex').encode('base64').strip()
 
         self.swift.register('HEAD', '/v1/AUTH_test/some/source',
                             swob.HTTPOk, {}, None)
-        self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
-                            swob.HTTPCreated,
-                            {'etag': etag},
-                            None)
         req = Request.blank(
             '/bucket/object',
             environ={'REQUEST_METHOD': 'PUT'},
@@ -352,17 +354,19 @@ class TestSwift3Obj(Swift3TestCase):
         req.date = datetime.now()
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        # Check that swift3 returns an etag header.
-        self.assertEquals(headers['etag'], '"%s"' % etag)
+        # Check that swift3 dones not return an etag header,
+        # sepcified copy source.
+        self.assertTrue(headers.get('etag') is None)
+        self.assertEquals(headers['last-modified'], self.last_modified)
 
         _, _, headers = self.swift.calls_with_headers[-1]
         # Check that swift3 converts a Content-MD5 header into an etag.
-        self.assertEquals(headers['ETag'], etag)
+        self.assertEquals(headers['ETag'], self.etag)
         self.assertEquals(headers['X-Object-Meta-Something'], 'oh hai')
         self.assertEquals(headers['X-Copy-From'], '/some/source')
         self.assertEquals(headers['Content-Length'], '0')
 
-    def _test_object_PUT_copy_headers(self, head_resp, put_header):
+    def _test_object_PUT_copy(self, head_resp, put_header={}):
         account = 'test:tester'
         grants = [Grant(User(account), 'FULL_CONTROL')]
         head_headers = \
@@ -370,8 +374,6 @@ class TestSwift3Obj(Swift3TestCase):
                        ACL(Owner(account, account), grants))
         self.swift.register('HEAD', '/v1/AUTH_test/some/source',
                             head_resp, head_headers, None)
-        self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
-                            swob.HTTPCreated, {}, None)
 
         put_headers = {'Authorization': 'AWS test:tester:hmac',
                        'X-Amz-Copy-Source': '/some/source'}
@@ -386,33 +388,49 @@ class TestSwift3Obj(Swift3TestCase):
         return self.call_swift3(req)
 
     @s3acl
+    def test_object_PUT_copy(self):
+        iso_format = '2014-04-01T12:00:00.000Z'
+        status, headers, body = \
+            self._test_object_PUT_copy(swob.HTTPOk)
+        self.assertEquals(status.split()[0], '200')
+        self.assertEquals(headers['Content-Type'], 'application/xml')
+        self.assertTrue(headers.get('etag') is None)
+        elem = fromstring(body, 'CopyObjectResult')
+        self.assertEquals(elem.find('LastModified').text, iso_format)
+        self.assertEquals(elem.find('ETag').text, '"%s"' % self.etag)
+
+        _, _, headers = self.swift.calls_with_headers[-1]
+        self.assertEquals(headers['X-Copy-From'], '/some/source')
+        self.assertEquals(headers['Content-Length'], '0')
+
+    @s3acl
     def test_object_PUT_copy_headers_error(self):
         etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
         last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
 
         header = {'X-Amz-Copy-Source-If-Match': etag}
         status, header, body = \
-            self._test_object_PUT_copy_headers(swob.HTTPPreconditionFailed,
-                                               header)
+            self._test_object_PUT_copy(swob.HTTPPreconditionFailed,
+                                       header)
         self.assertEquals(self._get_error_code(body), 'PreconditionFailed')
 
         header = {'X-Amz-Copy-Source-If-None-Match': etag}
         status, header, body = \
-            self._test_object_PUT_copy_headers(swob.HTTPNotModified,
-                                               header)
+            self._test_object_PUT_copy(swob.HTTPNotModified,
+                                       header)
         self.assertEquals(self._get_error_code(body), 'PreconditionFailed')
 
         header = {'X-Amz-Copy-Source-If-Modified-Since': last_modified_since}
         status, header, body = \
-            self._test_object_PUT_copy_headers(swob.HTTPNotModified,
-                                               header)
+            self._test_object_PUT_copy(swob.HTTPNotModified,
+                                       header)
         self.assertEquals(self._get_error_code(body), 'PreconditionFailed')
 
         header = \
             {'X-Amz-Copy-Source-If-Unmodified-Since': last_modified_since}
         status, header, body = \
-            self._test_object_PUT_copy_headers(swob.HTTPPreconditionFailed,
-                                               header)
+            self._test_object_PUT_copy(swob.HTTPPreconditionFailed,
+                                       header)
         self.assertEquals(self._get_error_code(body), 'PreconditionFailed')
 
     def test_object_PUT_copy_headers_with_match(self):
@@ -422,7 +440,7 @@ class TestSwift3Obj(Swift3TestCase):
         header = {'X-Amz-Copy-Source-If-Match': etag,
                   'X-Amz-Copy-Source-If-Modified-Since': last_modified_since}
         status, header, body = \
-            self._test_object_PUT_copy_headers(swob.HTTPOk, header)
+            self._test_object_PUT_copy(swob.HTTPOk, header)
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(len(self.swift.calls_with_headers), 2)
         _, _, headers = self.swift.calls_with_headers[-1]
@@ -440,7 +458,7 @@ class TestSwift3Obj(Swift3TestCase):
         header = {'X-Amz-Copy-Source-If-Match': etag,
                   'X-Amz-Copy-Source-If-Modified-Since': last_modified_since}
         status, header, body = \
-            self._test_object_PUT_copy_headers(swob.HTTPOk, header)
+            self._test_object_PUT_copy(swob.HTTPOk, header)
 
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(len(self.swift.calls_with_headers), 3)
@@ -463,7 +481,7 @@ class TestSwift3Obj(Swift3TestCase):
         header = {'X-Amz-Copy-Source-If-None-Match': etag,
                   'X-Amz-Copy-Source-If-Unmodified-Since': last_modified_since}
         status, header, body = \
-            self._test_object_PUT_copy_headers(swob.HTTPOk, header)
+            self._test_object_PUT_copy(swob.HTTPOk, header)
 
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(len(self.swift.calls_with_headers), 2)
@@ -482,7 +500,7 @@ class TestSwift3Obj(Swift3TestCase):
         header = {'X-Amz-Copy-Source-If-None-Match': etag,
                   'X-Amz-Copy-Source-If-Unmodified-Since': last_modified_since}
         status, header, body = \
-            self._test_object_PUT_copy_headers(swob.HTTPOk, header)
+            self._test_object_PUT_copy(swob.HTTPOk, header)
         self.assertEquals(status.split()[0], '200')
         # After the check of the copy source in the case of s3acl is valid,
         # Swift3 check the bucket write permissions of the destination.
