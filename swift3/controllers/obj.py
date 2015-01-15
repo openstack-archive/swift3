@@ -18,7 +18,6 @@ from swift.common.swob import Range, content_range_header_value
 
 from swift3.controllers.base import Controller
 from swift3.response import S3NotImplemented, InvalidRange, HTTPPartialContent
-from swift3.etree import Element, SubElement, tostring
 
 
 class ObjectController(Controller):
@@ -97,13 +96,7 @@ class ObjectController(Controller):
         resp = req.get_response(self.app)
 
         if 'X-Amz-Copy-Source' in req.headers:
-            elem = Element('CopyObjectResult')
-            SubElement(elem, 'LastModified').text = \
-                resp.last_modified.isoformat()[:-6] + '.000Z'
-            SubElement(elem, 'ETag').text = '"%s"' % resp.etag
-            resp.body = tostring(elem)
-            resp.headers['Content-Type'] = 'application/xml'
-            resp.etag = None
+            resp.gen_copy_resp()
 
         resp.status = HTTP_OK
         return resp
