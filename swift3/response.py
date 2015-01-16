@@ -135,8 +135,8 @@ class Response(ResponseBase, swob.Response):
 
         return resp
 
-    def append_copy_resp_body(self):
-        elem = Element('CopyObjectResult')
+    def append_copy_resp_body(self, controller_name):
+        elem = Element('Copy%sResult' % controller_name)
         SubElement(elem, 'LastModified').text = \
             self.last_modified.isoformat()[:-6] + '.000Z'
         SubElement(elem, 'ETag').text = '"%s"' % self.etag
