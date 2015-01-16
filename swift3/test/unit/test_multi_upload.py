@@ -62,6 +62,9 @@ class TestSwift3MultiUpload(Swift3TestCase):
         super(TestSwift3MultiUpload, self).setUp()
 
         segment_bucket = '/v1/AUTH_test/bucket+segments'
+        self.etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
+        last_modified = 'Fri, 01 Apr 2014 12:00:00 GMT'
+        put_headers = {'etag': self.etag, 'last-modified': last_modified}
 
         objects = map(lambda item: {'name': item[0], 'last_modified': item[1],
                                     'hash': item[2], 'bytes': item[3]},
@@ -82,7 +85,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.swift.register('GET', segment_bucket + '/object/invalid',
                             swob.HTTPNotFound, {}, None)
         self.swift.register('PUT', segment_bucket + '/object/X/1',
-                            swob.HTTPCreated, {}, None)
+                            swob.HTTPCreated, put_headers, None)
         self.swift.register('DELETE', segment_bucket + '/object/X/1',
                             swob.HTTPNoContent, {}, None)
         self.swift.register('DELETE', segment_bucket + '/object/X/2',
@@ -739,6 +742,22 @@ class TestSwift3MultiUpload(Swift3TestCase):
             environ={'REQUEST_METHOD': 'PUT'},
             headers=put_headers)
         return self.call_swift3(req)
+
+    @s3acl
+    def test_upload_part_copy(self):
+        iso_format = '2014-04-01T12:00:00.000Z'
+        status, headers, body = \
+            self._test_copy_for_s3acl('test:tester')
+        self.assertEquals(status.split()[0], '200')
+        self.assertEquals(headers['Content-Type'], 'application/xml')
+        self.assertTrue(headers.get('etag') is None)
+        elem = fromstring(body, 'CopyObjectResult')
+        self.assertEquals(elem.find('LastModified').text, iso_format)
+        self.assertEquals(elem.find('ETag').text, '"%s"' % self.etag)
+
+        _, _, headers = self.swift.calls_with_headers[-1]
+        self.assertEquals(headers['X-Copy-From'], '/src_bucket/src_obj')
+        self.assertEquals(headers['Content-Length'], '0')
 
     @s3acl(s3acl_only=True)
     def test_upload_part_copy_acl_with_owner_permission(self):

@@ -135,6 +135,15 @@ class Response(ResponseBase, swob.Response):
 
         return resp
 
+    def append_copy_resp_body(self):
+        elem = Element('CopyObjectResult')
+        SubElement(elem, 'LastModified').text = \
+            self.last_modified.isoformat()[:-6] + '.000Z'
+        SubElement(elem, 'ETag').text = '"%s"' % self.etag
+        self.headers['Content-Type'] = 'application/xml'
+        self.body = tostring(elem)
+        self.etag = None
+
 
 HTTPOk = partial(Response, status=200)
 HTTPCreated = partial(Response, status=201)
