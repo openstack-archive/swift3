@@ -17,6 +17,7 @@ import unittest
 from datetime import datetime
 import hashlib
 from os.path import join
+from mock import patch
 
 from swift.common import swob
 from swift.common.swob import Request
@@ -25,6 +26,28 @@ from swift3.test.unit import Swift3TestCase
 from swift3.test.unit.test_s3_acl import s3acl
 from swift3.subresource import ACL, User, encode_acl, Owner, Grant
 from swift3.etree import fromstring
+from swift3.test.unit.helpers import FakeSwift
+
+
+def _wrap_fake_auth_middleware(org_func):
+    def fake_fake_auth_middleware(self, env):
+        org_func(env)
+
+        if 'swift.authorize_override' in env:
+            return
+
+        if 'HTTP_AUTHORIZATION' not in env:
+            return
+
+        _, authorization = env['HTTP_AUTHORIZATION'].split(' ')
+        tenant_user, sign = authorization.rsplit(':', 1)
+        tenant, user = tenant_user.rsplit(':', 1)
+
+        env['HTTP_X_TENANT_NAME'] = tenant
+        env['HTTP_X_USER_NAME'] = user
+        env['PATH_INFO'] = unicode(env['PATH_INFO'])
+
+    return fake_fake_auth_middleware
 
 
 class TestSwift3Obj(Swift3TestCase):
@@ -216,6 +239,19 @@ class TestSwift3Obj(Swift3TestCase):
     @s3acl
     def test_object_GET(self):
         self._test_object_GETorHEAD('GET')
+
+    @s3acl(s3acl_only=True)
+    def test_object_GET_with_s3acl_and_keystone(self):
+        # for passing keystone authentication root
+        fake_auth = self.swift._fake_auth_middleware
+        with patch.object(FakeSwift, '_fake_auth_middleware',
+                          _wrap_fake_auth_middleware(fake_auth)):
+
+            self._test_object_GETorHEAD('GET')
+            _, _, headers = self.swift.calls_with_headers[-1]
+            self.assertTrue('Authorization' not in headers)
+            _, _, headers = self.swift.calls_with_headers[0]
+            self.assertTrue('Authorization' not in headers)
 
     @s3acl
     def test_object_GET_Range(self):

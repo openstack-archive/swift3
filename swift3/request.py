@@ -437,10 +437,7 @@ class Request(swob.Request):
             env['REQUEST_METHOD'] = method
 
         if self.keystone_token:
-            # Need to skip S3 authorization since authtoken middleware
-            # overwrites account in PATH_INFO
             env['HTTP_X_AUTH_TOKEN'] = self.keystone_token
-            del env['HTTP_AUTHORIZATION']
         else:
             env['HTTP_X_AUTH_TOKEN'] = self.token
 
@@ -715,6 +712,9 @@ class S3AclRequest(Request):
                                       sw_resp.environ['HTTP_X_USER_NAME'])
             self.user_id = utf8encode(self.user_id)
             self.keystone_token = sw_req.environ['HTTP_X_AUTH_TOKEN']
+            # Need to skip S3 authorization since authtoken middleware
+            # overwrites account in PATH_INFO
+            del self.headers['Authorization']
         else:
             # tempauth
             self.user_id = self.access_key
