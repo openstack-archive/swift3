@@ -70,6 +70,16 @@ class FakeResponse(object):
                                      resource='object'))
 
 
+class FakeSwiftResponse(object):
+    def __init__(self):
+        self.environ = {
+            'PATH_INFO': '/v1/AUTH_test',
+            'HTTP_X_TENANT_NAME': 'test',
+            'HTTP_X_USER_NAME': 'tester',
+            'HTTP_X_AUTH_TOKEN': 'token',
+        }
+
+
 class TestRequest(Swift3TestCase):
 
     def setUp(self):
@@ -185,6 +195,19 @@ class TestRequest(Swift3TestCase):
             s3req.get_validated_param('max-keys', 1)
         self.assertTrue(
             'not an integer or within integer range' in result.exception.body)
+
+    def test_authenticate_delete_Authorization_from_s3req_headers(self):
+        req = Request.blank('/bucket/obj',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        with nested(patch.object(Request, 'get_response'),
+                    patch.object(Request, 'remote_user', 'authorized')) \
+                as (m_swift_resp, m_remote_user):
+
+            m_swift_resp.return_value = FakeSwiftResponse()
+            s3_req = S3AclRequest(req.environ, MagicMock())
+            self.assertTrue('HTTP_AUTHORIZATION' not in s3_req.environ)
+            self.assertTrue('Authorization' not in s3_req.headers)
 
 
 if __name__ == '__main__':
