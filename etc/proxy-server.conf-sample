@@ -72,9 +72,12 @@ use = egg:swift3#swift3
 # requests.
 # storage_domain =
 #
-# Enable pipeline order check for SLO, s3token, authtoken, keystoneauth
+# Enable pipeline order check for SLO, s3token, authtoken, keystoneauth according to
+# standard swift3/Swift construction using either tempauth or keystoneauth.
 # If the order is incorrect, it raises a except to stop proxy.
-# pipeline_check = True
+# Turn auth_pipeline_check off only when you want to bypass these authenticate
+# middlewares in order to use other 3rd party (or your proprietary) authenticate middleware.
+# auth_pipeline_check = True
 #
 
 [filter:catch_errors]

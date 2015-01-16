@@ -320,7 +320,7 @@ class TestSwift3Middleware(Swift3TestCase):
                     patch("swift3.middleware.PipelineWrapper"),
                     patch("swift3.middleware.loadcontext")) as \
                 (conf, pipeline, _):
-            conf.pipeline_check = True
+            conf.auth_pipeline_check = True
             conf.__file__ = ''
 
             pipeline.return_value = 'swift3 tempauth proxy-server'
@@ -346,8 +346,15 @@ class TestSwift3Middleware(Swift3TestCase):
             with self.assertRaises(ValueError):
                 self.swift3.check_pipeline(conf)
 
+    def test_swift3_initialization_with_disabled_pipeline_check(self):
+        with nested(patch("swift3.middleware.CONF"),
+                    patch("swift3.middleware.PipelineWrapper"),
+                    patch("swift3.middleware.loadcontext")) as \
+                (conf, pipeline, _):
             # Disable pipeline check
-            conf.pipeline_check = False
+            conf.auth_pipeline_check = False
+            conf.__file__ = ''
+
             pipeline.return_value = 'swift3 tempauth proxy-server'
             self.swift3.check_pipeline(conf)
 
@@ -366,7 +373,8 @@ class TestSwift3Middleware(Swift3TestCase):
             self.swift3.check_pipeline(conf)
 
             pipeline.return_value = 'proxy-server'
-            self.swift3.check_pipeline(conf)
+            with self.assertRaises(ValueError):
+                self.swift3.check_pipeline(conf)
 
 
 if __name__ == '__main__':
