@@ -28,13 +28,14 @@ class FakeSwift(object):
     A good-enough fake Swift proxy server to use in testing middleware.
     """
 
-    def __init__(self):
+    def __init__(self, auth='tempauth'):
         self._calls = []
         self.req_method_paths = []
         self.swift_sources = []
         self.uploaded = {}
         # mapping of (method, path) --> (response class, headers, body)
         self._responses = {}
+        self.auth = auth
 
     def _fake_auth_middleware(self, env):
         if 'swift.authorize_override' in env:
@@ -51,6 +52,11 @@ class FakeSwift(object):
         env['PATH_INFO'] = path.replace(tenant_user, 'AUTH_' + tenant)
 
         env['REMOTE_USER'] = 'authorized'
+
+        if self.auth == 'keystone':
+            env['HTTP_X_TENANT_NAME'] = tenant
+            env['HTTP_X_USER_NAME'] = user
+            env['PATH_INFO'] = unicode(env['PATH_INFO'])
 
         # AccessDenied by default
         env['swift.authorize'] = lambda req: swob.HTTPForbidden(request=req)
