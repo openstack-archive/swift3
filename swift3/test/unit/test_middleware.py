@@ -27,6 +27,9 @@ from swift.common.swob import Request
 from swift3.test.unit import Swift3TestCase
 from swift3.request import Request as S3Request
 from swift3.etree import fromstring
+from swift3.subresource import ACLPublicRead, Owner, encode_acl
+from swift3.test.unit.helpers import FakeSwift
+from swift3 import middleware as swift3
 
 
 class TestSwift3Middleware(Swift3TestCase):
@@ -375,6 +378,32 @@ class TestSwift3Middleware(Swift3TestCase):
             pipeline.return_value = 'proxy-server'
             with self.assertRaises(ValueError):
                 self.swift3.check_pipeline(conf)
+
+    @patch('swift3.cfg.CONF.s3_acl', True)
+    def test_keystone_auth_for_s3acl(self):
+        app = FakeSwift(auth='keystone')
+        conf = {
+            'log_level': 'debug',
+            'storage_domain': 'localhost',
+        }
+        account = 'test:tester'
+        acl_headers = \
+            encode_acl('object', ACLPublicRead(Owner(account, account)))
+        app.register('HEAD', '/v1/AUTH_test/bucket/obj', swob.HTTPOk,
+                     acl_headers, None)
+        app.register('GET', '/v1/AUTH_test/bucket/obj', swob.HTTPOk,
+                     acl_headers, 'Hello')
+        req = Request.blank('/bucket/obj',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        s3_app = swift3.filter_factory(conf)(app)
+        status, headers, body = self.call_app(req, app=s3_app)
+        self.assertEquals(status.split()[0], '200')
+        self.assertEquals(len(app.calls_with_headers), 2)
+        _, _, headers = app.calls_with_headers[-1]
+        self.assertTrue('Authorization' not in headers)
+        _, _, headers = app.calls_with_headers[0]
+        self.assertTrue('Authorization' not in headers)
 
 
 if __name__ == '__main__':

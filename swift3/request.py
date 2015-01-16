@@ -440,7 +440,10 @@ class Request(swob.Request):
             # Need to skip S3 authorization since authtoken middleware
             # overwrites account in PATH_INFO
             env['HTTP_X_AUTH_TOKEN'] = self.keystone_token
-            del env['HTTP_AUTHORIZATION']
+            if env.get('HTTP_AUTHORIZATION'):
+                del env['HTTP_AUTHORIZATION']
+            if headers and headers.get('Authorization'):
+                del headers['Authorization']
         else:
             env['HTTP_X_AUTH_TOKEN'] = self.token
 
