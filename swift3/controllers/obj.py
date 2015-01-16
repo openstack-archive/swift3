@@ -96,7 +96,8 @@ class ObjectController(Controller):
         resp = req.get_response(self.app)
 
         if 'X-Amz-Copy-Source' in req.headers:
-            resp.append_copy_resp_body()
+            root_tag = 'CopyObjectResult'
+            resp.append_copy_resp_body(root_tag)
 
         resp.status = HTTP_OK
         return resp

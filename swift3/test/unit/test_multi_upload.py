@@ -751,7 +751,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(headers['Content-Type'], 'application/xml')
         self.assertTrue(headers.get('etag') is None)
-        elem = fromstring(body, 'CopyObjectResult')
+        elem = fromstring(body, 'CopyPartResult')
         self.assertEquals(elem.find('LastModified').text, iso_format)
         self.assertEquals(elem.find('ETag').text, '"%s"' % self.etag)
 
