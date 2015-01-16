@@ -217,6 +217,16 @@ class TestSwift3Obj(Swift3TestCase):
     def test_object_GET(self):
         self._test_object_GETorHEAD('GET')
 
+    @s3acl(s3acl_only=True)
+    def test_object_GET_with_s3acl_and_keystone(self):
+        # for passing keystone authentication root
+        self.swift.auth = 'keystone'
+        self._test_object_GETorHEAD('GET')
+        _, _, headers = self.swift.calls_with_headers[-1]
+        self.assertTrue('Authorization' not in headers)
+        _, _, headers = self.swift.calls_with_headers[0]
+        self.assertTrue('Authorization' not in headers)
+
     @s3acl
     def test_object_GET_Range(self):
         req = Request.blank('/bucket/object',
