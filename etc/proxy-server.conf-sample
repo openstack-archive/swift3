@@ -79,6 +79,14 @@ use = egg:swift3#swift3
 # middlewares in order to use other 3rd party (or your proprietary) authenticate middleware.
 # auth_pipeline_check = True
 #
+# Current Swift3 returns all buckets when requested GET Service. But it should
+# return only buckets owner are request user.
+# If check_bucket_owner and s3_acl are true, check owner of each buckets in
+# the bucket list by requsted HEAD Bucket.
+# This might cause significant performance degradation. So, please enable
+# check_bucket_owner by careful consideration.
+# check_bucket_owner = false
+#
 
 [filter:catch_errors]
 use = egg:swift#catch_errors
