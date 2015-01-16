@@ -13,11 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from swift3.subresource import ACL, Owner
+from swift3.subresource import ACL, Owner, encode_acl
 from swift3.response import MissingSecurityHeader, \
     MalformedACLError, UnexpectedContent
 from swift3.etree import fromstring, XMLSyntaxError, DocumentInvalid
-from swift3.utils import LOGGER, MULTIUPLOAD_SUFFIX
+from swift3.utils import LOGGER, MULTIUPLOAD_SUFFIX, sysmeta_header
 
 
 """
@@ -313,7 +313,14 @@ class UploadsAclHandler(MultiUploadAclHandler):
     def PUT(self, app):
         if not self.obj:
             # Initiate Multipart Uploads (put +segment container)
-            self._handle_acl(app, 'PUT', self.container)
+            resp = self._handle_acl(app, 'HEAD')
+            req_acl = ACL.from_headers(self.req.headers,
+                                       resp.bucket_acl.owner,
+                                       Owner(self.user_id, self.user_id))
+            acl_headers = encode_acl('object', req_acl)
+            self.req.headers[sysmeta_header('object', 'tmpacl')] = \
+                acl_headers[sysmeta_header('object', 'acl')]
+
         # No check needed at Initiate Multipart Uploads (put upload id object)
 
 
@@ -325,6 +332,13 @@ class UploadAclHandler(MultiUploadAclHandler):
         # FIXME: GET HEAD case conflicts with GET service
         method = 'GET' if self.method == 'GET' else 'HEAD'
         self._handle_acl(app, method, self.container, '')
+
+    def PUT(self, app):
+        container = self.req.container_name + MULTIUPLOAD_SUFFIX
+        obj = '%s/%s' % (self.obj, self.req.params['uploadId'])
+        resp = self.req._get_response(app, 'HEAD', container, obj)
+        self.req.headers[sysmeta_header('object', 'acl')] = \
+            resp.sysmeta_headers.get(sysmeta_header('object', 'tmpacl'))
 
 
 """
@@ -367,9 +381,6 @@ ACL_MAP = {
     # PUT Object Copy, Upload Part Copy
     ('PUT', 'HEAD', 'object'):
     {'Permission': 'READ'},
-    # Initiate Multipart Upload
-    ('POST', 'PUT', 'container'):
-    {'Permission': 'WRITE'},
     # Abort Multipart Upload
     ('DELETE', 'HEAD', 'container'):
     {'Permission': 'WRITE'},
@@ -377,7 +388,8 @@ ACL_MAP = {
     ('DELETE', 'DELETE', 'object'):
     {'Resource': 'container',
      'Permission': 'WRITE'},
-    # Complete Multipart Upload, DELETE Multiple Objects
+    # Complete Multipart Upload, DELETE Multiple Objects,
+    # Initiate Multipart Upload
     ('POST', 'HEAD', 'container'):
     {'Permission': 'WRITE'},
 }
