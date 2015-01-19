@@ -79,6 +79,12 @@ use = egg:swift3#swift3
 # middlewares in order to use other 3rd party (or your proprietary) authenticate middleware.
 # auth_pipeline_check = True
 #
+# Set the maximum number of parts for Upload Part operation.(default: 1000)
+# When setting it to be larger than the default value in order to match the
+# specification of S3, please set to be larger max_manifest_segments for slo
+# middleware.(specification of S3: 10000)
+# max_upload_part_num = 1000
+#
 
 [filter:catch_errors]
 use = egg:swift#catch_errors

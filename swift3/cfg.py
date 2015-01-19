@@ -59,4 +59,5 @@ CONF = Config({
     's3_acl': False,
     'storage_domain': '',
     'auth_pipeline_check': True,
+    'max_upload_part_num': 1000,
 })

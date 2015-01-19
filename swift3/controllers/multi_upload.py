@@ -95,11 +95,11 @@ class PartController(Controller):
 
         try:
             part_number = int(req.params['partNumber'])
-            if part_number < 1 or DEFAULT_MAX_PARTS < part_number:
+            if part_number < 1 or CONF.max_upload_part_num < part_number:
                 raise Exception()
         except Exception:
             err_msg = 'Part number must be an integer between 1 and %d,' \
-                      ' inclusive' % DEFAULT_MAX_PARTS
+                      ' inclusive' % CONF.max_upload_part_num
             raise InvalidArgument('partNumber', req.params['partNumber'],
                                   err_msg)
 
