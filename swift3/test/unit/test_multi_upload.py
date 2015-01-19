@@ -451,7 +451,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
 
-        req = Request.blank('/bucket/object?partNumber=1001&uploadId=X',
+        req = Request.blank('/bucket/object?partNumber=10001&uploadId=X',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac'},
                             body='part object')

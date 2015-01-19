@@ -61,6 +61,7 @@ from swift3.cfg import CONF
 DEFAULT_MAX_PARTS = 1000
 DEFAULT_MAX_UPLOADS = 1000
 
+MAX_PART_NUMBER = 10000
 MAX_COMPLETE_UPLOAD_BODY_SIZE = 2048 * 1024
 
 
@@ -95,11 +96,11 @@ class PartController(Controller):
 
         try:
             part_number = int(req.params['partNumber'])
-            if part_number < 1 or DEFAULT_MAX_PARTS < part_number:
+            if part_number < 1 or MAX_PART_NUMBER < part_number:
                 raise Exception()
         except Exception:
             err_msg = 'Part number must be an integer between 1 and %d,' \
-                      ' inclusive' % DEFAULT_MAX_PARTS
+                      ' inclusive' % MAX_PART_NUMBER
             raise InvalidArgument('partNumber', req.params['partNumber'],
                                   err_msg)
 
