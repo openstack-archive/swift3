@@ -70,7 +70,7 @@ def _check_upload_info(req, app, upload_id):
     obj = '%s/%s' % (req.object_name, upload_id)
 
     try:
-        req.get_response(app, 'HEAD', container=container, obj=obj)
+        return req.get_response(app, 'HEAD', container=container, obj=obj)
     except NoSuchKey:
         raise NoSuchUpload(upload_id=upload_id)
 
@@ -402,7 +402,12 @@ class UploadController(Controller):
         Handles Complete Multipart Upload.
         """
         upload_id = req.params['uploadId']
-        _check_upload_info(req, self.app, upload_id)
+        resp = _check_upload_info(req, self.app, upload_id)
+        headers = {}
+        for key, val in resp.headers.iteritems():
+            _key = key.lower()
+            if _key.startswith('x-amz-meta-'):
+                headers['x-object-meta-' + _key[11:]] = val
 
         # Query for the objects in the segments area to make sure it completed
         query = {
@@ -454,7 +459,8 @@ class UploadController(Controller):
         try:
             # TODO: add support for versioning
             resp = req.get_response(self.app, 'PUT', body=dumps(manifest),
-                                    query={'multipart-manifest': 'put'})
+                                    query={'multipart-manifest': 'put'},
+                                    headers=headers)
         except BadSwiftRequest as e:
             msg = str(e)
             if msg.startswith('Each segment, except the last, '
