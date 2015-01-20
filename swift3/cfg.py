@@ -54,10 +54,10 @@ CONF = Config({
     'allow_no_owner': False,
     'location': 'US',
     'max_bucket_listing': 1000,
-    'max_parts': 10000,
+    'max_parts_listing': 1000,
     'max_multi_delete_objects': 1000,
     's3_acl': False,
     'storage_domain': '',
     'auth_pipeline_check': True,
-    'max_upload_part_num': 1000,
+    'max_upload_part_num': 1000, 
 })

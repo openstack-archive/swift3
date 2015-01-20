@@ -562,7 +562,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
     def test_object_list_parts_over_max_parts(self):
         req = Request.blank('/bucket/object?uploadId=X&max-parts=%d' %
-                            (CONF.max_parts + 1),
+                            (CONF.max_parts_listing + 1),
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)

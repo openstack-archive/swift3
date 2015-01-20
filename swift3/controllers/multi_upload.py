@@ -58,7 +58,7 @@ from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
 from swift3.cfg import CONF
 
-DEFAULT_MAX_PARTS = 1000
+DEFAULT_MAX_PARTS_LISTING = 1000
 DEFAULT_MAX_UPLOADS = 1000
 
 MAX_COMPLETE_UPLOAD_BODY_SIZE = 2048 * 1024
@@ -289,9 +289,9 @@ class UploadController(Controller):
         _check_upload_info(req, self.app, upload_id)
 
         maxparts = req.get_validated_param(
-            'max-parts', DEFAULT_MAX_PARTS, CONF.max_parts)
+            'max-parts', DEFAULT_MAX_PARTS_LISTING, CONF.max_parts_listing)
         part_num_marker = req.get_validated_param(
-            'part-number-marker', 0, CONF.max_parts)
+            'part-number-marker', 0, CONF.max_parts_listing)
 
         query = {
             'format': 'json',
