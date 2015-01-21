@@ -61,6 +61,7 @@ from swift3.cfg import CONF
 DEFAULT_MAX_PARTS_LISTING = 1000
 DEFAULT_MAX_UPLOADS = 1000
 
+MAX_PART_NUM_MARKER = 2147483647
 MAX_COMPLETE_UPLOAD_BODY_SIZE = 2048 * 1024
 
 
@@ -291,7 +292,7 @@ class UploadController(Controller):
         maxparts = req.get_validated_param(
             'max-parts', DEFAULT_MAX_PARTS_LISTING, CONF.max_parts_listing)
         part_num_marker = req.get_validated_param(
-            'part-number-marker', 0, CONF.max_parts_listing)
+            'part-number-marker', 0, MAX_PART_NUM_MARKER)
 
         query = {
             'format': 'json',
