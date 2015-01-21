@@ -28,6 +28,7 @@ from swift3.subresource import Owner, Grant, User, ACL, encode_acl, \
 from swift3.test.unit.test_s3_acl import s3acl
 from swift3.cfg import CONF
 from swift3.utils import sysmeta_header
+from swift3.controllers.multi_upload import MAX_PART_NUM_MARKER
 
 xml = '<CompleteMultipartUpload>' \
     '<Part>' \
@@ -582,6 +583,13 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_object_list_parts_invalid_part_number_marker(self):
         req = Request.blank('/bucket/object?uploadId=X&part-number-marker='
                             'invalid',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+
+        req = Request.blank('/bucket/object?uploadId=X&part-number-marker='
+                            '%s' % str(MAX_PART_NUM_MARKER + 1),
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
