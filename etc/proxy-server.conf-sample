@@ -45,7 +45,10 @@ use = egg:swift3#swift3
 # max_bucket_listing = 1000
 #
 # Set the maximum number of parts returned in the List Parts operation.
-# max_parts = 10000
+# (default: 1000)
+# When setting it to be larger than 10000, set to be larger
+# container_listing_limit in swift.conf.(specification of S3: 1000)
+# max_parts_listing = 1000
 #
 # Set the maximum number of objects we can delete with the Multi-Object Delete
 # operation.
@@ -81,7 +84,7 @@ use = egg:swift3#swift3
 #
 # Set the maximum number of parts for Upload Part operation.(default: 1000)
 # When setting it to be larger than the default value in order to match the
-# specification of S3, please set to be larger max_manifest_segments for slo
+# specification of S3, set to be larger max_manifest_segments for slo
 # middleware.(specification of S3: 10000)
 # max_upload_part_num = 1000
 #
