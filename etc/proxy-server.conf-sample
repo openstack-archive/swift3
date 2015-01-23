@@ -85,6 +85,14 @@ use = egg:swift3#swift3
 # middleware.(specification of S3: 10000)
 # max_upload_part_num = 1000
 #
+# Enable returning only buckets which owner are the user who requested
+# GET Service operation. (default: false)
+# If you want to enable the above feature, set this and s3_acl to true.
+# That might cause significant performance degradation. So, only if your
+# service absolutely need this feature, set this setting to true.
+# If you set this to false, Swift3 returns all buckets.
+# check_bucket_owner = false 
+#
 
 [filter:catch_errors]
 use = egg:swift#catch_errors
