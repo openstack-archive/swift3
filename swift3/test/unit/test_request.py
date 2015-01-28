@@ -186,11 +186,24 @@ class TestRequest(Swift3TestCase):
         self.assertEquals(s3req.get_validated_param('max-keys', 0, 1), 1)
 
         # a param in the out of the range
-        with self.assertRaises(InvalidArgument):
-            s3req.get_validated_param('max-keys', 0, 0)
+        self.assertEquals(s3req.get_validated_param('max-keys', 0, 0), 0)
 
         # a param in the out of the integer range
         s3req = create_s3request_with_param('max-keys', '1' * 30)
+        with self.assertRaises(InvalidArgument) as result:
+            s3req.get_validated_param('max-keys', 1)
+        self.assertTrue(
+            'not an integer or within integer range' in result.exception.body)
+
+        # a param is negative integer
+        s3req = create_s3request_with_param('max-keys', '-1')
+        with self.assertRaises(InvalidArgument) as result:
+            s3req.get_validated_param('max-keys', 1)
+        self.assertTrue(
+            'must be an integer between 0 and' in result.exception.body)
+
+        # a param is not integer
+        s3req = create_s3request_with_param('max-keys', 'invalid')
         with self.assertRaises(InvalidArgument) as result:
             s3req.get_validated_param('max-keys', 1)
         self.assertTrue(
