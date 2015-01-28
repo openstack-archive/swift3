@@ -60,6 +60,8 @@ ALLOWED_SUB_RESOURCES = sorted([
     'response-content-type', 'response-expires', 'cors', 'tagging', 'restore'
 ])
 
+MAX_32BIT_INT = 2147483647
+
 
 def _header_acl_property(resource):
     """
@@ -645,26 +647,29 @@ class Request(swob.Request):
         return self._get_response(app, method, container, obj,
                                   headers, body, query)
 
-    def get_validated_param(self, param, default, limit=None):
+    def get_validated_param(self, param, default, limit=MAX_32BIT_INT):
         value = default
         if param in self.params:
             try:
                 value = int(self.params[param])
-                if value < 0 or (limit is not None and limit < value):
+                if value < 0:
                     err_msg = 'Argument %s must be an integer between 0 and' \
-                              ' %d' % (param, limit)
-                    raise InvalidArgument(param,
-                                          self.params[param],
-                                          err_msg)
-                if not isinstance(value, int):
-                    # check the instance because int() could build
-                    # a long instance
+                              ' %d' % (param, MAX_32BIT_INT)
+                    raise InvalidArgument(param, self.params[param], err_msg)
+
+                if value > MAX_32BIT_INT:
+                    # check the value because int() could build either a long
+                    # instance or a 64bit integer.
                     raise ValueError()
+
+                if limit < value:
+                    value = limit
+
             except ValueError:
                 err_msg = 'Provided %s not an integer or within ' \
                           'integer range' % param
-                raise InvalidArgument(param, self.params[param],
-                                      err_msg)
+                raise InvalidArgument(param, self.params[param], err_msg)
+
         return value
 
 
