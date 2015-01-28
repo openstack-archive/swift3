@@ -47,6 +47,7 @@ class BucketController(Controller):
 
         max_keys = req.get_validated_param('max-keys', CONF.max_bucket_listing)
         # TODO: Separate max_bucket_listing and default_bucket_listing
+        tag_max_keys = max_keys
         max_keys = min(max_keys, CONF.max_bucket_listing)
 
         encoding_type = req.params.get('encoding-type')
@@ -87,7 +88,7 @@ class BucketController(Controller):
                 SubElement(elem, 'NextMarker').text = \
                     objects[-1]['subdir']
 
-        SubElement(elem, 'MaxKeys').text = str(max_keys)
+        SubElement(elem, 'MaxKeys').text = str(tag_max_keys)
 
         if 'delimiter' in req.params:
             SubElement(elem, 'Delimiter').text = req.params['delimiter']
