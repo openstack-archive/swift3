@@ -28,6 +28,7 @@ from swift3.subresource import Owner, Grant, User, ACL, encode_acl, \
 from swift3.test.unit.test_s3_acl import s3acl
 from swift3.cfg import CONF
 from swift3.utils import sysmeta_header
+from swift3.request import MAX_32BIT_INT
 
 xml = '<CompleteMultipartUpload>' \
     '<Part>' \
@@ -243,6 +244,19 @@ class TestSwift3MultiUpload(Swift3TestCase):
     @s3acl
     def test_bucket_multipart_uploads_GET_maxuploads_over_default(self):
         query = 'max-uploads=1001'
+        status, headers, body = \
+            self._test_bucket_multipart_uploads_GET(query)
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(len(elem.findall('Upload/UploadId')), 3)
+        self.assertEquals(elem.find('NextKeyMarker').text, 'object')
+        self.assertEquals(elem.find('NextUploadIdMarker').text, 'Z')
+        self.assertEquals(elem.find('MaxUploads').text, '1000')
+        self.assertEquals(elem.find('IsTruncated').text, 'false')
+        self.assertEquals(status.split()[0], '200')
+
+    @s3acl
+    def test_bucket_multipart_uploads_GET_maxuploads_over_max_32bit_int(self):
+        query = 'max-uploads=%s' % (MAX_32BIT_INT + 1)
         status, headers, body = \
             self._test_bucket_multipart_uploads_GET(query)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
@@ -577,6 +591,35 @@ class TestSwift3MultiUpload(Swift3TestCase):
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
+        elem = fromstring(body, 'ListPartsResult')
+        self.assertEquals(elem.find('Bucket').text, 'bucket')
+        self.assertEquals(elem.find('Key').text, 'object')
+        self.assertEquals(elem.find('UploadId').text, 'X')
+        self.assertEquals(elem.find('Initiator/ID').text, 'test:tester')
+        self.assertEquals(elem.find('Owner/ID').text, 'test:tester')
+        self.assertEquals(elem.find('StorageClass').text, 'STANDARD')
+        self.assertEquals(elem.find('PartNumberMarker').text, '0')
+        self.assertEquals(elem.find('NextPartNumberMarker').text, '2')
+        self.assertEquals(elem.find('MaxParts').text, '1000')
+        self.assertEquals(elem.find('IsTruncated').text, 'false')
+        self.assertEquals(len(elem.findall('Part')), 2)
+        for p in elem.findall('Part'):
+            partnum = int(p.find('PartNumber').text)
+            self.assertEquals(p.find('LastModified').text,
+                              objects_template[partnum - 1][1][:-3]
+                              + 'Z')
+            self.assertEquals(p.find('ETag').text,
+                              objects_template[partnum - 1][2])
+            self.assertEquals(p.find('Size').text,
+                              str(objects_template[partnum - 1][3]))
+        self.assertEquals(status.split()[0], '200')
+
+    def test_object_list_parts_over_max_32bit_int(self):
+        req = Request.blank('/bucket/object?uploadId=X&max-parts=%d' %
+                            (MAX_32BIT_INT + 1),
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
 
     def test_object_list_parts_with_part_number_marker(self):
@@ -588,11 +631,41 @@ class TestSwift3MultiUpload(Swift3TestCase):
         elem = fromstring(body, 'ListPartsResult')
         self.assertEquals(len(elem.findall('Part')), 1)
         self.assertEquals(elem.find('Part/PartNumber').text, '2')
+        self.assertEquals(elem.find('PartNumberMarker').text, '1')
         self.assertEquals(status.split()[0], '200')
 
-    def test_object_list_parts_invalid_part_number_marker(self):
+    def test_object_list_parts_str_part_number_marker(self):
         req = Request.blank('/bucket/object?uploadId=X&part-number-marker='
                             'invalid',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+
+    def test_object_list_parts_negative_part_number_marker(self):
+        req = Request.blank('/bucket/object?uploadId=X&part-number-marker='
+                            '-1',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+
+    def test_object_list_parts_over_part_number_marker(self):
+        part_number_marker = str(CONF.max_upload_part_num + 1)
+        req = Request.blank('/bucket/object?uploadId=X&'
+                            'part-number-marker=%s' % part_number_marker,
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        elem = fromstring(body, 'ListPartsResult')
+        self.assertEquals(len(elem.findall('Part')), 0)
+        self.assertEquals(elem.find('PartNumberMarker').text,
+                          part_number_marker)
+        self.assertEquals(status.split()[0], '200')
+
+    def test_object_list_parts_over_max_32bit_int_part_number_marker(self):
+        req = Request.blank('/bucket/object?uploadId=X&part-number-marker='
+                            '%s' % ((MAX_32BIT_INT + 1)),
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
