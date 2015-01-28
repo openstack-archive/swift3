@@ -24,6 +24,7 @@ from swift3.test.unit import Swift3TestCase
 from swift3.etree import Element, SubElement, fromstring, tostring
 from swift3.test.unit.test_s3_acl import s3acl
 from swift3.subresource import Owner, encode_acl, ACLPublicRead
+from swift3.request import MAX_32BIT_INT
 
 
 class TestSwift3Bucket(Swift3TestCase):
@@ -176,11 +177,39 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('./MaxKeys').text, '1000')
+        self.assertEquals(elem.find('./MaxKeys').text, '5000')
         _, path = self.swift.calls[-1]
         _, query_string = path.split('?')
         args = dict(cgi.parse_qsl(query_string))
         self.assertEquals(args['limit'], '1001')
+
+    def test_bucket_GET_str_max_keys(self):
+        bucket_name = 'junk'
+
+        req = Request.blank('/%s?max-keys=invalid' % bucket_name,
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+
+    def test_bucket_GET_negative_max_keys(self):
+        bucket_name = 'junk'
+
+        req = Request.blank('/%s?max-keys=-1' % bucket_name,
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+
+    def test_bucket_multipart_uploads_GET_maxuploads_over_32bit_int(self):
+        bucket_name = 'junk'
+
+        req = Request.blank('/%s?max-keys=%s' %
+                            (bucket_name, MAX_32BIT_INT + 1),
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
 
     def test_bucket_GET_passthroughs(self):
         bucket_name = 'junk'
