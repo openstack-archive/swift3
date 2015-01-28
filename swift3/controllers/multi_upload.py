@@ -300,7 +300,7 @@ class UploadController(Controller):
         maxparts = req.get_validated_param(
             'max-parts', DEFAULT_MAX_PARTS_LISTING, CONF.max_parts_listing)
         part_num_marker = req.get_validated_param(
-            'part-number-marker', 0, CONF.max_parts_listing)
+            'part-number-marker', 0)
 
         query = {
             'format': 'json',
