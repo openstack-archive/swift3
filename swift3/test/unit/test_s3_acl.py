@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import unittest
-import simplejson as json
 import functools
 import sys
 import traceback
@@ -22,6 +21,7 @@ from mock import patch, MagicMock
 
 from swift.common import swob
 from swift.common.swob import Request
+from swift.common.utils import json
 
 from swift3.etree import tostring, Element, SubElement
 from swift3.subresource import ACL, ACLPrivate, User, encode_acl, \

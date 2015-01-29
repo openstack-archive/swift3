@@ -14,11 +14,11 @@
 # limitations under the License.
 
 import unittest
-import simplejson
 from mock import patch
 
 from swift.common import swob
 from swift.common.swob import Request
+from swift.common.utils import json
 
 from swift3.test.unit.test_s3_acl import s3acl
 from swift3.test.unit import Swift3TestCase
@@ -34,7 +34,7 @@ class TestSwift3Service(Swift3TestCase):
         json_pattern = '{' + ','.join(json_pattern) + '}'
         json_out = []
         for b in self.buckets:
-            name = simplejson.dumps(b[0])
+            name = json.dumps(b[0])
             json_out.append(json_pattern %
                             (name, b[1], b[2]))
         bucket_list = '[' + ','.join(json_out) + ']'
@@ -109,7 +109,7 @@ class TestSwift3Service(Swift3TestCase):
         json_pattern = '{' + ','.join(json_pattern) + '}'
         json_out = []
         for b in buckets:
-            name = simplejson.dumps(b[0])
+            name = json.dumps(b[0])
             json_out.append(json_pattern %
                             (name, b[1], b[2]))
         bucket_list = '[' + ','.join(json_out) + ']'
@@ -145,7 +145,7 @@ class TestSwift3Service(Swift3TestCase):
         json_out = []
 
         for b in buckets:
-            name = simplejson.dumps(b[0])
+            name = json.dumps(b[0])
             json_out.append(json_pattern %
                             (name, b[1], b[2]))
 

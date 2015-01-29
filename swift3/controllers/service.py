@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from simplejson import loads
+from swift.common.utils import json
 
 from swift3.controllers.base import Controller
 from swift3.etree import Element, SubElement, tostring
@@ -32,7 +32,7 @@ class ServiceController(Controller):
         """
         resp = req.get_response(self.app, query={'format': 'json'})
 
-        containers = loads(resp.body)
+        containers = json.loads(resp.body)
 
         containers = filter(
             lambda item: validate_bucket_name(item['name']), containers)

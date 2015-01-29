@@ -13,9 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from simplejson import loads
-
 from swift.common.http import HTTP_OK
+from swift.common.utils import json
 
 from swift3.controllers.base import Controller
 from swift3.controllers.acl import handle_acl_header
@@ -68,7 +67,7 @@ class BucketController(Controller):
 
         resp = req.get_response(self.app, query=query)
 
-        objects = loads(resp.body)
+        objects = json.loads(resp.body)
 
         elem = Element('ListBucketResult')
         SubElement(elem, 'Name').text = req.container_name

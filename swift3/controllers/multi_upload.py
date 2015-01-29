@@ -42,10 +42,9 @@ upload information:
    Static Large Object.
 """
 
-from simplejson import loads, dumps
 import os
 
-from swift.common.utils import split_path
+from swift.common.utils import split_path, json
 
 from swift3.controllers.base import Controller, bucket_operation, \
     object_operation
@@ -171,7 +170,7 @@ class UploadsController(Controller):
 
         container = req.container_name + MULTIUPLOAD_SUFFIX
         resp = req.get_response(self.app, container=container, query=query)
-        objects = loads(resp.body)
+        objects = json.loads(resp.body)
 
         objects = filter(filter_max_uploads, objects)
 
@@ -308,7 +307,7 @@ class UploadController(Controller):
         container = req.container_name + MULTIUPLOAD_SUFFIX
         resp = req.get_response(self.app, container=container, obj='',
                                 query=query)
-        objects = loads(resp.body)
+        objects = json.loads(resp.body)
 
         last_part = 0
 
@@ -394,7 +393,7 @@ class UploadController(Controller):
         resp = req.get_response(self.app, 'GET', container, '', query=query)
 
         #  Iterate over the segment objects and delete them individually
-        objects = loads(resp.body)
+        objects = json.loads(resp.body)
         for o in objects:
             container = req.container_name + MULTIUPLOAD_SUFFIX
             req.get_response(self.app, container=container, obj=o['name'])
@@ -423,7 +422,7 @@ class UploadController(Controller):
 
         container = req.container_name + MULTIUPLOAD_SUFFIX
         resp = req.get_response(self.app, 'GET', container, '', query=query)
-        objinfo = loads(resp.body)
+        objinfo = json.loads(resp.body)
         objtable = dict((o['name'],
                          {'path': '/'.join(['', container, o['name']]),
                           'etag': o['hash'],
@@ -463,7 +462,7 @@ class UploadController(Controller):
 
         try:
             # TODO: add support for versioning
-            resp = req.get_response(self.app, 'PUT', body=dumps(manifest),
+            resp = req.get_response(self.app, 'PUT', body=json.dumps(manifest),
                                     query={'multipart-manifest': 'put'},
                                     headers=headers)
         except BadSwiftRequest as e:

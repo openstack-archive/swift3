@@ -14,7 +14,9 @@
 # limitations under the License.
 
 import unittest
-from simplejson import dumps, loads
+
+from swift.common.utils import json
+
 from swift3.response import AccessDenied
 from swift3.subresource import User, AuthenticatedUsers, AllUsers, \
     ACLPrivate, ACLPublicRead, ACLPublicReadWrite, ACLAuthenticatedRead, \
@@ -204,7 +206,7 @@ class TestSwift3Subresource(unittest.TestCase):
              'Grant': [{'Permission': 'FULL_CONTROL',
                         'Grantee': 'test:tester'}]}
         headers = {sysmeta_header('container', 'acl'):
-                   dumps(access_control_policy)}
+                   json.dumps(access_control_policy)}
         acl = decode_acl('container', headers)
 
         self.assertEqual(type(acl), ACL)
@@ -219,7 +221,7 @@ class TestSwift3Subresource(unittest.TestCase):
              'Grant': [{'Permission': 'FULL_CONTROL',
                         'Grantee': 'test:tester'}]}
         headers = {sysmeta_header('object', 'acl'):
-                   dumps(access_control_policy)}
+                   json.dumps(access_control_policy)}
         acl = decode_acl('object', headers)
 
         self.assertEqual(type(acl), ACL)
@@ -240,7 +242,7 @@ class TestSwift3Subresource(unittest.TestCase):
         acl = ACLPrivate(Owner(id='test:tester',
                                name='test:tester'))
         acp = encode_acl('container', acl)
-        header_value = loads(acp[sysmeta_header('container', 'acl')])
+        header_value = json.loads(acp[sysmeta_header('container', 'acl')])
 
         self.assertTrue('Owner' in header_value)
         self.assertTrue('Grant' in header_value)
@@ -251,7 +253,7 @@ class TestSwift3Subresource(unittest.TestCase):
         acl = ACLPrivate(Owner(id='test:tester',
                                name='test:tester'))
         acp = encode_acl('object', acl)
-        header_value = loads(acp[sysmeta_header('object', 'acl')])
+        header_value = json.loads(acp[sysmeta_header('object', 'acl')])
 
         self.assertTrue('Owner' in header_value)
         self.assertTrue('Grant' in header_value)
@@ -269,7 +271,7 @@ class TestSwift3Subresource(unittest.TestCase):
         acp = encode_acl('container', acl)
 
         header_value = acp[sysmeta_header('container', 'acl')]
-        header_value = loads(header_value)
+        header_value = json.loads(header_value)
 
         self.assertTrue('Owner' in header_value)
         self.assertTrue('Grant' in header_value)

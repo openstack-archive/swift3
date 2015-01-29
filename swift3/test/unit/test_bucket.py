@@ -15,10 +15,10 @@
 
 import unittest
 import cgi
-import json
 
 from swift.common import swob
 from swift.common.swob import Request
+from swift.common.utils import json
 
 from swift3.test.unit import Swift3TestCase
 from swift3.etree import Element, SubElement, fromstring, tostring

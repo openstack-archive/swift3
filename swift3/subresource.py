@@ -14,7 +14,8 @@
 # limitations under the License.
 
 from functools import partial
-from simplejson import loads, dumps
+
+from swift.common.utils import json
 
 from swift3.response import InvalidArgument, MalformedACLError, \
     S3NotImplemented, InvalidRequest, AccessDenied
@@ -69,7 +70,7 @@ def encode_acl(resource, acl):
     header_value.update({"Grant": grants})
     headers = {}
     key = sysmeta_header(resource, 'acl')
-    headers[key] = dumps(header_value, separators=(',', ':'))
+    headers[key] = json.dumps(header_value, separators=(',', ':'))
 
     return headers
 
@@ -95,7 +96,7 @@ def decode_acl(resource, headers):
         return ACL(Owner(None, None), [])
 
     try:
-        encode_value = loads(value)
+        encode_value = json.loads(value)
         if not isinstance(encode_value, dict):
             return ACL(Owner(None, None), [])
 
