@@ -152,7 +152,7 @@ class Request(swob.Request):
                 raise AccessDenied()
 
         if 'Authorization' not in self.headers:
-            raise NotS3Request
+            raise NotS3Request()
 
         try:
             keyword, info = self.headers['Authorization'].split(' ', 1)
@@ -160,7 +160,7 @@ class Request(swob.Request):
             raise AccessDenied()
 
         if keyword != 'AWS':
-            raise NotS3Request
+            raise NotS3Request()
 
         try:
             access_key, signature = info.rsplit(':', 1)
@@ -663,7 +663,7 @@ class Request(swob.Request):
                 if not isinstance(value, int):
                     # check the instance because int() could build
                     # a long instance
-                    raise ValueError
+                    raise ValueError()
             except ValueError:
                 err_msg = 'Provided %s not an integer or within ' \
                           'integer range' % param
