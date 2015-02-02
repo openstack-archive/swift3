@@ -96,7 +96,6 @@ class Request(swob.Request):
         self._validate_headers()
         self.token = base64.urlsafe_b64encode(self._canonical_string())
         self.account = None
-        self.keystone_token = None
         self.user_id = None
         self.slo_enabled = slo_enabled
 
@@ -436,10 +435,7 @@ class Request(swob.Request):
         if method is not None:
             env['REQUEST_METHOD'] = method
 
-        if self.keystone_token:
-            env['HTTP_X_AUTH_TOKEN'] = self.keystone_token
-        else:
-            env['HTTP_X_AUTH_TOKEN'] = self.token
+        env['HTTP_X_AUTH_TOKEN'] = self.token
 
         if obj:
             path = '/v1/%s/%s/%s' % (account, container, obj)
@@ -711,7 +707,7 @@ class S3AclRequest(Request):
             self.user_id = "%s:%s" % (sw_resp.environ['HTTP_X_TENANT_NAME'],
                                       sw_resp.environ['HTTP_X_USER_NAME'])
             self.user_id = utf8encode(self.user_id)
-            self.keystone_token = sw_req.environ['HTTP_X_AUTH_TOKEN']
+            self.token = sw_resp.environ['HTTP_X_AUTH_TOKEN']
             # Need to skip S3 authorization since authtoken middleware
             # overwrites account in PATH_INFO
             del self.headers['Authorization']

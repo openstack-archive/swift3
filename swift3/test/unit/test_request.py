@@ -208,6 +208,7 @@ class TestRequest(Swift3TestCase):
             s3_req = S3AclRequest(req.environ, MagicMock())
             self.assertTrue('HTTP_AUTHORIZATION' not in s3_req.environ)
             self.assertTrue('Authorization' not in s3_req.headers)
+            self.assertEquals(s3_req.token, 'token')
 
     def test_to_swift_req_Authorization_not_exist_in_swreq_headers(self):
         container = 'bucket'
@@ -225,6 +226,7 @@ class TestRequest(Swift3TestCase):
             sw_req = s3_req.to_swift_req(method, container, obj)
             self.assertTrue('HTTP_AUTHORIZATION' not in sw_req.environ)
             self.assertTrue('Authorization' not in sw_req.headers)
+            self.assertEquals(sw_req.headers['X-Auth-Token'], 'token')
 
 
 if __name__ == '__main__':
