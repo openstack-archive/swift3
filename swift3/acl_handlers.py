@@ -72,7 +72,7 @@ def get_acl(headers, body, bucket_owner, object_owner=None):
     else:
         if body:
             # Specifying grant with both header and xml is not allowed.
-            raise UnexpectedContent
+            raise UnexpectedContent()
 
     return acl
 
