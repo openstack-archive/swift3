@@ -26,19 +26,22 @@ from swift3.etree import fromstring
 from swift3.subresource import ACL, Owner, encode_acl
 
 
+def create_bucket_list_json(buckets):
+    """
+    Create a json from bucket list
+    :param buckets: a list of tuples (or lists) consist of elements orderd as
+                    name, count, bytes
+    """
+    bucket_list = map(
+        lambda item: {'name': item[0], 'count': item[1], 'bytes': item[2]},
+        list(buckets))
+    return json.dumps(bucket_list)
+
+
 class TestSwift3Service(Swift3TestCase):
     def setup_buckets(self):
         self.buckets = (('apple', 1, 200), ('orange', 3, 430))
-
-        json_pattern = ['"name":%s', '"count":%s', '"bytes":%s']
-        json_pattern = '{' + ','.join(json_pattern) + '}'
-        json_out = []
-        for b in self.buckets:
-            name = json.dumps(b[0])
-            json_out.append(json_pattern %
-                            (name, b[1], b[2]))
-        bucket_list = '[' + ','.join(json_out) + ']'
-
+        bucket_list = create_bucket_list_json(self.buckets)
         self.swift.register('GET', '/v1/AUTH_test', swob.HTTPOk, {},
                             bucket_list)
 
@@ -105,15 +108,7 @@ class TestSwift3Service(Swift3TestCase):
         buckets = (('apple', 1, 200), ('orange', 3, 430),
                    ('apple+segment', 1, 200))
         expected = buckets[:-1]
-        json_pattern = ['"name":%s', '"count":%s', '"bytes":%s']
-        json_pattern = '{' + ','.join(json_pattern) + '}'
-        json_out = []
-        for b in buckets:
-            name = json.dumps(b[0])
-            json_out.append(json_pattern %
-                            (name, b[1], b[2]))
-        bucket_list = '[' + ','.join(json_out) + ']'
-
+        bucket_list = create_bucket_list_json(buckets)
         self.swift.register('GET', '/v1/AUTH_test', swob.HTTPOk, {},
                             bucket_list)
 
@@ -140,16 +135,8 @@ class TestSwift3Service(Swift3TestCase):
 
     @patch('swift3.cfg.CONF.check_bucket_owner', True)
     def _test_service_GET_for_check_bucket_owner(self, buckets):
-        json_pattern = ['"name":%s', '"count":%s', '"bytes":%s']
-        json_pattern = '{' + ','.join(json_pattern) + '}'
-        json_out = []
 
-        for b in buckets:
-            name = json.dumps(b[0])
-            json_out.append(json_pattern %
-                            (name, b[1], b[2]))
-
-        bucket_list = '[' + ','.join(json_out) + ']'
+        bucket_list = create_bucket_list_json(buckets)
         self.swift.register('GET', '/v1/AUTH_test', swob.HTTPOk, {},
                             bucket_list)
 

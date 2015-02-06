@@ -34,13 +34,11 @@ class TestSwift3Bucket(Swift3TestCase):
                         ('with space', '2011-01-05T02:19:14.275290', 0, 390),
                         ('with%20space', '2011-01-05T02:19:14.275290', 0, 390))
 
-        json_pattern = ['"name":"%s"', '"last_modified":"%s"', '"hash":"%s"',
-                        '"bytes":%s']
-        json_pattern = '{' + ','.join(json_pattern) + '}'
-        json_out = []
-        for b in self.objects:
-            json_out.append(json_pattern % b)
-        object_list = '[' + ','.join(json_out) + ']'
+        objects = map(
+            lambda item: {'name': str(item[0]), 'last_modified': str(item[1]),
+                          'hash': str(item[2]), 'bytes': str(item[3])},
+            list(self.objects))
+        object_list = json.dumps(objects)
 
         self.prefixes = ['rose', 'viola', 'lily']
         object_list_subdir = []
