@@ -53,7 +53,10 @@ multiparts_template = \
      ('object/Y/2', '2014-05-07T19:47:55.592270', 'HASH', 22),
      ('object/Z', '2014-05-07T19:47:56.592270', 'HASH', 3),
      ('object/Z/1', '2014-05-07T19:47:57.592270', 'HASH', 13),
-     ('object/Z/2', '2014-05-07T19:47:58.592270', 'HASH', 23))
+     ('object/Z/2', '2014-05-07T19:47:58.592270', 'HASH', 23),
+     ('subdir/object/Z', '2014-05-07T19:47:58.592270', 'HASH', 4),
+     ('subdir/object/Z/1', '2014-05-07T19:47:58.592270', 'HASH', 41),
+     ('subdir/object/Z/2', '2014-05-07T19:47:58.592270', 'HASH', 41))
 
 
 class TestSwift3MultiUpload(Swift3TestCase):
@@ -192,7 +195,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEquals(elem.find('NextUploadIdMarker').text, 'Z')
         self.assertEquals(elem.find('MaxUploads').text, '1000')
         self.assertEquals(elem.find('IsTruncated').text, 'false')
-        self.assertEquals(len(elem.findall('Upload')), 3)
+        self.assertEquals(len(elem.findall('Upload')), 4)
         objects = [(o[0], o[1][:-3] + 'Z') for o in multiparts_template]
         for u in elem.findall('Upload'):
             name = u.find('Key').text + '/' + u.find('UploadId').text
