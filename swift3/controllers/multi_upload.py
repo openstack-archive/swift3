@@ -43,8 +43,9 @@ upload information:
 """
 
 import os
+import re
 
-from swift.common.utils import split_path, json
+from swift.common.utils import json
 
 from swift3.controllers.base import Controller, bucket_operation, \
     object_operation
@@ -140,9 +141,11 @@ class UploadsController(Controller):
         """
         Handles List Multipart Uploads
         """
-        def filter_max_uploads(o):
+        def filter_max_uploads(o, p):
             name = o.get('name', '')
-            return name.count('/') == 1
+            if not name:
+                return False
+            return p.search(name) is None
 
         encoding_type = req.params.get('encoding-type')
         if encoding_type is not None and encoding_type != 'url':
@@ -172,7 +175,8 @@ class UploadsController(Controller):
         resp = req.get_response(self.app, container=container, query=query)
         objects = json.loads(resp.body)
 
-        objects = filter(filter_max_uploads, objects)
+        pattern = re.compile('/[0-9]+$')
+        objects = [o for o in objects if filter_max_uploads(o, pattern)]
 
         if len(objects) > maxuploads:
             objects = objects[:maxuploads]
@@ -183,7 +187,7 @@ class UploadsController(Controller):
         uploads = []
         prefixes = []
         for o in objects:
-            obj, upid = split_path('/' + o['name'], 1, 2)
+            obj, upid = o['name'].rsplit('/', 1)
             uploads.append(
                 {'key': obj,
                  'upload_id': upid,
