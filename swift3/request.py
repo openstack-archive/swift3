@@ -510,6 +510,7 @@ class Request(swob.Request):
                     HTTP_ACCEPTED,
                 ],
                 'DELETE': [
+                    HTTP_OK,
                     HTTP_NO_CONTENT,
                 ],
             }
@@ -666,6 +667,11 @@ class Request(swob.Request):
                 raise InvalidArgument(param, self.params[param],
                                       err_msg)
         return value
+
+    def gen_multipart_manifest_delete_query(self, app):
+        query = {'multipart-manifest': 'delete'}
+        resp = self.get_response(app, 'HEAD')
+        return query if resp.is_slo else None
 
 
 class S3AclRequest(Request):
