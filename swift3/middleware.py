@@ -69,7 +69,7 @@ class Swift3Middleware(object):
     """Swift3 S3 compatibility midleware"""
     def __init__(self, app, conf, *args, **kwargs):
         self.app = app
-        self.slo_enabled = True
+        self.slo_enabled = conf['allow_multipart_uploads']
         self.check_pipeline(conf)
 
     def __call__(self, env, start_response):
@@ -126,9 +126,9 @@ class Swift3Middleware(object):
                                      pipeline.index('proxy-server')]
 
             # Check SLO middleware
-            if 'slo' not in auth_pipeline:
+            if self.slo_enabled and 'slo' not in auth_pipeline:
                 self.slo_enabled = False
-                LOGGER.warning('swift3 middleware is required SLO middleware '
+                LOGGER.warning('swift3 middleware requires SLO middleware '
                                'to support multi-part upload, please add it '
                                'in pipline')
 
@@ -181,7 +181,8 @@ def filter_factory(global_conf, **local_conf):
         max_bucket_listing=CONF['max_bucket_listing'],
         max_parts_listing=CONF['max_parts_listing'],
         max_upload_part_num=CONF['max_upload_part_num'],
-        max_multi_delete_objects=CONF['max_multi_delete_objects']
+        max_multi_delete_objects=CONF['max_multi_delete_objects'],
+        allow_multipart_uploads=CONF['allow_multipart_uploads'],
     )
 
     def swift3_filter(app):

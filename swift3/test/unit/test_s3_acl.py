@@ -70,12 +70,14 @@ def s3acl(func=None, s3acl_only=False):
                 message += failing_point
                 raise exc_type(message)
 
+        instance = args[0]
+
         if not s3acl_only:
             call_func()
+            instance.swift._calls = []
 
         with patch('swift3.cfg.CONF.s3_acl', True):
             owner = Owner('test:tester', 'test:tester')
-            instance = args[0]
             generate_s3acl_environ('test', instance.swift, owner)
             call_func(' (fail at s3_acl)')
 
