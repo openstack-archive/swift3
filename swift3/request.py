@@ -539,6 +539,7 @@ class Request(swob.Request):
                     HTTP_ACCEPTED,
                 ],
                 'DELETE': [
+                    HTTP_OK,
                     HTTP_NO_CONTENT,
                 ],
             }
@@ -736,6 +737,11 @@ class Request(swob.Request):
             resp = self.get_response(app, 'HEAD', self.container_name, '')
             return headers_to_container_info(
                 resp.sw_headers, resp.status_int)  # pylint: disable-msg=E1101
+
+    def gen_multipart_manifest_delete_query(self, app):
+        query = {'multipart-manifest': 'delete'}
+        resp = self.get_response(app, 'HEAD')
+        return query if resp.is_slo else None
 
 
 class S3AclRequest(Request):
