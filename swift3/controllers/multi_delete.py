@@ -96,7 +96,9 @@ class MultiObjectDeleteController(Controller):
             req.object_name = key
 
             try:
-                req.get_response(self.app, method='DELETE')
+                query = {'multipart-manifest': 'delete'} \
+                    if req.check_slo(self.app) else None
+                req.get_response(self.app, method='DELETE', query=query)
             except NoSuchKey:
                 pass
             except ErrorResponse as e:

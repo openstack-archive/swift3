@@ -239,6 +239,11 @@ class MultiObjectDeleteAclHandler(BaseAclHandler):
     """
     MultiObjectDeleteAclHandler: Handler for MultiObjectDeleteController
     """
+    def HEAD(self, app):
+        # Only bucket write acl is required
+        if not self.obj:
+            return self._handle_acl(app, 'HEAD')
+
     def DELETE(self, app):
         # Only bucket write acl is required
         pass
