@@ -15,7 +15,7 @@
 
 import sys
 
-from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT
+from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT, HTTP_NO_CONTENT
 from swift.common.swob import Range, content_range_header_value
 
 from swift3.controllers.base import Controller
@@ -113,7 +113,10 @@ class ObjectController(Controller):
         Handle DELETE Object request
         """
         try:
-            resp = req.get_response(self.app)
+            query = req.gen_multipart_manifest_delete_query(self.app)
+            resp = req.get_response(self.app, query=query)
+            resp.status = HTTP_NO_CONTENT
+            resp.body = ''
         except NoSuchKey:
             # expect to raise NoSuchBucket when the bucket doesn't exist
             exc_type, exc_value, exc_traceback = sys.exc_info()
