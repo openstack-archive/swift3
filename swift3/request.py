@@ -510,6 +510,7 @@ class Request(swob.Request):
                     HTTP_ACCEPTED,
                 ],
                 'DELETE': [
+                    HTTP_OK,
                     HTTP_NO_CONTENT,
                 ],
             }
@@ -666,6 +667,10 @@ class Request(swob.Request):
                 raise InvalidArgument(param, self.params[param],
                                       err_msg)
         return value
+
+    def check_slo(self, app):
+        resp = self.get_response(app, 'HEAD')
+        return resp.is_slo
 
 
 class S3AclRequest(Request):
