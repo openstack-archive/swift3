@@ -87,6 +87,12 @@ use = egg:swift3#swift3
 # middlewares in order to use other 3rd party (or your proprietary) authenticate middleware.
 # auth_pipeline_check = True
 #
+# Enable multi-part uploads. (default: true)
+# This is required to store files larger than Swift's max_file_size (by default, 5GiB).
+# Note that has performance implications when deleting objects, as we now have to
+# check for whether there are also segments to delete.
+# allow_multipart_uploads = True
+#
 # Set the maximum number of parts for Upload Part operation.(default: 1000)
 # When setting it to be larger than the default value in order to match the
 # specification of S3, set to be larger max_manifest_segments for slo

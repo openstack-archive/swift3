@@ -84,6 +84,7 @@ class Response(ResponseBase, swob.Response):
         sw_sysmeta_headers = swob.HeaderKeyDict()
         sw_headers = swob.HeaderKeyDict()
         headers = HeaderKeyDict()
+        self.is_slo = False
 
         for key, val in self.headers.iteritems():
             _key = key.lower()
@@ -103,6 +104,9 @@ class Response(ResponseBase, swob.Response):
                           'content-range', 'content-encoding',
                           'etag', 'last-modified'):
                 headers[key] = val
+            elif _key == 'x-static-large-object':
+                # for delete slo
+                self.is_slo = val
 
         self.headers = headers
         # Used for pure swift header handling at the request layer

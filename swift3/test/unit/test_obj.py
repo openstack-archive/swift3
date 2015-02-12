@@ -602,12 +602,54 @@ class TestSwift3Obj(Swift3TestCase):
             self.assertEquals(code, 'NoSuchBucket')
 
     @s3acl
-    def test_object_DELETE(self):
+    @patch('swift3.cfg.CONF.allow_multipart_uploads', False)
+    def test_object_DELETE_no_multipart(self):
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': 'DELETE'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '204')
+
+        self.assertIn(('DELETE', '/v1/AUTH_test/bucket/object'), self.swift.calls)
+        self.assertNotIn(('HEAD', '/v1/AUTH_test/bucket/object'), self.swift.calls)
+        _, path = self.swift.calls[-1]
+        self.assertEquals(path.count('?'), 0)
+
+    @s3acl
+    def test_object_DELETE_multipart(self):
+        req = Request.blank('/bucket/object',
+                            environ={'REQUEST_METHOD': 'DELETE'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '204')
+
+        self.assertIn(('DELETE', '/v1/AUTH_test/bucket/object'), self.swift.calls)
+        self.assertIn(('HEAD', '/v1/AUTH_test/bucket/object'), self.swift.calls)
+        _, path = self.swift.calls[-1]
+        self.assertEquals(path.count('?'), 0)
+
+    @s3acl
+    def test_slo_object_DELETE(self):
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPOk,
+                            {'x-static-large-object': 'True'},
+                            None)
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPOk, {}, '<SLO delete results>')
+        req = Request.blank('/bucket/object',
+                            environ={'REQUEST_METHOD': 'DELETE'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '204')
+        self.assertEqual(body, '')
+
+        _, path = self.swift.calls[-1]
+        path, query_string = path.split('?', 1)
+        query = {}
+        for q in query_string.split('&'):
+            key, arg = q.split('=')
+            query[key] = arg
+        self.assertEquals(query['multipart-manifest'], 'delete')
 
     def _test_object_for_s3acl(self, method, account):
         req = Request.blank('/bucket/object',

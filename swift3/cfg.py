@@ -63,4 +63,5 @@ CONF = Config({
     'max_upload_part_num': 1000,
     'check_bucket_owner': False,
     'force_swift_request_proxy_log': False,
+    'allow_multipart_uploads': True,
 })
