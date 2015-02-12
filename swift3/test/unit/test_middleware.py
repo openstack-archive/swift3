@@ -21,12 +21,14 @@ import hashlib
 import base64
 from urllib import unquote, quote
 
-from swift.common import swob
+from swift.common import swob, utils
 from swift.common.swob import Request
 
 from swift3.test.unit import Swift3TestCase
 from swift3.request import Request as S3Request
 from swift3.etree import fromstring
+from swift3.middleware import filter_factory
+from swift3.cfg import CONF
 
 
 class TestSwift3Middleware(Swift3TestCase):
@@ -314,6 +316,19 @@ class TestSwift3Middleware(Swift3TestCase):
         self.assertEquals(elem.find('./Code').text, 'MethodNotAllowed')
         self.assertEquals(elem.find('./Method').text, 'POST')
         self.assertEquals(elem.find('./ResourceType').text, 'ACL')
+
+    def test_registered_defaults(self):
+        filter_factory(CONF)
+        swift_info = utils.get_swift_info()
+        self.assertTrue('swift3' in swift_info)
+        self.assertEqual(swift_info['swift3'].get('max_bucket_listing'),
+                         CONF.max_bucket_listing)
+        self.assertEqual(swift_info['swift3'].get('max_parts_listing'),
+                         CONF.max_parts_listing)
+        self.assertEqual(swift_info['swift3'].get('max_upload_part_num'),
+                         CONF.max_upload_part_num)
+        self.assertEqual(swift_info['swift3'].get('max_multi_delete_objects'),
+                         CONF.max_multi_delete_objects)
 
     def test_check_pipeline(self):
         with nested(patch("swift3.middleware.CONF"),

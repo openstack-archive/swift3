@@ -53,7 +53,7 @@ class Swift3TestCase(unittest.TestCase):
     def __init__(self, name):
         unittest.TestCase.__init__(self, name)
 
-        CONF.log_level = 'debug',
+        CONF.log_level = 'debug'
         CONF.storage_domain = 'localhost'
 
     def setUp(self):

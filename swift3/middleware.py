@@ -62,7 +62,7 @@ from swift3.response import ErrorResponse, InternalError, MethodNotAllowed, \
     ResponseBase
 from swift3.cfg import CONF
 from swift3.utils import LOGGER
-from swift.common.utils import get_logger
+from swift.common.utils import get_logger, register_swift_info
 
 
 class Swift3Middleware(object):
@@ -175,6 +175,14 @@ def filter_factory(global_conf, **local_conf):
     # Reassign config to logger
     global LOGGER
     LOGGER = get_logger(CONF, log_route='swift3')
+
+    register_swift_info(
+        'swift3',
+        max_bucket_listing=CONF['max_bucket_listing'],
+        max_parts_listing=CONF['max_parts_listing'],
+        max_upload_part_num=CONF['max_upload_part_num'],
+        max_multi_delete_objects=CONF['max_multi_delete_objects']
+    )
 
     def swift3_filter(app):
         return Swift3Middleware(app, CONF)
