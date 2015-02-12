@@ -30,6 +30,10 @@ class TestSwift3MultiDelete(Swift3TestCase):
 
     def setUp(self):
         super(TestSwift3MultiDelete, self).setUp()
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket/Key1',
+                            swob.HTTPOk, {}, None)
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket/Key2',
+                            swob.HTTPOk, {}, None)
 
     @s3acl
     def test_object_multi_DELETE_to_object(self):
@@ -50,13 +54,19 @@ class TestSwift3MultiDelete(Swift3TestCase):
 
     @s3acl
     def test_object_multi_DELETE(self):
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket/Key3',
+                            swob.HTTPOk,
+                            {'x-static-large-object': 'True'},
+                            None)
         self.swift.register('DELETE', '/v1/AUTH_test/bucket/Key1',
                             swob.HTTPNoContent, {}, None)
         self.swift.register('DELETE', '/v1/AUTH_test/bucket/Key2',
                             swob.HTTPNotFound, {}, None)
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket/Key3',
+                            swob.HTTPOk, {}, None)
 
         elem = Element('Delete')
-        for key in ['Key1', 'Key2']:
+        for key in ['Key1', 'Key2', 'Key3']:
             obj = SubElement(elem, 'Object')
             SubElement(obj, 'Key').text = key
         body = tostring(elem, use_s3ns=False)
@@ -73,7 +83,15 @@ class TestSwift3MultiDelete(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
 
         elem = fromstring(body)
-        self.assertEquals(len(elem.findall('Deleted')), 2)
+        self.assertEquals(len(elem.findall('Deleted')), 3)
+
+        _, path, _ = self.swift.calls_with_headers[-1]
+        path, query_string = path.split('?', 1)
+        query = {}
+        for q in query_string.split('&'):
+            key, arg = q.split('=')
+            query[key] = arg
+        self.assertEquals(query['multipart-manifest'], 'delete')
 
     @s3acl
     def test_object_multi_DELETE_quiet(self):
