@@ -7,3 +7,4 @@ mock
 pylint
 python-openstackclient<=1.9.0
 boto
+six>=1.9.0
