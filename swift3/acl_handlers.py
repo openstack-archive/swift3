@@ -175,6 +175,11 @@ class ObjectAclHandler(BaseAclHandler):
     """
     ObjectAclHandler: Handler for ObjectController
     """
+    def HEAD(self, app):
+        # No check object permission needed at DELETE Object
+        if self.method != 'DELETE':
+            return self._handle_acl(app, 'HEAD')
+
     def PUT(self, app):
         b_resp = self._handle_acl(app, 'HEAD', obj='')
         req_acl = ACL.from_headers(self.req.headers,
