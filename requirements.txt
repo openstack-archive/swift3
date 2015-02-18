@@ -1,2 +1,2 @@
-swift>=1.8
+swift>=2.0.0
 lxml
