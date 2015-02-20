@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# Copyright (c) 2014 OpenStack Foundation
+# Copyright (c) 2015 OpenStack Foundation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,10 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-
 from swift3.etree import fromstring
 
-if __name__ == '__main__':
-    elem = fromstring(sys.stdin.read())
-    print elem.xpath(sys.argv[1])[0]
+
+def assert_common_response_headers(self, headers):
+    self.assertTrue(headers['x-amz-id-2'] is not None)
+    self.assertTrue(headers['x-amz-request-id'] is not None)
+    self.assertTrue(headers['date'] is not None)
+    # TODO; requires consideration
+    # self.assertTrue(headers['server'] is not None)
+
+
+def get_error_code(body):
+    elem = fromstring(body, 'Error')
+    return elem.find('Code').text
