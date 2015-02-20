@@ -46,6 +46,7 @@ import os
 import re
 
 from swift.common.utils import json
+from swift.common.db import utf8encode
 
 from swift3.controllers.base import Controller, bucket_operation, \
     object_operation
@@ -149,12 +150,26 @@ class UploadsController(Controller):
             else:
                 return pattern.search(o['name']) is None
 
+        def filter_delimiter(objects, marker, prefix, delimiter):
+            (marker, prefix, delimiter) = \
+                utf8encode(marker, prefix, delimiter)
+            filtered_objects = []
+            prefixes = []
+            for o in objects:
+                name, _ = o['name'].rsplit('/', 1)
+                end = name.find(delimiter, len(prefix))
+                if end > 0:
+                    dir_name = name[:end + len(delimiter)]
+                    if dir_name != marker:
+                        prefixes.append(dir_name)
+                    continue
+                filtered_objects.append(o)
+            return filtered_objects, sorted(set(prefixes))
+
         encoding_type = req.params.get('encoding-type')
         if encoding_type is not None and encoding_type != 'url':
             err_msg = 'Invalid Encoding Method specified in Request'
             raise InvalidArgument('encoding-type', encoding_type, err_msg)
-
-        # TODO: add support for delimiter query.
 
         keymarker = req.params.get('key-marker', '')
         uploadid = req.params.get('upload-id-marker', '')
@@ -179,6 +194,13 @@ class UploadsController(Controller):
 
         objects = filter(filter_max_uploads, objects)
 
+        prefixes = []
+        if 'delimiter' in req.params:
+            prefix = req.params.get('prefix', '')
+            delimiter = req.params['delimiter']
+            objects, prefixes = \
+                filter_delimiter(objects, keymarker, prefix, delimiter)
+
         if len(objects) > maxuploads:
             objects = objects[:maxuploads]
             truncated = True
@@ -186,7 +208,6 @@ class UploadsController(Controller):
             truncated = False
 
         uploads = []
-        prefixes = []
         for o in objects:
             obj, upid = o['name'].rsplit('/', 1)
             uploads.append(
@@ -207,6 +228,9 @@ class UploadsController(Controller):
         SubElement(result_elem, 'UploadIdMarker').text = uploadid
         SubElement(result_elem, 'NextKeyMarker').text = nextkeymarker
         SubElement(result_elem, 'NextUploadIdMarker').text = nextuploadmarker
+        if 'delimiter' in req.params:
+            SubElement(result_elem, 'Delimiter').text = \
+                req.params['delimiter']
         if 'prefix' in req.params:
             SubElement(result_elem, 'Prefix').text = req.params['prefix']
         SubElement(result_elem, 'MaxUploads').text = str(maxuploads)
