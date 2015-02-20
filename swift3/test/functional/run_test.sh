@@ -90,7 +90,7 @@ _start proxy coverage run --branch --include=../../*  --omit=./* \
     ./run_daemon.py proxy 8080 conf/proxy-server.conf -v
 
 # run tests
-./check "$@"
+nosetests -v ./
 rvalue=$?
 
 # cleanup
