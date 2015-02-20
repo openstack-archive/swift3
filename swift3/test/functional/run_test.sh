@@ -1,8 +1,22 @@
 #!/bin/bash
+# Copyright (c) 2014 OpenStack Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 cd $(readlink -f $(dirname $0))
 
-. ./common.config
+. ./swift3.config
 
 CONF_DIR=$(readlink -f ./conf)
 
@@ -17,7 +31,8 @@ if [ "$AUTH" == 'keystone' ]; then
 elif [ "$AUTH" == 'tempauth' ]; then
     MIDDLEWARE="tempauth"
 else
-    _fatal "unknown auth: $AUTH"
+    echo "unknown auth: $AUTH"
+    exit 1
 fi
 
 for server in keystone swift proxy-server object-server container-server account-server; do
@@ -78,7 +93,8 @@ _start()
     done
 
     cat ${TEST_DIR}/log/${name}.log
-    _fatal "Cannot start ${name}-server."
+    echo "Cannot start ${name}-server."
+    exit 1
 }
 
 _start account ./run_daemon.py account 6002 conf/account-server.conf -v
@@ -90,7 +106,7 @@ _start proxy coverage run --branch --include=../../*  --omit=./* \
     ./run_daemon.py proxy 8080 conf/proxy-server.conf -v
 
 # run tests
-./check "$@"
+nosetests -v ./
 rvalue=$?
 
 # cleanup
