@@ -357,6 +357,149 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEquals(query['limit'], '1001')
         self.assertEquals(query['prefix'], 'X')
 
+    @s3acl
+    def test_bucket_multipart_uploads_GET_with_delimiter(self):
+        query = 'delimiter=/'
+        multiparts = \
+            (('object/X', '2014-05-07T19:47:50.592270', 'HASH', 1),
+             ('object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 11),
+             ('object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 21),
+             ('object/Y', '2014-05-07T19:47:50.592270', 'HASH', 2),
+             ('object/Y/1', '2014-05-07T19:47:51.592270', 'HASH', 21),
+             ('object/Y/2', '2014-05-07T19:47:52.592270', 'HASH', 22),
+             ('object/Z', '2014-05-07T19:47:50.592270', 'HASH', 3),
+             ('object/Z/1', '2014-05-07T19:47:51.592270', 'HASH', 31),
+             ('object/Z/2', '2014-05-07T19:47:52.592270', 'HASH', 32),
+             ('subdir/object/X', '2014-05-07T19:47:50.592270', 'HASH', 4),
+             ('subdir/object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 41),
+             ('subdir/object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 42),
+             ('subdir/object/Y', '2014-05-07T19:47:50.592270', 'HASH', 5),
+             ('subdir/object/Y/1', '2014-05-07T19:47:51.592270', 'HASH', 51),
+             ('subdir/object/Y/2', '2014-05-07T19:47:52.592270', 'HASH', 52),
+             ('subdir2/object/Z', '2014-05-07T19:47:50.592270', 'HASH', 6),
+             ('subdir2/object/Z/1', '2014-05-07T19:47:51.592270', 'HASH', 61),
+             ('subdir2/object/Z/2', '2014-05-07T19:47:52.592270', 'HASH', 62))
+
+        status, headers, body = \
+            self._test_bucket_multipart_uploads_GET(query, multiparts)
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(len(elem.findall('Upload')), 3)
+        self.assertEquals(len(elem.findall('CommonPrefixes')), 2)
+        objects = [(o[0], o[1][:-3] + 'Z') for o in multiparts
+                   if o[0].startswith('o')]
+        prefixes = set([o[0].split('/')[0] + '/' for o in multiparts
+                       if o[0].startswith('s')])
+        for u in elem.findall('Upload'):
+            name = u.find('Key').text + '/' + u.find('UploadId').text
+            initiated = u.find('Initiated').text
+            self.assertTrue((name, initiated) in objects)
+        for p in elem.findall('CommonPrefixes'):
+            prefix = p.find('Prefix').text
+            self.assertTrue(prefix in prefixes)
+
+        self.assertEquals(status.split()[0], '200')
+        _, path, _ = self.swift.calls_with_headers[-1]
+        path, query_string = path.split('?', 1)
+        query = {}
+        for q in query_string.split('&'):
+            key, arg = q.split('=')
+            query[key] = arg
+        self.assertEquals(query['format'], 'json')
+        self.assertEquals(query['limit'], '1001')
+        self.assertTrue(query.get('delimiter') is None)
+
+    @s3acl
+    def test_bucket_multipart_uploads_GET_with_multi_chars_delimiter(self):
+        query = 'delimiter=subdir'
+        multiparts = \
+            (('object/X', '2014-05-07T19:47:50.592270', 'HASH', 1),
+             ('object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 11),
+             ('object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 21),
+             ('dir/subdir/object/X', '2014-05-07T19:47:50.592270',
+              'HASH', 3),
+             ('dir/subdir/object/X/1', '2014-05-07T19:47:51.592270',
+              'HASH', 31),
+             ('dir/subdir/object/X/2', '2014-05-07T19:47:52.592270',
+              'HASH', 32),
+             ('subdir/object/X', '2014-05-07T19:47:50.592270', 'HASH', 4),
+             ('subdir/object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 41),
+             ('subdir/object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 42),
+             ('subdir/object/Y', '2014-05-07T19:47:50.592270', 'HASH', 5),
+             ('subdir/object/Y/1', '2014-05-07T19:47:51.592270', 'HASH', 51),
+             ('subdir/object/Y/2', '2014-05-07T19:47:52.592270', 'HASH', 52),
+             ('subdir2/object/Z', '2014-05-07T19:47:50.592270', 'HASH', 6),
+             ('subdir2/object/Z/1', '2014-05-07T19:47:51.592270', 'HASH', 61),
+             ('subdir2/object/Z/2', '2014-05-07T19:47:52.592270', 'HASH', 62))
+
+        status, headers, body = \
+            self._test_bucket_multipart_uploads_GET(query, multiparts)
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(len(elem.findall('Upload')), 1)
+        self.assertEquals(len(elem.findall('CommonPrefixes')), 2)
+        objects = [(o[0], o[1][:-3] + 'Z') for o in multiparts
+                   if o[0].startswith('object')]
+        prefixes = ('dir/subdir', 'subdir')
+        for u in elem.findall('Upload'):
+            name = u.find('Key').text + '/' + u.find('UploadId').text
+            initiated = u.find('Initiated').text
+            self.assertTrue((name, initiated) in objects)
+        for p in elem.findall('CommonPrefixes'):
+            prefix = p.find('Prefix').text
+            self.assertTrue(prefix in prefixes)
+
+        self.assertEquals(status.split()[0], '200')
+        _, path, _ = self.swift.calls_with_headers[-1]
+        path, query_string = path.split('?', 1)
+        query = {}
+        for q in query_string.split('&'):
+            key, arg = q.split('=')
+            query[key] = arg
+        self.assertEquals(query['format'], 'json')
+        self.assertEquals(query['limit'], '1001')
+        self.assertTrue(query.get('delimiter') is None)
+
+    @s3acl
+    def test_bucket_multipart_uploads_GET_with_prefix_and_delimiter(self):
+        query = 'prefix=dir/&delimiter=/'
+        multiparts = \
+            (('dir/subdir/object/X', '2014-05-07T19:47:50.592270',
+              'HASH', 4),
+             ('dir/subdir/object/X/1', '2014-05-07T19:47:51.592270',
+              'HASH', 41),
+             ('dir/subdir/object/X/2', '2014-05-07T19:47:52.592270',
+              'HASH', 42),
+             ('dir/object/X', '2014-05-07T19:47:50.592270', 'HASH', 5),
+             ('dir/object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 51),
+             ('dir/object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 52))
+
+        status, headers, body = \
+            self._test_bucket_multipart_uploads_GET(query, multiparts)
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(len(elem.findall('Upload')), 1)
+        self.assertEquals(len(elem.findall('CommonPrefixes')), 1)
+        objects = [(o[0], o[1][:-3] + 'Z') for o in multiparts
+                   if o[0].startswith('dir/o')]
+        prefixes = ['dir/subdir/']
+        for u in elem.findall('Upload'):
+            name = u.find('Key').text + '/' + u.find('UploadId').text
+            initiated = u.find('Initiated').text
+            self.assertTrue((name, initiated) in objects)
+        for p in elem.findall('CommonPrefixes'):
+            prefix = p.find('Prefix').text
+            self.assertTrue(prefix in prefixes)
+
+        self.assertEquals(status.split()[0], '200')
+        _, path, _ = self.swift.calls_with_headers[-1]
+        path, query_string = path.split('?', 1)
+        query = {}
+        for q in query_string.split('&'):
+            key, arg = q.split('=')
+            query[key] = arg
+        self.assertEquals(query['format'], 'json')
+        self.assertEquals(query['limit'], '1001')
+        self.assertEquals(query['prefix'], 'dir/')
+        self.assertTrue(query.get('delimiter') is None)
+
     @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
     def test_object_multipart_upload_initiate(self):
         req = Request.blank('/bucket/object?uploads',
