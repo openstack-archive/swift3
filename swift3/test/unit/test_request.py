@@ -276,6 +276,23 @@ class TestRequest(Swift3TestCase):
             sw_req = s3_req.to_swift_req(method, container, obj)
             self.assertTrue(sw_req.environ['swift.proxy_access_log_made'])
 
+    def test_parse_uri_with_invalid_bucket_name_and_PUT_bucket(self):
+        container = '.bucket'
+        method = 'PUT'
+        req = Request.blank('/%s' % (container),
+                            environ={'REQUEST_METHOD': method},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'InvalidBucketName')
+
+    def test_parse_uri_with_invalid_bucket_name_and_not_PUT_bucket(self):
+        container = '.bucket'
+        method = 'GET'
+        req = Request.blank('/%s' % (container),
+                            environ={'REQUEST_METHOD': method},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'NoSuchBucket')
 
 if __name__ == '__main__':
     unittest.main()

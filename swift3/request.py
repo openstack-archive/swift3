@@ -140,7 +140,11 @@ class Request(swob.Request):
 
         if bucket and not validate_bucket_name(bucket):
             # Ignore GET service case
-            raise InvalidBucketName(bucket)
+            if self.method == 'PUT' and not obj:
+                # only when PUT bucket, rasise InvalidBucketName
+                raise InvalidBucketName(bucket)
+            else:
+                raise NoSuchBucket(bucket)
         return (bucket, obj)
 
     def _parse_authorization(self):
