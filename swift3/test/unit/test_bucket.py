@@ -46,6 +46,10 @@ class TestSwift3Bucket(Swift3TestCase):
         for p in self.prefixes:
             object_list_subdir.append({"subdir": p})
 
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket+segments', swob.HTTPNoContent,
+                            {}, json.dumps([]))
+        self.swift.register('GET', '/v1/AUTH_test/bucket+segments?format=json&marker=', swob.HTTPOk,
+                            {}, json.dumps([]))
         self.swift.register('HEAD', '/v1/AUTH_test/junk', swob.HTTPNoContent,
                             {}, None)
         self.swift.register('HEAD', '/v1/AUTH_test/nojunk', swob.HTTPNotFound,

@@ -154,6 +154,10 @@ class BucketAclHandler(BaseAclHandler):
     """
     BucketAclHandler: Handler for BucketController
     """
+    def GET(self, app):
+        if self.method != 'DELETE':
+            return self._handle_acl(app, 'GET')
+
     def PUT(self, app):
         req_acl = ACL.from_headers(self.req.headers,
                                    Owner(self.user_id, self.user_id))
@@ -371,6 +375,8 @@ ACL_MAP = {
     {'Permission': 'WRITE'},
     # DELETE Bucket
     ('DELETE', 'DELETE', 'container'):
+    {'Permission': 'OWNER'},
+    ('DELETE', 'GET', 'container'):
     {'Permission': 'OWNER'},
     # HEAD Object
     ('HEAD', 'HEAD', 'object'):
