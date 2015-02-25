@@ -157,6 +157,17 @@ class BucketAclHandler(BaseAclHandler):
     """
     BucketAclHandler: Handler for BucketController
     """
+    def DELETE(self, app):
+        if self.container.endswith(MULTIUPLOAD_SUFFIX):
+            # anyways, delete multiupload container doesn't need acls
+            pass
+        else:
+            return self._handle_acl(app, 'DELETE')
+
+    def GET(self, app):
+        if self.method != 'DELETE':
+            return self._handle_acl(app, 'GET')
+
     def PUT(self, app):
         req_acl = ACL.from_headers(self.req.headers,
                                    Owner(self.user_id, self.user_id))
