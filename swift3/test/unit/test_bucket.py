@@ -46,6 +46,23 @@ class TestSwift3Bucket(Swift3TestCase):
         for p in self.prefixes:
             object_list_subdir.append({"subdir": p})
 
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket+segments',
+                            swob.HTTPNoContent, {}, json.dumps([]))
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket+segments/rose',
+                            swob.HTTPNoContent, {}, json.dumps([]))
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket+segments/viola',
+                            swob.HTTPNoContent, {}, json.dumps([]))
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket+segments/lily',
+                            swob.HTTPNoContent, {}, json.dumps([]))
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket+segments/with'
+                            ' space', swob.HTTPNoContent, {}, json.dumps([]))
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket+segments/with%20'
+                            'space', swob.HTTPNoContent, {}, json.dumps([]))
+        self.swift.register('GET', '/v1/AUTH_test/bucket+segments?format=json'
+                            '&marker=with%2520space', swob.HTTPOk, {},
+                            json.dumps([]))
+        self.swift.register('GET', '/v1/AUTH_test/bucket+segments?format=json'
+                            '&marker=', swob.HTTPOk, {}, object_list)
         self.swift.register('HEAD', '/v1/AUTH_test/junk', swob.HTTPNoContent,
                             {}, None)
         self.swift.register('HEAD', '/v1/AUTH_test/nojunk', swob.HTTPNotFound,
