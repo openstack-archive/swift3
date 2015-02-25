@@ -157,6 +157,15 @@ class BucketAclHandler(BaseAclHandler):
     """
     BucketAclHandler: Handler for BucketController
     """
+    def __init__(self, req, container, obj, headers):
+        super(BucketAclHandler, self).__init__(req, container, obj, headers)
+        if self.container.endswith(MULTIUPLOAD_SUFFIX):
+            self.container = self.container[:-len(MULTIUPLOAD_SUFFIX)]
+
+    def GET(self, app):
+        if self.method != 'DELETE':
+            return self._handle_acl(app, 'GET')
+
     def PUT(self, app):
         req_acl = ACL.from_headers(self.req.headers,
                                    Owner(self.user_id, self.user_id))
