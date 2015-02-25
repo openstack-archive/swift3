@@ -22,9 +22,10 @@ from swift3.controllers.base import Controller
 from swift3.etree import Element, SubElement, tostring, fromstring, \
     XMLSyntaxError, DocumentInvalid
 from swift3.response import HTTPOk, S3NotImplemented, InvalidArgument, \
-    MalformedXML, InvalidLocationConstraint
+    MalformedXML, InvalidLocationConstraint, NoSuchBucket, \
+    BucketNotEmpty, InternalError, ServiceUnavailable, NoSuchKey
 from swift3.cfg import CONF
-from swift3.utils import LOGGER
+from swift3.utils import LOGGER, MULTIUPLOAD_SUFFIX
 
 MAX_PUT_BUCKET_BODY_SIZE = 10240
 
@@ -33,6 +34,31 @@ class BucketController(Controller):
     """
     Handles bucket request.
     """
+    def _delete_segments_bucket(self, req):
+        """
+        Before delete bucket, delete segments bucket if existing.
+        """
+        container = req.container_name + MULTIUPLOAD_SUFFIX
+        try:
+            # delete all segments
+            resp = req.get_response(self.app, 'GET', container,
+                                    query={'format': 'json',
+                                           'marker': ''})
+            segments = json.loads(resp.body)
+            for seg in segments:
+                try:
+                    req.get_response(self.app, 'DELETE', container,
+                                     seg['name'])
+                except NoSuchKey:
+                    pass
+                except InternalError:
+                    raise ServiceUnavailable()
+
+        except NoSuchBucket:
+            return
+        except (BucketNotEmpty, InternalError):
+            raise ServiceUnavailable()
+
     def HEAD(self, req):
         """
         Handle HEAD Bucket (Get Metadata) request
@@ -154,6 +180,7 @@ class BucketController(Controller):
         """
         Handle DELETE Bucket request
         """
+        self._delete_segments_bucket(req)
         return req.get_response(self.app)
 
     def POST(self, req):
