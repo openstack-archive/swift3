@@ -241,6 +241,41 @@ class TestRequest(Swift3TestCase):
             self.assertTrue('Authorization' not in sw_req.headers)
             self.assertEquals(sw_req.headers['X-Auth-Token'], 'token')
 
+    def test_to_swift_req_subrequest_proxy_access_log(self):
+        container = 'bucket'
+        obj = 'obj'
+        method = 'GET'
+
+        # force_swift_request_proxy_log is True
+        req = Request.blank('/%s/%s' % (container, obj),
+                            environ={'REQUEST_METHOD': method,
+                                     'swift.proxy_access_log_made': True},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        with nested(patch.object(Request, 'get_response'),
+                    patch.object(Request, 'remote_user', 'authorized'),
+                    patch('swift3.cfg.CONF.force_swift_request_proxy_log',
+                    True)) \
+                as (m_swift_resp, m_remote_user, m_cfg):
+
+            m_swift_resp.return_value = FakeSwiftResponse()
+            s3_req = S3AclRequest(req.environ, MagicMock())
+            sw_req = s3_req.to_swift_req(method, container, obj)
+            self.assertFalse(sw_req.environ['swift.proxy_access_log_made'])
+
+        # force_swift_request_proxy_log is False
+        req = Request.blank('/%s/%s' % (container, obj),
+                            environ={'REQUEST_METHOD': method,
+                                     'swift.proxy_access_log_made': True},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        with nested(patch.object(Request, 'get_response'),
+                    patch.object(Request, 'remote_user', 'authorized')) \
+                as (m_swift_resp, m_remote_user):
+
+            m_swift_resp.return_value = FakeSwiftResponse()
+            s3_req = S3AclRequest(req.environ, MagicMock())
+            sw_req = s3_req.to_swift_req(method, container, obj)
+            self.assertTrue(sw_req.environ['swift.proxy_access_log_made'])
+
 
 if __name__ == '__main__':
     unittest.main()

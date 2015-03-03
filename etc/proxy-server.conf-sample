@@ -96,6 +96,9 @@ use = egg:swift3#swift3
 # If you set this to false, Swift3 returns all buckets.
 # check_bucket_owner = false
 #
+# If set to 'true', proxy-logging output access log from Swift3 to
+# proxy-server.
+# force_swift_request_proxy_log = false
 
 [filter:catch_errors]
 use = egg:swift#catch_errors
