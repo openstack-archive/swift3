@@ -85,6 +85,7 @@ class TestRequest(Swift3TestCase):
     def setUp(self):
         super(TestRequest, self).setUp()
         CONF.s3_acl = True
+        CONF.subrequest_proxy_access_log = False
 
     def tearDown(self):
         CONF.s3_acl = False
@@ -240,6 +241,38 @@ class TestRequest(Swift3TestCase):
             self.assertTrue('HTTP_AUTHORIZATION' not in sw_req.environ)
             self.assertTrue('Authorization' not in sw_req.headers)
             self.assertEquals(sw_req.headers['X-Auth-Token'], 'token')
+
+    def test_to_swift_req_subrequest_proxy_access_log(self):
+        CONF.subrequest_proxy_access_log = True
+        container = 'bucket'
+        obj = 'obj'
+        method = 'GET'
+        req = Request.blank('/%s/%s' % (container, obj),
+                            environ={'REQUEST_METHOD': method,
+                                     'swift.proxy_access_log_made': True},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        with nested(patch.object(Request, 'get_response'),
+                    patch.object(Request, 'remote_user', 'authorized')) \
+                as (m_swift_resp, m_remote_user):
+
+            m_swift_resp.return_value = FakeSwiftResponse()
+            s3_req = S3AclRequest(req.environ, MagicMock())
+            sw_req = s3_req.to_swift_req(method, container, obj)
+            self.assertFalse(sw_req.environ['swift.proxy_access_log_made'])
+
+        CONF.subrequest_proxy_access_log = False
+        req = Request.blank('/%s/%s' % (container, obj),
+                            environ={'REQUEST_METHOD': method,
+                                     'swift.proxy_access_log_made': True},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        with nested(patch.object(Request, 'get_response'),
+                    patch.object(Request, 'remote_user', 'authorized')) \
+                as (m_swift_resp, m_remote_user):
+
+            m_swift_resp.return_value = FakeSwiftResponse()
+            s3_req = S3AclRequest(req.environ, MagicMock())
+            sw_req = s3_req.to_swift_req(method, container, obj)
+            self.assertTrue(sw_req.environ['swift.proxy_access_log_made'])
 
 
 if __name__ == '__main__':

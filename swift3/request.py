@@ -433,6 +433,8 @@ class Request(swob.Request):
             del env['HTTP_X_AMZ_COPY_SOURCE']
             env['CONTENT_LENGTH'] = '0'
 
+        if CONF.subrequest_proxy_access_log:
+            env['swift.proxy_access_log_made'] = False
         env['swift.source'] = 'S3'
         if method is not None:
             env['REQUEST_METHOD'] = method
