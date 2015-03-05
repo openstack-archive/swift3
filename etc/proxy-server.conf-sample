@@ -96,8 +96,14 @@ use = egg:swift3#swift3
 # If you set this to false, Swift3 returns all buckets.
 # check_bucket_owner = false
 #
-# If set to 'true', proxy-logging output access log from Swift3 to
-# proxy-server.
+# In default, Swift reports only S3 style access log.
+# (e.g. PUT /bucket/object) If set force_swift_request_proxy_log
+# to be 'true', Swift will become to output Swift style log
+# (e.g. PUT /v1/account/container/object) in addition to S3 style log.
+# Note that they will be reported twice (i.e. Swift3 doesn't care about
+# the duplication) and Swift style log will includes also various subrequests
+# to achieve S3 compatibilities when force_swift_request_proxy_log is set to
+# 'true'
 # force_swift_request_proxy_log = false
 
 [filter:catch_errors]
