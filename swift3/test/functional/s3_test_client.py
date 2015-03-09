@@ -14,7 +14,8 @@
 # limitations under the License.
 
 import os
-from boto.s3.connection import S3Connection, OrdinaryCallingFormat
+from boto.s3.connection import S3Connection, OrdinaryCallingFormat, \
+    BotoClientError, S3ResponseError
 from swift3.response import NoSuchKey, NoSuchBucket
 
 RETRY_COUNT = 3
@@ -40,20 +41,27 @@ class Connection(object):
                          calling_format=OrdinaryCallingFormat())
 
     def reset(self):
+        exceptions = []
         for i in range(RETRY_COUNT):
-            buckets = self.conn.get_all_buckets()
-            if not buckets:
-                break
-            for bucket in buckets:
-                for obj in bucket.list():
+            try:
+                buckets = self.conn.get_all_buckets()
+                if not buckets:
+                    break
+                for bucket in buckets:
+                    for obj in bucket.list():
+                        try:
+                            bucket.delete_key(obj.name)
+                        except NoSuchKey:
+                            pass
                     try:
-                        bucket.delete_key(obj.name)
-                    except (NoSuchKey):
+                        self.conn.delete_bucket(bucket.name)
+                    except NoSuchBucket:
                         pass
-                try:
-                    self.conn.delete_bucket(bucket.name)
-                except (NoSuchBucket):
-                    pass
+            except (BotoClientError, S3ResponseError) as e:
+                exceptions.append(e)
+        if exceptions:
+            # raise the first exception
+            raise exceptions.pop(0)
 
     def make_request(self, method, bucket='', obj='', headers=None, body='',
                      query=None):
