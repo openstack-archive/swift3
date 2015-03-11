@@ -18,7 +18,7 @@ cd $(readlink -f $(dirname $0))
 
 . ./swift3.config
 
-CONF_DIR=$(readlink -f ./conf)
+export CONF_DIR=$(readlink -f ./conf)
 
 rm -rf $TEST_DIR
 mkdir -p ${TEST_DIR}/etc ${TEST_DIR}/log
@@ -40,9 +40,15 @@ for server in keystone swift proxy-server object-server container-server account
 	-e "s#%USER%#`whoami`#g" \
 	-e "s#%TEST_DIR%#${TEST_DIR}#g" \
 	-e "s#%CONF_DIR%#${CONF_DIR}#g" \
-	conf/${server}.conf.in \
-	> conf/${server}.conf
+	${CONF_DIR}/${server}.conf.in \
+	> ${CONF_DIR}/${server}.conf
 done
+
+export PROXY_CONF=${CONF_DIR}/proxy-server.conf
+export PROXY_PID=${PWD}/.proxy_pid
+if [ -e $PROXY_PID ]; then
+    rm $PROXY_PID
+fi
 
 # setup keystone
 if [ "$AUTH" == 'keystone' ]; then
@@ -97,23 +103,28 @@ _start()
     exit 1
 }
 
-_start account ./run_daemon.py account 6002 conf/account-server.conf -v
-_start container ./run_daemon.py container 6001 conf/container-server.conf -v
-_start object ./run_daemon.py object 6000 conf/object-server.conf -v
+_start account ./run_daemon.py account 6002 ${CONF_DIR}/account-server.conf -v
+_start container ./run_daemon.py container 6001 ${CONF_DIR}/container-server.conf -v
+_start object ./run_daemon.py object 6000 ${CONF_DIR}/object-server.conf -v
 
 coverage erase
 _start proxy coverage run --branch --include=../../*  --omit=./* \
-    ./run_daemon.py proxy 8080 conf/proxy-server.conf -v
+    ./run_daemon.py proxy 8080 $PROXY_CONF -v
 
 # run tests
 nosetests -v ./
 rvalue=$?
 
 # cleanup
+if [ -e $PROXY_PID ]; then
+    proxy_pid=`cat $PROXY_PID`
+    rm $PROXY_PID
+fi
 kill -HUP $proxy_pid $account_pid $container_pid $object_pid $keystone_pid
 
 # show report
 sleep 3
+coverage combine
 coverage report
 coverage html
 
