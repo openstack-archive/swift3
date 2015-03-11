@@ -18,7 +18,7 @@ import unittest
 from swift3.test.functional.s3_test_client import Connection
 from swift3.test.functional.utils import get_error_code,\
     assert_common_response_headers
-from swift3.etree import fromstring
+from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.cfg import CONF
 from swift3.test.functional import Swift3FunctionalTestCase
 
@@ -26,6 +26,11 @@ from swift3.test.functional import Swift3FunctionalTestCase
 class TestSwift3Bucket(Swift3FunctionalTestCase):
     def setUp(self):
         super(TestSwift3Bucket, self).setUp()
+
+    def _gen_location_xml(self, location):
+        elem = Element('CreateBucketConfiguration')
+        SubElement(elem, 'LocationConstraint').text = location
+        return tostring(elem)
 
     def test_bucket(self):
         bucket = 'bucket'
@@ -114,7 +119,13 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         self.conn.make_request('PUT', 'bucket')
         status, headers, body = self.conn.make_request('PUT', 'bucket')
         self.assertEquals(get_error_code(body), 'BucketAlreadyExists')
-        self.conn.make_request('DELETE', 'bucket')
+
+    def test_put_bucket_with_LocationConstraint(self):
+        bucket = 'bucket'
+        xml = self._gen_location_xml('US')
+        status, headers, body = \
+            self.conn.make_request('PUT', bucket, body=xml)
+        self.assertEquals(status, 200)
 
     def test_get_bucket_error(self):
         self.conn.make_request('PUT', 'bucket')
@@ -130,7 +141,163 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         status, headers, body = self.conn.make_request('GET', 'nothing')
         self.assertEquals(get_error_code(body), 'NoSuchBucket')
 
-        self.conn.make_request('DELETE', 'bucket')
+    def _prepare_test_get_bucket(self, bucket, objects):
+        self.conn.make_request('PUT', bucket)
+        for obj in objects:
+            self.conn.make_request('PUT', bucket, obj)
+
+    def test_get_bucket_with_delimiter(self):
+        bucket = 'bucket'
+        put_objects = ('object', 'object2', 'subdir/object', 'subdir2/object',
+                       'dir/subdir/object')
+        self._prepare_test_get_bucket(bucket, put_objects)
+
+        delimiter = '/'
+        query = 'delimiter=%s' % delimiter
+        expect_objects = ('object', 'object2')
+        expect_prefixes = ('subdir/', 'subdir2/', 'dir/')
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, query=query)
+        self.assertEquals(status, 200)
+        elem = fromstring(body, 'ListBucketResult')
+        self.assertEquals(elem.find('Delimiter').text, delimiter)
+        resp_objects = elem.findall('./Contents')
+        self.assertEquals(len(list(resp_objects)), 2)
+        for o in resp_objects:
+            self.assertTrue(o.find('Key').text in expect_objects)
+            self.assertTrue(o.find('LastModified').text is not None)
+            self.assertTrue(o.find('ETag').text is not None)
+            self.assertTrue(o.find('Size').text is not None)
+            self.assertTrue(o.find('StorageClass').text is not None)
+            self.assertTrue(o.find('Owner/ID').text, self.conn.user_id)
+            self.assertTrue(o.find('Owner/DisplayName').text,
+                            self.conn.user_id)
+        resp_prefixes = elem.findall('CommonPrefixes')
+        self.assertEquals(len(resp_prefixes), len(expect_prefixes))
+        for p in resp_prefixes:
+            self.assertTrue(p.find('./Prefix').text in expect_prefixes)
+
+    def test_get_bucket_with_encoding_type(self):
+        bucket = 'bucket'
+        put_objects = ('object', 'object2')
+        self._prepare_test_get_bucket(bucket, put_objects)
+
+        encoding_type = 'url'
+        query = 'encoding-type=%s' % encoding_type
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, query=query)
+        self.assertEquals(status, 200)
+        elem = fromstring(body, 'ListBucketResult')
+        self.assertEquals(elem.find('EncodingType').text, encoding_type)
+
+    def test_get_bucket_with_marker(self):
+        bucket = 'bucket'
+        put_objects = ('object', 'object2', 'subdir/object', 'subdir2/object',
+                       'dir/subdir/object')
+        self._prepare_test_get_bucket(bucket, put_objects)
+
+        marker = 'object'
+        query = 'marker=%s' % marker
+        expect_objects = ('object2', 'subdir/object', 'subdir2/object')
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, query=query)
+        self.assertEquals(status, 200)
+        elem = fromstring(body, 'ListBucketResult')
+        self.assertEquals(elem.find('Marker').text, marker)
+        resp_objects = elem.findall('./Contents')
+        self.assertEquals(len(list(resp_objects)), 3)
+        for o in resp_objects:
+            self.assertTrue(o.find('Key').text in expect_objects)
+            self.assertTrue(o.find('LastModified').text is not None)
+            self.assertTrue(o.find('ETag').text is not None)
+            self.assertTrue(o.find('Size').text is not None)
+            self.assertTrue(o.find('StorageClass').text is not None)
+            self.assertTrue(o.find('Owner/ID').text, self.conn.user_id)
+            self.assertTrue(o.find('Owner/DisplayName').text,
+                            self.conn.user_id)
+
+    def test_get_bucket_with_max_keys(self):
+        bucket = 'bucket'
+        put_objects = ('object', 'object2', 'subdir/object', 'subdir2/object',
+                       'dir/subdir/object')
+        self._prepare_test_get_bucket(bucket, put_objects)
+
+        max_keys = '2'
+        query = 'max-keys=%s' % max_keys
+        expect_objects = ('object', 'dir/subdir/object')
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, query=query)
+        self.assertEquals(status, 200)
+        elem = fromstring(body, 'ListBucketResult')
+        self.assertEquals(elem.find('MaxKeys').text, max_keys)
+        resp_objects = elem.findall('./Contents')
+        self.assertEquals(len(list(resp_objects)), 2)
+        for o in resp_objects:
+            self.assertTrue(o.find('Key').text in expect_objects)
+            self.assertTrue(o.find('LastModified').text is not None)
+            self.assertTrue(o.find('ETag').text is not None)
+            self.assertTrue(o.find('Size').text is not None)
+            self.assertTrue(o.find('StorageClass').text is not None)
+            self.assertTrue(o.find('Owner/ID').text, self.conn.user_id)
+            self.assertTrue(o.find('Owner/DisplayName').text,
+                            self.conn.user_id)
+
+    def test_get_bucket_with_prefix(self):
+        bucket = 'bucket'
+        req_objects = ('object', 'object2', 'subdir/object', 'subdir2/object',
+                       'dir/subdir/object')
+        self._prepare_test_get_bucket(bucket, req_objects)
+
+        prefix = 'object'
+        query = 'prefix=%s' % prefix
+        expect_objects = ('object', 'object2')
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, query=query)
+        self.assertEquals(status, 200)
+        elem = fromstring(body, 'ListBucketResult')
+        self.assertEquals(elem.find('Prefix').text, prefix)
+        resp_objects = elem.findall('./Contents')
+        self.assertEquals(len(list(resp_objects)), 2)
+        for o in resp_objects:
+            self.assertTrue(o.find('Key').text in expect_objects)
+            self.assertTrue(o.find('LastModified').text is not None)
+            self.assertTrue(o.find('ETag').text is not None)
+            self.assertTrue(o.find('Size').text is not None)
+            self.assertTrue(o.find('StorageClass').text is not None)
+            self.assertTrue(o.find('Owner/ID').text, self.conn.user_id)
+            self.assertTrue(o.find('Owner/DisplayName').text,
+                            self.conn.user_id)
+
+    def test_get_bucket_with_all_query_strings(self):
+        bucket = 'bucket'
+        req_objects = ('object', 'object2', 'subdir/object', 'subdir2/object',
+                       'dir/subdir/object')
+        self._prepare_test_get_bucket(bucket, req_objects)
+
+        delimiter = '/'
+        encoding_type = 'url'
+        marker = 'dir'
+        max_keys = '4'
+        prefix = 'dir/'
+        query = \
+            'delimiter=%s&encoding-type=%s&marker=%s&max-keys=%s&prefix=%s' \
+            % (delimiter, encoding_type, marker, max_keys, prefix)
+        expect_prefixes = ('dir/subdir/',)
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, query=query)
+        self.assertEquals(status, 200)
+        elem = fromstring(body)
+        self.assertEquals(elem.find('Delimiter').text, delimiter)
+        self.assertEquals(elem.find('EncodingType').text, encoding_type)
+        self.assertEquals(elem.find('Marker').text, marker)
+        self.assertEquals(elem.find('MaxKeys').text, max_keys)
+        self.assertEquals(elem.find('Prefix').text, prefix)
+        resp_objects = elem.findall('./Contents')
+        self.assertEquals(len(list(resp_objects)), 0)
+        resp_prefixes = elem.findall('CommonPrefixes')
+        self.assertEquals(len(resp_prefixes), len(expect_prefixes))
+        for p in resp_prefixes:
+            self.assertTrue(p.find('./Prefix').text in expect_prefixes)
 
     def test_head_bucket_error(self):
         self.conn.make_request('PUT', 'bucket')
@@ -146,8 +313,6 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
 
         status, headers, body = self.conn.make_request('HEAD', 'nothing')
         self.assertEquals(status, 404)
-
-        self.conn.make_request('DELETE', 'bucket')
 
     def test_delete_bucket_error(self):
         status, headers, body = \
