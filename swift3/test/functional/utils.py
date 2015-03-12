@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from hashlib import md5
+import datetime
 from swift3.etree import fromstring
 
 
@@ -27,3 +29,12 @@ def assert_common_response_headers(self, headers):
 def get_error_code(body):
     elem = fromstring(body, 'Error')
     return elem.find('Code').text
+
+
+def calculate_md5(body):
+    return md5(body).digest().encode('base64').strip()
+
+
+def calculate_datetime(date, day=None):
+    date = date + datetime.timedelta(days=day)
+    return date.strftime("%a, %d %b %Y %H:%M:%S GMT")
