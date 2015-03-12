@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from hashlib import md5
+import datetime
 from swift3.etree import fromstring
 
 
@@ -32,3 +33,8 @@ def get_error_code(body):
 
 def calculate_md5(body):
     return md5(body).digest().encode('base64').strip()
+
+
+def calculate_datetime(date, day=None):
+    date = date + datetime.timedelta(days=day)
+    return date.strftime("%a, %d %b %Y %H:%M:%S GMT")
