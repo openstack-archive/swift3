@@ -37,6 +37,7 @@ fi
 
 for server in keystone swift proxy-server object-server container-server account-server; do
     sed -e "s#%MIDDLEWARE%#${MIDDLEWARE}#g" \
+        -e "s#%S3ACL%#${S3ACL}#g" \
 	-e "s#%USER%#`whoami`#g" \
 	-e "s#%TEST_DIR%#${TEST_DIR}#g" \
 	-e "s#%CONF_DIR%#${CONF_DIR}#g" \
@@ -106,7 +107,11 @@ _start proxy coverage run --branch --include=../../*  --omit=./* \
     ./run_daemon.py proxy 8080 conf/proxy-server.conf -v
 
 # run tests
-nosetests -v ./
+if [ "$S3ACL" == 'true' ]; then
+    nosetests -v -a 's3acl' ./
+else
+    nosetests -v -a '!s3acl' ./
+fi
 rvalue=$?
 
 # cleanup
