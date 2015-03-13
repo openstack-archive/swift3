@@ -22,6 +22,7 @@ user_test_tester2 = testing2 .admin
 
 [filter:swift3]
 use = egg:swift3#swift3
+s3_acl = %S3ACL%
 
 [filter:catch_errors]
 use = egg:swift#catch_errors
