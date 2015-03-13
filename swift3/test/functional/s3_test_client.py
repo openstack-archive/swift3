@@ -25,10 +25,10 @@ class Connection(object):
     """
     Connection class used for S3 functional testing.
     """
-    def __init__(self, aws_access_key=os.environ.get('ADMIN_ACCESS_KEY'),
-                 aws_secret_key=os.environ.get('ADMIN_SECRET_KEY'),
-                 user_id='%s:%s' % (os.environ.get('ADMIN_TENANT'),
-                                    os.environ.get('ADMIN_USER'))):
+    def __init__(self, aws_access_key=os.environ.get('TESTER_ACCESS_KEY'),
+                 aws_secret_key=os.environ.get('TESTER_SECRET_KEY'),
+                 user_id='%s:%s' % (os.environ.get('TESTER_TENANT'),
+                                    os.environ.get('TESTER_USER'))):
         """
         Initialize method.
 
@@ -37,9 +37,9 @@ class Connection(object):
         :param user_id: a string consists of TENANT and USER name used for
                         asserting Owner ID (not required S3Connection)
 
-        In default, Connection class will be initialized as admin user
+        In default, Connection class will be initialized as tester user
         behaves as:
-        user_test_admin = admin .admin
+        user_test_tester = testing .admin
 
         """
         self.aws_access_key = aws_access_key
@@ -104,15 +104,15 @@ class Connection(object):
         return response.status, dict(response.getheaders()), response.read()
 
 
-def get_tester_connection():
+def get_admin_connection():
     """
     Return tester connection behaves as:
-    user_test_tester = testing .admin
+    user_test_admin = admin .admin
     """
-    aws_access_key = os.environ.get('TESTER_ACCESS_KEY')
-    aws_secret_key = os.environ.get('TESTER_SECRET_KEY')
-    user_id = os.environ.get('TESTER_TENANT') + ':' + \
-        os.environ.get('TESTER_USER')
+    aws_access_key = os.environ.get('ADMIN_ACCESS_KEY')
+    aws_secret_key = os.environ.get('ADMIN_SECRET_KEY')
+    user_id = os.environ.get('ADMIN_TENANT') + ':' + \
+        os.environ.get('ADMIN_USER')
     return Connection(aws_access_key, aws_secret_key, user_id)
 
 

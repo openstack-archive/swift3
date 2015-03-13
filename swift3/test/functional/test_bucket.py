@@ -15,18 +15,17 @@
 
 import unittest
 
-from swift3.test.functional.s3_test_client import get_tester_connection,\
-    Connection
+from swift3.test.functional.s3_test_client import Connection
 from swift3.test.functional.utils import get_error_code,\
     assert_common_response_headers
 from swift3.etree import fromstring
 from swift3.cfg import CONF
+from swift3.test.functional import Swift3FunctionalTestCase
 
 
-class TestSwift3Bucket(unittest.TestCase):
+class TestSwift3Bucket(Swift3FunctionalTestCase):
     def setUp(self):
-        self.conn = get_tester_connection()
-        self.conn.reset()
+        super(TestSwift3Bucket, self).setUp()
 
     def test_bucket(self):
         bucket = 'bucket'
