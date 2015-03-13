@@ -17,13 +17,16 @@ import os
 from boto.s3.connection import S3Connection, OrdinaryCallingFormat, \
     BotoClientError, S3ResponseError
 from swift3.response import NoSuchKey, NoSuchBucket
+from swiftclient.client import get_auth
+from swiftclient import Connection as swConnection
+from swiftclient import ClientException
 
 RETRY_COUNT = 3
 
 
 class Connection(object):
     """
-    Connection class used for S3 functional testing.
+    Swift3 Connection class used for S3 functional testing.
     """
     def __init__(self, aws_access_key=os.environ.get('ADMIN_ACCESS_KEY'),
                  aws_secret_key=os.environ.get('ADMIN_SECRET_KEY'),
@@ -58,6 +61,8 @@ class Connection(object):
         Reset all swift environment to keep clean. As a result by calling this
         method, we can assume the backend swift keeps no containers and no
         objects on this connection's account.
+        This method can't delete segments of multipart upload. When s3_acl is
+        enabled, it can't delete container and object without permission.
         """
         exceptions = []
         for i in range(RETRY_COUNT):
@@ -126,3 +131,64 @@ def get_tester2_connection():
     user_id = os.environ.get('TESTER2_TENANT') + ':' + \
         os.environ.get('TESTER2_USER')
     return Connection(aws_access_key, aws_secret_key, user_id)
+
+
+class SwiftConnection(object):
+    """
+    Swift Connection class used for S3 functional testing.
+    """
+    def __init__(self, auth_tenant=os.environ.get('ADMIN_TENANT'),
+                 auth_user=os.environ.get('ADMIN_USER'),
+                 auth_pass=os.environ.get('ADMIN_PASS')):
+        """
+        Initialize method.
+
+        :param auth_tenant: a string of TENANT name
+        :param auth_user: a string of USER name
+        :param auth_pass: a string of USER password
+
+        In default, Swift3 Connection class will be initialized as admin user
+        behaves as:
+        user_test_admin = admin .admin
+
+        """
+        auth_version = 2
+        if os.environ.get('AUTH') == 'tempauth':
+            auth_version = 1
+            auth_user = '%s:%s' % (auth_tenant, auth_user)
+
+        url, token = get_auth(os.environ.get('OS_AUTH_URL'),
+                              auth_user,
+                              auth_pass,
+                              tenant_name=auth_tenant,
+                              auth_version=auth_version)
+        self.conn = swConnection(preauthurl=url, preauthtoken=token)
+
+    def reset(self):
+        """
+        Reset all swift environment to keep clean. As a result by calling this
+        method, we can assume the backend swift keeps no containers and no
+        objects on this connection's account.
+        """
+        exceptions = []
+        for i in range(RETRY_COUNT):
+            try:
+                buckets = self.conn.get_account()
+                if not buckets:
+                    break
+                for bucket in buckets:
+                    for obj in self.conn.get_container(bucket):
+                        try:
+                            isinstance(obj, dict)
+                            self.conn.delete_object(bucket, obj['name'])
+                        except ClientException:
+                            pass
+                    try:
+                        self.conn.delete_container(bucket)
+                    except ClientException:
+                        pass
+            except ClientException:
+                buckets = None
+        if exceptions:
+            # raise the first exception
+            raise exceptions.pop(0)

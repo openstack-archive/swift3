@@ -47,6 +47,8 @@ done
 # setup keystone
 if [ "$AUTH" == 'keystone' ]; then
     . ./setup_keystone
+else
+    export OS_AUTH_URL=http://${SWIFT_HOST}/auth/v1.0
 fi
 
 

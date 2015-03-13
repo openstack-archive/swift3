@@ -16,7 +16,7 @@
 import unittest
 
 from swift3.test.functional.s3_test_client import get_tester_connection,\
-    Connection
+    Connection, SwiftConnection
 from swift3.test.functional.utils import get_error_code,\
     assert_common_response_headers
 from swift3.etree import fromstring
@@ -24,6 +24,10 @@ from swift3.cfg import CONF
 
 
 class TestSwift3Bucket(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        SwiftConnection().reset()
+
     def setUp(self):
         self.conn = get_tester_connection()
         self.conn.reset()
