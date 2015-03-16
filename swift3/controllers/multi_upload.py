@@ -141,13 +141,6 @@ class UploadsController(Controller):
         """
         Handles List Multipart Uploads
         """
-        pattern = re.compile('/[0-9]+$')
-
-        def filter_max_uploads(o):
-            if 'name' not in o:
-                return False
-            else:
-                return pattern.search(o['name']) is None
 
         encoding_type = req.params.get('encoding-type')
         if encoding_type is not None and encoding_type != 'url':
@@ -177,23 +170,27 @@ class UploadsController(Controller):
         resp = req.get_response(self.app, container=container, query=query)
         objects = json.loads(resp.body)
 
-        objects = filter(filter_max_uploads, objects)
+        def object_to_upload(object_info):
+            obj, upid = object_info['name'].rsplit('/', 1)
+            obj_dict = {'key': obj,
+                        'upload_id': upid,
+                        'last_modified': object_info['last_modified']}
+            return obj_dict
 
-        if len(objects) > maxuploads:
-            objects = objects[:maxuploads]
+        # uploads is a list consists of dict, {key, upload_id, last_modified}
+        # Note that pattern matcher willd drop whole segments objects like as
+        # object_name/upload_id/1.
+        pattern = re.compile('/[0-9]+$')
+        uploads = [object_to_upload(obj) for obj in objects if
+                   pattern.search(obj.get('name', '')) is None]
+
+        if len(uploads) > maxuploads:
+            uploads = uploads[:maxuploads]
             truncated = True
         else:
             truncated = False
 
-        uploads = []
         prefixes = []
-        for o in objects:
-            obj, upid = o['name'].rsplit('/', 1)
-            uploads.append(
-                {'key': obj,
-                 'upload_id': upid,
-                 'last_modified': o['last_modified']}
-            )
 
         nextkeymarker = ''
         nextuploadmarker = ''
