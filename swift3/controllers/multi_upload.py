@@ -143,27 +143,40 @@ class UploadsController(Controller):
         Handles List Multipart Uploads
         """
 
-        def filter_delimiter(uploads, prefix, delimiter):
+        def separate_uploads(uploads, prefix, delimiter):
             """
-            If specified multiple charactors such as 'subdir',
-            this function returns follwing filtered key and prefixes.
-                original keys: object, dir/subdir/object, subdir/object
-                key after filtered: object
-                prefixes: dir/subdir, subdir
+            separate_uploads will separate uploads into non_delimited_uploads
+            (a subset of uploads) and common_prefixes according to the
+            specified delimiter. non_delimited_uploads is a list of uploads
+            which exclude the delimiter. common_prefixes is a list of prefixes
+            prior to the specified delimiter. Note that the prefix in the
+            common_prefixes includes the delimiter itself.
+
+            i.e. if '/' delimiter specified and then the uploads is consists of
+            ['foo', 'foo/bar'], this function will return (['foo'], ['foo/']).
+
+            :param uploads: A list of uploads dictionary
+            :param prefix: A string of prefix reserved on the upload path.
+                           (i.e. the delimiter must be searched behind the
+                            prefix)
+            :param delimiter: A string of delimiter to split the path in each
+                              upload
+
+            :return (non_delimited_uploads, common_prefixes)
             """
             (prefix, delimiter) = \
                 utf8encode(prefix, delimiter)
-            filtered_uploads = []
-            prefixes = []
-            for u in uploads:
-                key = u['key']
+            non_delimited_uploads = []
+            common_prefixes = []
+            for upload in uploads:
+                key = upload['key']
                 end = key.find(delimiter, len(prefix))
                 if end >= 0:
-                    dir_name = key[:end + len(delimiter)]
-                    prefixes.append(dir_name)
+                    common_prefix = key[:end + len(delimiter)]
+                    common_prefixes.append(common_prefix)
                 else:
-                    filtered_uploads.append(u)
-            return filtered_uploads, sorted(set(prefixes))
+                    non_delimited_uploads.append(upload)
+            return non_delimited_uploads, sorted(common_prefixes)
 
         encoding_type = req.params.get('encoding-type')
         if encoding_type is not None and encoding_type != 'url':
@@ -210,7 +223,7 @@ class UploadsController(Controller):
             prefix = req.params.get('prefix', '')
             delimiter = req.params['delimiter']
             uploads, prefixes = \
-                filter_delimiter(uploads, prefix, delimiter)
+                separate_uploads(uploads, prefix, delimiter)
 
         if len(uploads) > maxuploads:
             uploads = uploads[:maxuploads]
