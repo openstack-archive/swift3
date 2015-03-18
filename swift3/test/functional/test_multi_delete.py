@@ -14,9 +14,10 @@
 # limitations under the License.
 
 from swift3.test.functional.utils import assert_common_response_headers, \
-    calculate_md5
+    calculate_md5, get_error_code
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.test.functional import Swift3FunctionalTestCase
+from swift3.test.functional.s3_test_client import Connection
 
 
 class TestSwift3MultiDelete(Swift3FunctionalTestCase):
@@ -33,6 +34,14 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
         for key in objects:
             obj = SubElement(elem, 'Object')
             SubElement(obj, 'Key').text = key
+
+        return tostring(elem, use_s3ns=False)
+
+    def _gen_invalid_multi_delete_xml(self, hasObjectTag=False):
+        elem = Element('Delete')
+        if hasObjectTag:
+            obj = SubElement(elem, 'Object')
+            SubElement(obj, 'Key').text = ''
 
         return tostring(elem, use_s3ns=False)
 
@@ -105,3 +114,54 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
         self.assertEquals(len(resp_objects), len(req_objects))
         for o in resp_objects:
             self.assertTrue(o.find('Key').text in req_objects)
+
+    def test_delete_multi_objects_error(self):
+        bucket = 'bucket'
+        put_objects = ['obj']
+        self._prepare_test_delete_multi_objects(bucket, put_objects)
+        xml = self._gen_multi_delete_xml(put_objects)
+        content_md5 = calculate_md5(xml)
+        query = 'delete'
+
+        auth_error_conn = Connection(aws_secret_key='invalid')
+        status, headers, body = \
+            auth_error_conn.make_request('POST', bucket, body=xml,
+                                         headers={
+                                             'Content-MD5': content_md5
+                                         },
+                                         query=query)
+        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+
+        status, headers, body = \
+            self.conn.make_request('POST', 'nothing', body=xml,
+                                   headers={'Content-MD5': content_md5},
+                                   query=query)
+        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+
+        # without Object tag
+        xml = self._gen_invalid_multi_delete_xml()
+        content_md5 = calculate_md5(xml)
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, body=xml,
+                                   headers={'Content-MD5': content_md5},
+                                   query=query)
+        self.assertEquals(get_error_code(body), 'MalformedXML')
+
+        # without value of Key tag
+        xml = self._gen_invalid_multi_delete_xml(hasObjectTag=True)
+        content_md5 = calculate_md5(xml)
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, body=xml,
+                                   headers={'Content-MD5': content_md5},
+                                   query=query)
+        self.assertEquals(get_error_code(body), 'UserKeyMustBeSpecified')
+
+        # specified xml size is over 61365 bytes
+        req_objects = ['obj%s' % var for var in xrange(10000)]
+        xml = self._gen_multi_delete_xml(req_objects)
+        content_md5 = calculate_md5(xml)
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, body=xml,
+                                   headers={'Content-MD5': content_md5},
+                                   query=query)
+        self.assertEquals(get_error_code(body), 'MalformedXML')
