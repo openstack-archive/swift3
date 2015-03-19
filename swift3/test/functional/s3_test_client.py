@@ -67,11 +67,15 @@ class Connection(object):
 
                 for bucket in buckets:
                     try:
+                        for upload in bucket.list_multipart_uploads():
+                            upload.cancel_upload()
+
                         for obj in bucket.list():
                             bucket.delete_key(obj.name)
+
                         self.conn.delete_bucket(bucket.name)
                     except S3ResponseError as e:
-                        # 404 means NoSuchBucket or NoSuchKey
+                        # 404 means NoSuchBucket, NoSuchKey, or NoSuchUpload
                         if e.status != 404:
                             raise
             except (BotoClientError, S3ResponseError) as e:
