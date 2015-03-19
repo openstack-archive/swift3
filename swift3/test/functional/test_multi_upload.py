@@ -1,0 +1,222 @@
+# Copyright (c) 2015 OpenStack Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import unittest
+from string import replace
+
+from swift3.test.functional.utils import assert_common_response_headers
+from swift3.etree import fromstring, tostring, Element, SubElement
+from swift3.test.functional import Swift3FunctionalTestCase
+
+MIN_SEGMENTS_SIZE = 5242880
+
+
+class TestSwift3MultiUpload(Swift3FunctionalTestCase):
+    def setUp(self):
+        super(TestSwift3MultiUpload, self).setUp()
+
+    def _gen_comp_xml(self, etags):
+        elem = Element('CompleteMultipartUpload')
+        for i, etag in enumerate(etags):
+            elem_part = SubElement(elem, 'Part')
+            SubElement(elem_part, 'PartNumber').text = str(i + 1)
+            SubElement(elem_part, 'ETag').text = etag
+        return tostring(elem)
+
+    def _initiate_multi_uploads(self, bucket, keys, same_keys=1):
+        self.conn.make_request('PUT', bucket)
+        query = 'uploads'
+        for key in keys:
+            for i in xrange(same_keys):
+                status, resp_headers, body = \
+                    self.conn.make_request('POST', bucket, key, query=query)
+                yield status, resp_headers, body
+
+    def _upload_part(self, bucket, key, upload_id, contents=None, part_num=1):
+        query = 'partNumber=%s&uploadId=%s' % (part_num, upload_id)
+        contents = contents if contents else 'a' * MIN_SEGMENTS_SIZE
+        status, headers, body = \
+            self.conn.make_request('PUT', bucket, key, body=contents,
+                                   query=query)
+        etag = None
+        if headers.get('etag'):
+            etag = replace(headers.get('etag'), '"', '')
+        return status, headers, body, etag
+
+    def _upload_part_copy(self, src_bucket, src_obj, dst_bucket, dst_key,
+                          upload_id, src_contents=None, part_num=1):
+        # prepare src obj
+        self.conn.make_request('PUT', src_bucket)
+        contents = src_contents if src_contents else 'b' * MIN_SEGMENTS_SIZE
+        self.conn.make_request('PUT', src_bucket, src_obj, body=contents)
+
+        src_path = '%s/%s' % (src_bucket, src_obj)
+        query = 'partNumber=%s&uploadId=%s' % (part_num, upload_id)
+        status, headers, body = \
+            self.conn.make_request('PUT', dst_bucket, dst_key,
+                                   headers={'X-Amz-Copy-Source': src_path},
+                                   query=query)
+        etag = None
+        if status == 200:
+            elem = fromstring(body, 'CopyPartResult')
+            etag = elem.find('ETag').text
+        return status, headers, body, etag
+
+    def _complete_multi_upload(self, bucket, key, upload_id, xml):
+        query = 'uploadId=%s' % upload_id
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, key, body=xml,
+                                   query=query)
+        return status, headers, body
+
+    def test_object_multi_upload(self):
+        bucket = 'bucket'
+        self.conn.make_request('PUT', bucket)
+        keys = ['obj1', 'obj2']
+        # uploads -> [('key_name', 'upload_id'), ...]
+        uploads = []
+
+        # Initiate Multipart Upload
+        for status, headers, body in self._initiate_multi_uploads(bucket,
+                                                                  keys):
+            self.assertEquals(status, 200)
+            assert_common_response_headers(self, headers)
+            self.assertTrue(headers['content-type'] is not None)
+            self.assertEquals(headers['content-length'], str(len(body)))
+            elem = fromstring(body, 'InitiateMultipartUploadResult')
+            self.assertEquals(elem.find('Bucket').text, bucket)
+            key = elem.find('Key').text
+            self.assertTrue(key is not None)
+            upload_id = elem.find('UploadId').text
+            self.assertTrue(upload_id is not None)
+            uploads.append((key, upload_id))
+
+        # List Multipart Uploads
+        query = 'uploads'
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, query=query)
+        self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
+        self.assertTrue(headers['content-type'] is not None)
+        self.assertEquals(headers['content-length'], str(len(body)))
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(elem.find('Bucket').text, bucket)
+        self.assertEquals(elem.find('KeyMarker').text, None)
+        self.assertTrue(elem.find('NextKeyMarker').text is not None)
+        self.assertEquals(elem.find('UploadIdMarker').text, None)
+        self.assertTrue(elem.find('NextUploadIdMarker').text is not None)
+        self.assertEquals(elem.find('MaxUploads').text, '1000')
+        self.assertTrue(elem.find('EncodingType') is None)
+        self.assertEquals(elem.find('IsTruncated').text, 'false')
+        self.assertEquals(len(elem.findall('Upload')), 2)
+        for u in elem.findall('Upload'):
+            key = u.find('Key').text
+            upload_id = u.find('UploadId').text
+            self.assertTrue((key, upload_id) in uploads)
+            self.assertEquals(u.find('Initiator/ID').text,
+                              self.conn.user_id)
+            self.assertEquals(u.find('Initiator/DisplayName').text,
+                              self.conn.user_id)
+            self.assertEquals(u.find('Owner/ID').text, self.conn.user_id)
+            self.assertEquals(u.find('Owner/DisplayName').text,
+                              self.conn.user_id)
+            self.assertEquals(u.find('StorageClass').text, 'STANDARD')
+            self.assertTrue(u.find('Initiated').text is not None)
+
+        # Upload Part
+        key, upload_id = uploads[0]
+        status, headers, body, etag = \
+            self._upload_part(bucket, key, upload_id)
+        self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
+        self.assertTrue(headers['content-type'] is not None)
+        self.assertEquals(headers['content-length'], '0')
+        self.assertTrue(etag is not None)
+
+        # Upload Part Copy
+        key, upload_id = uploads[1]
+        src_bucket = 'bucket2'
+        src_obj = 'obj3'
+        status, headers, body, etag = \
+            self._upload_part_copy(src_bucket, src_obj, bucket, key,
+                                   upload_id)
+        self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
+        self.assertTrue(headers['content-type'] is not None)
+        self.assertEquals(headers['content-length'], str(len(body)))
+        self.assertEquals(headers.get('etag'), None)
+        elem = fromstring(body, 'CopyPartResult')
+        self.assertTrue(elem.find('LastModified').text is not None)
+        self.assertTrue(etag is not None)
+
+        # List Parts
+        key, upload_id = uploads[0]
+        query = 'uploadId=%s' % upload_id
+        # for Complete Multipart Upload
+        etags = []
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, key, query=query)
+        self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
+        self.assertTrue(headers['content-type'] is not None)
+        self.assertEquals(headers['content-length'], str(len(body)))
+        elem = fromstring(body, 'ListPartsResult')
+        self.assertEquals(elem.find('Bucket').text, bucket)
+        self.assertEquals(elem.find('Key').text, key)
+        self.assertEquals(elem.find('UploadId').text, upload_id)
+        self.assertEquals(u.find('Initiator/ID').text, self.conn.user_id)
+        self.assertEquals(u.find('Initiator/DisplayName').text,
+                          self.conn.user_id)
+        self.assertEquals(u.find('Owner/ID').text, self.conn.user_id)
+        self.assertEquals(u.find('Owner/DisplayName').text, self.conn.user_id)
+        self.assertEquals(elem.find('StorageClass').text, 'STANDARD')
+        self.assertEquals(elem.find('PartNumberMarker').text, '0')
+        self.assertEquals(elem.find('NextPartNumberMarker').text, '1')
+        self.assertEquals(elem.find('MaxParts').text, '1000')
+        self.assertEquals(elem.find('IsTruncated').text, 'false')
+        self.assertEquals(len(elem.findall('Part')), 1)
+        for p in elem.findall('Part'):
+            self.assertTrue(p.find('LastModified').text is not None)
+            self.assertTrue(p.find('ETag').text is not None)
+            etags.append(p.find('ETag').text)
+            self.assertTrue(p.find('Size').text is not None)
+
+        # Abort Multipart Upload
+        key, upload_id = uploads[1]
+        query = 'uploadId=%s' % upload_id
+        status, headers, body = \
+            self.conn.make_request('DELETE', bucket, key, query=query)
+        self.assertEquals(status, 204)
+        assert_common_response_headers(self, headers)
+        self.assertTrue(headers['content-type'] is not None)
+        self.assertEquals(headers['content-length'], '0')
+
+        # Complete Multipart Upload
+        key, upload_id = uploads[0]
+        xml = self._gen_comp_xml(etags)
+        status, headers, body = \
+            self._complete_multi_upload(bucket, key, upload_id, xml)
+        self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
+        self.assertTrue(headers['content-type'] is not None)
+        self.assertEquals(headers['content-length'], str(len(body)))
+        elem = fromstring(body, 'CompleteMultipartUploadResult')
+        self.assertTrue(elem.find('Location').text is not None)
+        self.assertEquals(elem.find('Bucket').text, bucket)
+        self.assertEquals(elem.find('Key').text, key)
+        self.assertTrue(elem.find('ETag').text is not None)
+
+if __name__ == '__main__':
+    unittest.main()
