@@ -66,6 +66,22 @@ class Connection(object):
                     break
 
                 for bucket in buckets:
+                    # TODO: Requesting List Multipart Uploads for a bucket that
+                    #       is never requested Initiate Multipart Upload, 404
+                    #       Not Found is returned.(bug: 1433507)
+                    #       Then, the reset process will be terminated to this
+                    #       bucket, extra resource remains.
+                    #       As a result, following subsequent tests will fail.
+                    #       To avoid this, the process of try/except is divided
+                    #       into two.
+                    try:
+                        for upload in bucket.list_multipart_uploads():
+                            upload.cancel_upload()
+                    except S3ResponseError as e:
+                        # 404 means NoSuchBucket or NoSuchUpload
+                        if e.status != 404:
+                            raise
+
                     try:
                         for obj in bucket.list():
                             bucket.delete_key(obj.name)
