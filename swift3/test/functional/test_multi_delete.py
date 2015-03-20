@@ -14,9 +14,11 @@
 # limitations under the License.
 
 from swift3.test.functional.utils import assert_common_response_headers, \
-    calculate_md5
+    calculate_md5, get_error_code
 from swift3.etree import fromstring, tostring, Element, SubElement
+from swift3.controllers.multi_delete import MAX_MULTI_DELETE_BODY_SIZE
 from swift3.test.functional import Swift3FunctionalTestCase
+from swift3.test.functional.s3_test_client import Connection
 
 
 class TestSwift3MultiDelete(Swift3FunctionalTestCase):
@@ -33,6 +35,14 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
         for key in objects:
             obj = SubElement(elem, 'Object')
             SubElement(obj, 'Key').text = key
+
+        return tostring(elem, use_s3ns=False)
+
+    def _gen_invalid_multi_delete_xml(self, hasObjectTag=False):
+        elem = Element('Delete')
+        if hasObjectTag:
+            obj = SubElement(elem, 'Object')
+            SubElement(obj, 'Key').text = ''
 
         return tostring(elem, use_s3ns=False)
 
@@ -105,3 +115,69 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
         self.assertEquals(len(resp_objects), len(req_objects))
         for o in resp_objects:
             self.assertTrue(o.find('Key').text in req_objects)
+
+    def test_delete_multi_objects_error(self):
+        bucket = 'bucket'
+        put_objects = ['obj']
+        self._prepare_test_delete_multi_objects(bucket, put_objects)
+        xml = self._gen_multi_delete_xml(put_objects)
+        content_md5 = calculate_md5(xml)
+        query = 'delete'
+
+        auth_error_conn = Connection(aws_secret_key='invalid')
+        status, headers, body = \
+            auth_error_conn.make_request('POST', bucket, body=xml,
+                                         headers={
+                                             'Content-MD5': content_md5
+                                         },
+                                         query=query)
+        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+
+        status, headers, body = \
+            self.conn.make_request('POST', 'nothing', body=xml,
+                                   headers={'Content-MD5': content_md5},
+                                   query=query)
+        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+
+        # without Object tag
+        xml = self._gen_invalid_multi_delete_xml()
+        content_md5 = calculate_md5(xml)
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, body=xml,
+                                   headers={'Content-MD5': content_md5},
+                                   query=query)
+        self.assertEquals(get_error_code(body), 'MalformedXML')
+
+        # without value of Key tag
+        xml = self._gen_invalid_multi_delete_xml(hasObjectTag=True)
+        content_md5 = calculate_md5(xml)
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, body=xml,
+                                   headers={'Content-MD5': content_md5},
+                                   query=query)
+        self.assertEquals(get_error_code(body), 'UserKeyMustBeSpecified')
+
+        # specified number of objects are over CONF.max_multi_delete_objects
+        # (Default 1000), but xml size is smaller than 61365 bytes.
+        req_objects = ['obj%s' for var in xrange(1001)]
+        xml = self._gen_multi_delete_xml(req_objects)
+        self.assertTrue(len(xml.encode('utf-8')) <= MAX_MULTI_DELETE_BODY_SIZE)
+        content_md5 = calculate_md5(xml)
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, body=xml,
+                                   headers={'Content-MD5': content_md5},
+                                   query=query)
+        self.assertEquals(get_error_code(body), 'MalformedXML')
+
+        # specified xml size is over 61365 bytes, but number of objects are
+        # smaller than CONF.max_multi_delete_objects.
+        obj = 'a' * 1024
+        req_objects = [obj + str(var) for var in xrange(999)]
+        xml = self._gen_multi_delete_xml(req_objects)
+        self.assertTrue(len(xml.encode('utf-8')) > MAX_MULTI_DELETE_BODY_SIZE)
+        content_md5 = calculate_md5(xml)
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, body=xml,
+                                   headers={'Content-MD5': content_md5},
+                                   query=query)
+        self.assertEquals(get_error_code(body), 'MalformedXML')
