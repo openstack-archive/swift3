@@ -177,9 +177,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
         status, headers, body = \
             self.conn.make_request('DELETE', 'invalid', obj)
-        # TODO: https://bugs.launchpad.net/swift3/+bug/1433391
-        # self.assertEquals(get_error_code(body), 'NoSuchBucket')
-        self.assertTrue(get_error_code(body) in ('NoSuchKey', 'NoSuchBucket'))
+        self.assertEquals(get_error_code(body), 'NoSuchBucket')
 
 if __name__ == '__main__':
     unittest.main()
