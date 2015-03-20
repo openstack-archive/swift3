@@ -599,6 +599,12 @@ class Request(swob.Request):
                                    body=body, query=query)
 
         sw_resp = sw_req.get_response(app)
+
+        # reuse account and tokens
+        _, self.account, _ = split_path(sw_resp.environ['PATH_INFO'],
+                                        2, 3, True)
+        self.account = utf8encode(self.account)
+
         resp = Response.from_swift_resp(sw_resp)
         status = resp.status_int  # pylint: disable-msg=E1101
 

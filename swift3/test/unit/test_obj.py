@@ -18,9 +18,11 @@ from datetime import datetime
 import hashlib
 from os.path import join
 from mock import patch
+import os
 
 from swift.common import swob
 from swift.common.swob import Request
+import  swift.proxy.controllers.base as controller_base
 
 from swift3.test.unit import Swift3TestCase
 from swift3.test.unit.test_s3_acl import s3acl
@@ -561,14 +563,23 @@ class TestSwift3Obj(Swift3TestCase):
                                        swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
         code = self._test_method_error('DELETE', '/bucket/object',
-                                       swob.HTTPNotFound)
-        self.assertEquals(code, 'NoSuchKey')
-        code = self._test_method_error('DELETE', '/bucket/object',
                                        swob.HTTPServerError)
         self.assertEquals(code, 'InternalError')
         code = self._test_method_error('DELETE', '/bucket/object',
                                        swob.HTTPServiceUnavailable)
         self.assertEquals(code, 'InternalError')
+
+        with patch('swift3.controllers.obj.get_container_info',
+                   return_value = {'status': 204}):
+            code = self._test_method_error('DELETE', '/bucket/object',
+                                           swob.HTTPNotFound)
+            self.assertEquals(code, 'NoSuchKey')
+
+        with patch('swift3.controllers.obj.get_container_info',
+                   return_value = {'status': 404}):
+            code = self._test_method_error('DELETE', '/bucket/object',
+                                           swob.HTTPNotFound)
+            self.assertEquals(code, 'NoSuchBucket')
 
     @s3acl
     def test_object_DELETE(self):
