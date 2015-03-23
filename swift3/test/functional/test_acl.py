@@ -16,25 +16,29 @@
 import unittest
 
 from swift3.test.functional import Swift3FunctionalTestCase
-from swift3.test.functional.utils import assert_common_response_headers
+from swift3.test.functional.s3_test_client import Connection, \
+    get_tester2_connection
+from swift3.test.functional.utils import assert_common_response_headers, \
+    get_error_code
 from swift3.etree import fromstring
 
 
 class TestSwift3Acl(Swift3FunctionalTestCase):
     def setUp(self):
         super(TestSwift3Acl, self).setUp()
+        self.bucket = 'bucket'
+        self.obj = 'object'
+        self.conn.make_request('PUT', self.bucket)
+        self.conn2 = get_tester2_connection()
 
     def test_acl(self):
-        bucket = 'bucket'
-        obj = 'object'
-        self.conn.make_request('PUT', bucket)
-        self.conn.make_request('PUT', bucket, obj)
+        self.conn.make_request('PUT', self.bucket, self.obj)
         query = 'acl'
 
         # PUT Bucket ACL
         headers = {'x-amz-acl': 'public-read'}
         status, headers, body = \
-            self.conn.make_request('PUT', bucket, headers=headers,
+            self.conn.make_request('PUT', self.bucket, headers=headers,
                                    query=query)
         self.assertEquals(status, 200)
         assert_common_response_headers(self, headers)
@@ -42,7 +46,7 @@ class TestSwift3Acl(Swift3FunctionalTestCase):
 
         # GET Bucket ACL
         status, headers, body = \
-            self.conn.make_request('GET', bucket, query=query)
+            self.conn.make_request('GET', self.bucket, query=query)
         self.assertEquals(status, 200)
         assert_common_response_headers(self, headers)
         # TODO: Fix the response that last-modified must be in the response.
@@ -58,7 +62,7 @@ class TestSwift3Acl(Swift3FunctionalTestCase):
 
         # GET Object ACL
         status, headers, body = \
-            self.conn.make_request('GET', bucket, obj, query=query)
+            self.conn.make_request('GET', self.bucket, self.obj, query=query)
         self.assertEquals(status, 200)
         assert_common_response_headers(self, headers)
         # TODO: Fix the response that last-modified must be in the response.
@@ -71,6 +75,55 @@ class TestSwift3Acl(Swift3FunctionalTestCase):
         self.assertEquals(owner.find('DisplayName').text, self.conn.user_id)
         acl = elem.find('AccessControlList')
         self.assertTrue(acl.find('Grant') is not None)
+
+    def test_put_bucket_acl_error(self):
+        req_headers = {'x-amz-acl': 'public-read'}
+        aws_error_conn = Connection(aws_secret_key='invalid')
+        status, headers, body = \
+            aws_error_conn.make_request('PUT', self.bucket,
+                                        headers=req_headers, query='acl')
+        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+
+        status, headers, body = \
+            self.conn.make_request('PUT', 'nothing',
+                                   headers=req_headers, query='acl')
+        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+
+        status, headers, body = \
+            self.conn2.make_request('PUT', self.bucket,
+                                    headers=req_headers, query='acl')
+        self.assertEquals(get_error_code(body), 'AccessDenied')
+
+    def test_get_bucket_acl_error(self):
+        aws_error_conn = Connection(aws_secret_key='invalid')
+        status, headers, body = \
+            aws_error_conn.make_request('GET', self.bucket, query='acl')
+        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+
+        status, headers, body = \
+            self.conn.make_request('GET', 'nothing', query='acl')
+        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+
+        status, headers, body = \
+            self.conn2.make_request('GET', self.bucket, query='acl')
+        self.assertEquals(get_error_code(body), 'AccessDenied')
+
+    def test_get_object_acl_error(self):
+        self.conn.make_request('PUT', self.bucket, self.obj)
+
+        aws_error_conn = Connection(aws_secret_key='invalid')
+        status, headers, body = \
+            aws_error_conn.make_request('GET', self.bucket, self.obj,
+                                        query='acl')
+        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+
+        status, headers, body = \
+            self.conn.make_request('GET', self.bucket, 'nothing', query='acl')
+        self.assertEquals(get_error_code(body), 'NoSuchKey')
+
+        status, headers, body = \
+            self.conn2.make_request('GET', self.bucket, self.obj, query='acl')
+        self.assertEquals(get_error_code(body), 'AccessDenied')
 
 if __name__ == '__main__':
     unittest.main()

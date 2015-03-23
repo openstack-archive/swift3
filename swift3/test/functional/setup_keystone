@@ -64,7 +64,7 @@ _create_swift_accounts()
     _add_user SERVICE service swift password admin
     _add_user ADMIN test admin admin ResellerAdmin
     _add_user TESTER test tester testing admin
-    _add_user TESTER2 test tester2 testing2 admin
+    _add_user TESTER2 test tester2 testing2 member
 
     SERVICE=$(openstack service create swift --type=object-store | _get_id)
     openstack endpoint create $SERVICE \

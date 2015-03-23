@@ -119,7 +119,7 @@ def get_admin_connection():
 def get_tester2_connection():
     """
     Return tester2 connection behaves as:
-    user_test_tester2 = testing2 .admin
+    user_test_tester2 = testing2
     """
     aws_access_key = os.environ.get('TESTER2_ACCESS_KEY')
     aws_secret_key = os.environ.get('TESTER2_SECRET_KEY')

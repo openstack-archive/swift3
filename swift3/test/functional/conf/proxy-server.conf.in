@@ -18,7 +18,7 @@ use = egg:swift#proxy
 use = egg:swift#tempauth
 user_test_admin = admin .admin
 user_test_tester = testing .admin
-user_test_tester2 = testing2 .admin
+user_test_tester2 = testing2
 
 [filter:swift3]
 use = egg:swift3#swift3
