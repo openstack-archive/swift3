@@ -16,7 +16,6 @@
 import os
 from boto.s3.connection import S3Connection, OrdinaryCallingFormat, \
     BotoClientError, S3ResponseError
-from swift3.response import NoSuchKey, NoSuchBucket
 
 RETRY_COUNT = 3
 
@@ -65,16 +64,16 @@ class Connection(object):
                 buckets = self.conn.get_all_buckets()
                 if not buckets:
                     break
+
                 for bucket in buckets:
-                    for obj in bucket.list():
-                        try:
-                            bucket.delete_key(obj.name)
-                        except NoSuchKey:
-                            pass
                     try:
+                        for obj in bucket.list():
+                            bucket.delete_key(obj.name)
                         self.conn.delete_bucket(bucket.name)
-                    except NoSuchBucket:
-                        pass
+                    except S3ResponseError as e:
+                        # 404 means NoSuchBucket or NoSuchKey
+                        if e.status != 404:
+                            raise
             except (BotoClientError, S3ResponseError) as e:
                 exceptions.append(e)
         if exceptions:
