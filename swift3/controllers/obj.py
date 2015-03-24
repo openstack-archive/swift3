@@ -13,13 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from swift.common.http import HTTP_OK, is_success
+from swift.common.http import HTTP_OK
 from swift.common.swob import Range, content_range_header_value
-from swift.proxy.controllers.base import get_container_info
 
 from swift3.controllers.base import Controller
 from swift3.response import S3NotImplemented, InvalidRange, \
-    HTTPPartialContent, NoSuchBucket, NoSuchKey
+    HTTPPartialContent, NoSuchKey
 
 
 class ObjectController(Controller):
@@ -113,11 +112,7 @@ class ObjectController(Controller):
         try:
             resp = req.get_response(self.app)
         except NoSuchKey:
-            sw_req = req.to_swift_req(
-                self.app, req.container_name, req.object_name)
-            info = get_container_info(sw_req.environ, self.app)
-            if is_success(info['status']):
-                raise
-            else:
-                raise NoSuchBucket(req.container_name)
+            # expect to raise NoSuchBucket when the bucket doesn't exist
+            req.get_container_info(self.app)
+            raise
         return resp

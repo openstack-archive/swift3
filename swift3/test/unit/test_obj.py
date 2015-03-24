@@ -567,13 +567,13 @@ class TestSwift3Obj(Swift3TestCase):
                                        swob.HTTPServiceUnavailable)
         self.assertEquals(code, 'InternalError')
 
-        with patch('swift3.controllers.obj.get_container_info',
+        with patch('swift3.request.get_container_info',
                    return_value={'status': 204}):
             code = self._test_method_error('DELETE', '/bucket/object',
                                            swob.HTTPNotFound)
             self.assertEquals(code, 'NoSuchKey')
 
-        with patch('swift3.controllers.obj.get_container_info',
+        with patch('swift3.request.get_container_info',
                    return_value={'status': 404}):
             code = self._test_method_error('DELETE', '/bucket/object',
                                            swob.HTTPNotFound)

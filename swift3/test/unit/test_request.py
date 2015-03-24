@@ -24,7 +24,7 @@ from swift3.test.unit.test_middleware import Swift3TestCase
 from swift3.cfg import CONF
 from swift3.request import Request as S3_Request
 from swift3.request import S3AclRequest
-from swift3.response import InvalidArgument
+from swift3.response import InvalidArgument, NoSuchBucket, InternalError
 
 
 Fake_ACL_MAP = {
@@ -275,6 +275,23 @@ class TestRequest(Swift3TestCase):
             s3_req = S3AclRequest(req.environ, MagicMock())
             sw_req = s3_req.to_swift_req(method, container, obj)
             self.assertTrue(sw_req.environ['swift.proxy_access_log_made'])
+
+    def test_get_container_info(self):
+        req = Request.blank('/bucket', environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        s3_req = S3_Request(req.environ, True)
+        with patch('swift3.request.get_container_info',
+                   return_value={'status': 204}):
+            info = s3_req.get_container_info(MagicMock())
+            self.assertTrue('status' in info)
+            self.assertEquals(204, info['status'])
+
+        expected_errors = [(404, NoSuchBucket), (0, InternalError)]
+        for status, expected_error in expected_errors:
+            with patch('swift3.request.get_container_info',
+                       return_value={'status': status}):
+                self.assertRaises(
+                    expected_error, s3_req.get_container_info, MagicMock())
 
 
 if __name__ == '__main__':
