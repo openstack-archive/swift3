@@ -27,9 +27,10 @@ from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_CONFLICT, HTTP_UNPROCESSABLE_ENTITY, HTTP_REQUEST_ENTITY_TOO_LARGE, \
     HTTP_PARTIAL_CONTENT, HTTP_NOT_MODIFIED, HTTP_PRECONDITION_FAILED, \
     HTTP_REQUESTED_RANGE_NOT_SATISFIABLE, HTTP_LENGTH_REQUIRED, \
-    HTTP_BAD_REQUEST, HTTP_REQUEST_TIMEOUT
+    HTTP_BAD_REQUEST, HTTP_REQUEST_TIMEOUT, is_success
 
 from swift.common.constraints import check_utf8
+from swift.proxy.controllers.base import get_container_info
 
 from swift3.controllers import ServiceController, BucketController, \
     ObjectController, AclController, MultiObjectDeleteController, \
@@ -679,6 +680,25 @@ class Request(swob.Request):
                 raise InvalidArgument(param, self.params[param], err_msg)
 
         return value
+
+    def get_bucket_info(self, app):
+        """
+        get_bucket_info will return a result dict of get_container_info
+        from the backend Swift.
+
+        :returns: a dictionary of container info from
+                  swift.controllers.base.get_container_info
+        :raises: NoSuchBucket when the bucket doesn't exist
+        :raises: InternalError when the request failed without 404
+        """
+        sw_req = self.to_swift_req(app, self.container_name, None)
+        info = get_container_info(sw_req.environ, app)
+        if is_success(info['status']):
+            return info
+        elif info['status'] == 404:
+            raise NoSuchBucket(self.container_name)
+        else:
+            raise InternalError('unexpected status code %d' % info['status'])
 
 
 class S3AclRequest(Request):
