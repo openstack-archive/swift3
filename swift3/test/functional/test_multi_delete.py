@@ -30,8 +30,10 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
         for obj in objects:
             self.conn.make_request('PUT', bucket, obj)
 
-    def _gen_multi_delete_xml(self, objects):
+    def _gen_multi_delete_xml(self, objects, quiet=None):
         elem = Element('Delete')
+        if quiet:
+            SubElement(elem, 'Quiet').text = quiet
         for key in objects:
             obj = SubElement(elem, 'Object')
             SubElement(obj, 'Key').text = key
@@ -181,3 +183,36 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
                                    headers={'Content-MD5': content_md5},
                                    query=query)
         self.assertEquals(get_error_code(body), 'MalformedXML')
+
+    def test_delete_multi_objects_with_quiet(self):
+        bucket = 'bucket'
+        put_objects = ['obj']
+        query = 'delete'
+
+        # with Quiet true
+        quiet = 'true'
+        self._prepare_test_delete_multi_objects(bucket, put_objects)
+        xml = self._gen_multi_delete_xml(put_objects, quiet)
+        content_md5 = calculate_md5(xml)
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, body=xml,
+                                   headers={'Content-MD5': content_md5},
+                                   query=query)
+        self.assertEquals(status, 200)
+        elem = fromstring(body, 'DeleteResult')
+        resp_objects = elem.findall('Deleted')
+        self.assertEquals(len(resp_objects), 0)
+
+        # with Quiet false
+        quiet = 'false'
+        self._prepare_test_delete_multi_objects(bucket, put_objects)
+        xml = self._gen_multi_delete_xml(put_objects, quiet)
+        content_md5 = calculate_md5(xml)
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, body=xml,
+                                   headers={'Content-MD5': content_md5},
+                                   query=query)
+        self.assertEquals(status, 200)
+        elem = fromstring(body, 'DeleteResult')
+        resp_objects = elem.findall('Deleted')
+        self.assertEquals(len(resp_objects), 1)
