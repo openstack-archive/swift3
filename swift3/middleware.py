@@ -67,6 +67,7 @@ from swift.common.utils import get_logger, register_swift_info
 
 class Swift3Middleware(object):
     """Swift3 S3 compatibility midleware"""
+
     def __init__(self, app, conf, *args, **kwargs):
         self.app = app
         self.slo_enabled = True
