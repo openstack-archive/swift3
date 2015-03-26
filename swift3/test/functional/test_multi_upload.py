@@ -17,9 +17,11 @@ import unittest
 from string import replace
 from hashlib import md5
 
-from swift3.test.functional.utils import assert_common_response_headers
+from swift3.test.functional.utils import assert_common_response_headers, \
+    get_error_code
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.test.functional import Swift3FunctionalTestCase
+from swift3.test.functional.s3_test_client import Connection
 
 MIN_SEGMENTS_SIZE = 5242880
 
@@ -34,6 +36,10 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
             elem_part = SubElement(elem, 'Part')
             SubElement(elem_part, 'PartNumber').text = str(i + 1)
             SubElement(elem_part, 'ETag').text = etag
+        return tostring(elem)
+
+    def _gen_invalid_comp_xml(self):
+        elem = Element('CompleteMultipartUpload')
         return tostring(elem)
 
     def _initiate_multi_uploads_result_generator(self, bucket, keys,
@@ -219,6 +225,193 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         self.assertEquals(elem.find('Bucket').text, bucket)
         self.assertEquals(elem.find('Key').text, key)
         self.assertTrue(elem.find('ETag').text is not None)
+
+    def test_initiate_multi_upload_error(self):
+        bucket = 'bucket'
+        key = 'obj'
+        self.conn.make_request('PUT', bucket)
+        query = 'uploads'
+
+        auth_error_conn = Connection(aws_secret_key='invalid')
+        status, headers, body = \
+            auth_error_conn.make_request('POST', bucket, key, query=query)
+        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+
+        # TODO: Without the bucket exists, Initiate Multipart Upload is
+        #       success.
+        #       bug: 1434476
+        # status, resp_headers, body = \
+        #    self.conn.make_request('POST', 'nothing', obj, query=query)
+        # self.assertEquals(get_error_code(body), 'NoSuchBucket')
+
+    def test_list_multi_uploads_error(self):
+        bucket = 'bucket'
+        self.conn.make_request('PUT', bucket)
+        query = 'uploads'
+
+        auth_error_conn = Connection(aws_secret_key='invalid')
+        status, headers, body = \
+            auth_error_conn.make_request('GET', bucket, query=query)
+        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+
+        status, headers, body = \
+            self.conn.make_request('GET', 'nothing', query=query)
+        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+
+    def test_upload_part_error(self):
+        bucket = 'bucket'
+        keys = ['obj']
+        status, headers, body = \
+            self._initiate_multi_uploads_result_generator(bucket, keys).next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+
+        query = 'partNumber=%s&uploadId=%s' % (1, upload_id)
+        auth_error_conn = Connection(aws_secret_key='invalid')
+        status, headers, body = \
+            auth_error_conn.make_request('PUT', bucket, key, query=query)
+        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+
+        query = 'partNumber=%s&uploadId=%s' % (1, 'nothing')
+        status, headers, body = \
+            self.conn.make_request('PUT', bucket, key, query=query)
+        self.assertEquals(get_error_code(body), 'NoSuchUpload')
+
+        query = 'partNumber=%s&uploadId=%s' % (0, upload_id)
+        status, headers, body = \
+            self.conn.make_request('PUT', bucket, key, query=query)
+        self.assertEquals(get_error_code(body), 'InvalidArgument')
+
+    def test_upload_part_copy_error(self):
+        src_bucket = 'src'
+        src_obj = 'src'
+        self.conn.make_request('PUT', src_bucket)
+        self.conn.make_request('PUT', src_bucket, src_obj)
+        src_path = '%s/%s' % (src_bucket, src_obj)
+
+        bucket = 'bucket'
+        keys = ['obj']
+        status, headers, body = \
+            self._initiate_multi_uploads_result_generator(bucket, keys).next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+
+        query = 'partNumber=%s&uploadId=%s' % (1, upload_id)
+        auth_error_conn = Connection(aws_secret_key='invalid')
+        status, headers, body = \
+            auth_error_conn.make_request('PUT', bucket, key,
+                                         headers={
+                                             'X-Amz-Copy-Source': src_path
+                                         },
+                                         query=query)
+        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+
+        query = 'partNumber=%s&uploadId=%s' % (1, 'nothing')
+        status, headers, body = \
+            self.conn.make_request('PUT', bucket, key,
+                                   headers={'X-Amz-Copy-Source': src_path},
+                                   query=query)
+        self.assertEquals(get_error_code(body), 'NoSuchUpload')
+
+        src_path = '%s/%s' % (src_bucket, 'nothing')
+        query = 'partNumber=%s&uploadId=%s' % (1, upload_id)
+        status, headers, body = \
+            self.conn.make_request('PUT', bucket, key,
+                                   headers={'X-Amz-Copy-Source': src_path},
+                                   query=query)
+        self.assertEquals(get_error_code(body), 'NoSuchKey')
+
+    def test_list_parts_error(self):
+        bucket = 'bucket'
+        keys = ['obj']
+        status, headers, body = \
+            self._initiate_multi_uploads_result_generator(bucket, keys).next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+
+        query = 'uploadId=%s' % upload_id
+        auth_error_conn = Connection(aws_secret_key='invalid')
+        status, headers, body = \
+            auth_error_conn.make_request('GET', bucket, key, query=query)
+        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+
+        query = 'uploadId=%s' % 'nothing'
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, key, query=query)
+        self.assertEquals(get_error_code(body), 'NoSuchUpload')
+
+    def test_abort_multi_upload_error(self):
+        bucket = 'bucket'
+        keys = ['obj']
+        status, headers, body = \
+            self._initiate_multi_uploads_result_generator(bucket, keys).next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+        self._upload_part(bucket, key, upload_id)
+
+        query = 'uploadId=%s' % upload_id
+        auth_error_conn = Connection(aws_secret_key='invalid')
+        status, headers, body = \
+            auth_error_conn.make_request('DELETE', bucket, key, query=query)
+        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+
+        query = 'uploadId=%s' % 'nothing'
+        status, headers, body = \
+            self.conn.make_request('DELETE', bucket, key, query=query)
+        self.assertEquals(get_error_code(body), 'NoSuchUpload')
+
+    def test_complete_multi_upload_error(self):
+        bucket = 'bucket'
+        keys = ['obj', 'obj2']
+        gen_multi_upload = \
+            self._initiate_multi_uploads_result_generator(bucket, keys)
+
+        status, headers, body = \
+            gen_multi_upload.next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+        status, headers, body, etag = \
+            self._upload_part(bucket, key, upload_id)
+        xml = self._gen_comp_xml([etag])
+
+        query = 'uploadId=%s' % upload_id
+        auth_error_conn = Connection(aws_secret_key='invalid')
+        status, headers, body = \
+            auth_error_conn.make_request('POST', bucket, key, body=xml,
+                                         query=query)
+        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+
+        query = 'uploadId=%s' % 'nothing'
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, key, body=xml,
+                                   query=query)
+        self.assertEquals(get_error_code(body), 'NoSuchUpload')
+
+        # without Part tag in xml
+        query = 'uploadId=%s' % upload_id
+        xml = self._gen_invalid_comp_xml()
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, key, body=xml,
+                                   query=query)
+        self.assertEquals(get_error_code(body), 'MalformedXML')
+
+        # without part in Swift
+        status, headers, body = \
+            gen_multi_upload.next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+        query = 'uploadId=%s' % upload_id
+        xml = self._gen_comp_xml([etag])
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, key, body=xml,
+                                   query=query)
+        self.assertEquals(get_error_code(body), 'InvalidPart')
 
 if __name__ == '__main__':
     unittest.main()
