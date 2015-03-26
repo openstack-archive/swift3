@@ -16,14 +16,17 @@
 import unittest
 from string import replace
 from hashlib import md5
+from email.utils import formatdate, parsedate
+from time import mktime
 
 from swift3.test.functional.utils import assert_common_response_headers, \
-    get_error_code
+    get_error_code, calculate_md5
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.test.functional import Swift3FunctionalTestCase
 from swift3.test.functional.s3_test_client import Connection
 
 MIN_SEGMENTS_SIZE = 5242880
+DAY = 86400.0  # 60 * 60 * 24 (sec)
 
 
 class TestSwift3MultiUpload(Swift3FunctionalTestCase):
@@ -43,36 +46,45 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         return tostring(elem)
 
     def _initiate_multi_uploads_result_generator(self, bucket, keys,
-                                                 trials=1):
+                                                 trials=1, headers=None):
         self.conn.make_request('PUT', bucket)
         query = 'uploads'
         for key in keys:
             for i in xrange(trials):
                 status, resp_headers, body = \
-                    self.conn.make_request('POST', bucket, key, query=query)
+                    self.conn.make_request('POST', bucket, key, query=query,
+                                           headers=headers)
                 yield status, resp_headers, body
 
-    def _upload_part(self, bucket, key, upload_id, contents=None, part_num=1):
+    def _upload_part(self, bucket, key, upload_id, contents=None, part_num=1,
+                     headers=None):
         query = 'partNumber=%s&uploadId=%s' % (part_num, upload_id)
         contents = contents if contents else 'a' * MIN_SEGMENTS_SIZE
         status, headers, body = \
             self.conn.make_request('PUT', bucket, key, body=contents,
-                                   query=query)
+                                   query=query, headers=headers)
         etag = replace(headers.get('etag'), '"', '')
         return status, headers, body, etag
 
     def _upload_part_copy(self, src_bucket, src_obj, dst_bucket, dst_key,
-                          upload_id, src_contents=None, part_num=1):
-        # prepare src obj
-        self.conn.make_request('PUT', src_bucket)
-        contents = src_contents if src_contents else 'b' * MIN_SEGMENTS_SIZE
-        self.conn.make_request('PUT', src_bucket, src_obj, body=contents)
+                          upload_id, src_contents=None, part_num=1,
+                          headers=None, put_src=True):
+        if put_src:
+            # prepare src obj
+            self.conn.make_request('PUT', src_bucket)
+            contents = src_contents \
+                if src_contents else 'b' * MIN_SEGMENTS_SIZE
+            self.conn.make_request('PUT', src_bucket, src_obj, body=contents)
 
         src_path = '%s/%s' % (src_bucket, src_obj)
         query = 'partNumber=%s&uploadId=%s' % (part_num, upload_id)
+        if headers:
+            headers['X-Amz-Copy-Source'] = src_path
+        else:
+            headers = {'X-Amz-Copy-Source': src_path}
         status, headers, body = \
             self.conn.make_request('PUT', dst_bucket, dst_key,
-                                   headers={'X-Amz-Copy-Source': src_path},
+                                   headers=headers,
                                    query=query)
         elem = fromstring(body, 'CopyPartResult')
         etag = elem.find('ETag').text
@@ -244,6 +256,33 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         #    self.conn.make_request('POST', 'nothing', obj, query=query)
         # self.assertEquals(get_error_code(body), 'NoSuchBucket')
 
+    def test_initiate_multi_upload_with_x_amz_mata(self):
+        bucket = 'bucket'
+        keys = ['obj']
+        headers = {'x-amz-meta-foo': 'bar'}
+        gen_multi_upload = \
+            self._initiate_multi_uploads_result_generator(bucket, keys,
+                                                          headers=headers)
+        _, _, body = gen_multi_upload.next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+        _, _, _, etag = self._upload_part(bucket, key, upload_id)
+        xml = self._gen_comp_xml([etag])
+        self._complete_multi_upload(bucket, key, upload_id, xml)
+        _, headers, _ = self.conn.make_request('HEAD', bucket, key)
+        self.assertEquals(headers['x-amz-meta-foo'], 'bar')
+
+    def test_initiate_multi_upload_with_storage_class(self):
+        bucket = 'bucket'
+        keys = ['obj']
+        headers = {'X-Amz-Storage-Class': 'STANDARD'}
+        gen_multi_upload = \
+            self._initiate_multi_uploads_result_generator(bucket, keys,
+                                                          headers=headers)
+        status, headers, body = gen_multi_upload.next()
+        self.assertEquals(status, 200)
+
     def test_list_multi_uploads_error(self):
         bucket = 'bucket'
         self.conn.make_request('PUT', bucket)
@@ -257,6 +296,153 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('GET', 'nothing', query=query)
         self.assertEquals(get_error_code(body), 'NoSuchBucket')
+
+    def test_list_multi_uploads_with_delimiter(self):
+        bucket = 'delimiter'
+        keys = ['obj', 'obj2', 'subdir/obj', 'subdir2/obj', 'dir/subdir/obj']
+        uploads = []
+        for _, _, body in \
+                self._initiate_multi_uploads_result_generator(bucket, keys):
+            elem = fromstring(body, 'InitiateMultipartUploadResult')
+            key = elem.find('Key').text
+            upload_id = elem.find('UploadId').text
+            uploads.append((key, upload_id))
+
+        delimiter = '/'
+        query = 'uploads&delimiter=%s' % delimiter
+        expect_keys = ['obj', 'obj2']
+        expect_prefixes = ['dir/', 'subdir/', 'subdir2/']
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, query=query)
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(elem.find('Delimiter').text, delimiter)
+        self.assertEquals(len(elem.findall('Upload')), len(expect_keys))
+        for i, u in enumerate(elem.findall('Upload')):
+            key = u.find('Key').text
+            self.assertEquals(u.find('Key').text, expect_keys[i])
+            upload_id = u.find('UploadId').text
+            self.assertTrue((key, upload_id) in uploads)
+        resp_prefixes = elem.findall('CommonPrefixes')
+        self.assertEquals(len(resp_prefixes), len(expect_prefixes))
+        for i, p in enumerate(resp_prefixes):
+            self.assertEquals(p.find('./Prefix').text, expect_prefixes[i])
+
+    def test_list_multi_uploads_with_encoding_type(self):
+        bucket = 'encoding'
+        keys = ['obj']
+        self._initiate_multi_uploads_result_generator(bucket, keys).next()
+
+        encoding_type = 'url'
+        query = 'uploads&encoding-type=%s' % encoding_type
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, query=query)
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(elem.find('EncodingType').text, encoding_type)
+
+    def test_list_multi_uploads_with_max_uploads(self):
+        bucket = 'max-uploads'
+        keys = ['obj', 'obj2', 'subdir/obj', 'subdir2/obj', 'dir/subdir/obj']
+        uploads = []
+        for _, _, body in \
+                self._initiate_multi_uploads_result_generator(bucket, keys):
+            elem = fromstring(body, 'InitiateMultipartUploadResult')
+            key = elem.find('Key').text
+            upload_id = elem.find('UploadId').text
+            uploads.append((key, upload_id))
+
+        max_uploads = '3'
+        query = 'uploads&max-uploads=%s' % max_uploads
+        expect_keys = ['dir/subdir/obj', 'obj', 'obj2']
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, query=query)
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(elem.find('MaxUploads').text, max_uploads)
+        self.assertEquals(len(elem.findall('Upload')), len(expect_keys))
+        for i, u in enumerate(elem.findall('Upload')):
+            key = u.find('Key').text
+            self.assertEquals(u.find('Key').text, expect_keys[i])
+            upload_id = u.find('UploadId').text
+            self.assertTrue((key, upload_id) in uploads)
+
+    def test_list_multi_uploads_with_key_marker(self):
+        bucket = 'key-marker'
+        keys = ['obj', 'obj2', 'subdir/obj', 'subdir2/obj', 'dir/subdir/obj']
+        uploads = []
+        for _, _, body in \
+                self._initiate_multi_uploads_result_generator(bucket, keys):
+            elem = fromstring(body, 'InitiateMultipartUploadResult')
+            key = elem.find('Key').text
+            upload_id = elem.find('UploadId').text
+            uploads.append((key, upload_id))
+
+        key_marker = 'obj2'
+        query = 'uploads&key-marker=%s' % key_marker
+        expect_keys = ['subdir/obj', 'subdir2/obj']
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, query=query)
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(elem.find('KeyMarker').text, key_marker)
+        self.assertEquals(len(elem.findall('Upload')), len(expect_keys))
+        for i, u in enumerate(elem.findall('Upload')):
+            key = u.find('Key').text
+            self.assertEquals(u.find('Key').text, expect_keys[i])
+            upload_id = u.find('UploadId').text
+            self.assertTrue((key, upload_id) in uploads)
+
+    def test_list_multi_uploads_with_prefix(self):
+        bucket = 'prefix'
+        keys = ['obj', 'obj2', 'subdir/obj', 'subdir2/obj', 'dir/subdir/obj']
+        uploads = []
+        for _, _, body in \
+                self._initiate_multi_uploads_result_generator(bucket, keys):
+            elem = fromstring(body, 'InitiateMultipartUploadResult')
+            key = elem.find('Key').text
+            upload_id = elem.find('UploadId').text
+            uploads.append((key, upload_id))
+
+        prefix = 'obj'
+        query = 'uploads&prefix=%s' % prefix
+        expect_keys = ['obj', 'obj2']
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, query=query)
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(elem.find('Prefix').text, prefix)
+        self.assertEquals(len(elem.findall('Upload')), len(expect_keys))
+        for i, u in enumerate(elem.findall('Upload')):
+            key = u.find('Key').text
+            self.assertEquals(u.find('Key').text, expect_keys[i])
+            upload_id = u.find('UploadId').text
+            self.assertTrue((key, upload_id) in uploads)
+
+    def test_list_multi_uploads_with_upload_id_marker(self):
+        bucket = 'upload_id_marker'
+        keys = ['obj', 'obj2']
+        uploads = []
+        for _, _, body in \
+                self._initiate_multi_uploads_result_generator(bucket, keys,
+                                                              trials=3):
+            elem = fromstring(body, 'InitiateMultipartUploadResult')
+            key = elem.find('Key').text
+            upload_id = elem.find('UploadId').text
+            uploads.append((key, upload_id))
+
+        uploads.sort()
+        key_marker, upload_id_marker = uploads[0]
+        query = \
+            'uploads&key-marker=%s&upload-id-marker=%s' % \
+            (key_marker, upload_id_marker)
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, query=query)
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(elem.find('KeyMarker').text, key_marker)
+        self.assertEquals(elem.find('UploadIdMarker').text, upload_id_marker)
+        self.assertEquals(len(elem.findall('Upload')), len(uploads) - 1)
+        for u in elem.findall('Upload'):
+            key = u.find('Key').text
+            upload_id = u.find('UploadId').text
+            self.assertNotEquals((key, upload_id),
+                                 (key_marker, upload_id_marker))
+            self.assertTrue((key, upload_id) in uploads)
 
     def test_upload_part_error(self):
         bucket = 'bucket'
@@ -282,6 +468,41 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('PUT', bucket, key, query=query)
         self.assertEquals(get_error_code(body), 'InvalidArgument')
+
+    def test_upload_part_with_content_length(self):
+        bucket = 'bucket'
+        keys = ['obj']
+        status, headers, body = \
+            self._initiate_multi_uploads_result_generator(bucket, keys).next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+        contents = 'abcde'
+
+        # Content-Length with under body size
+        content_length = len(contents.encode('utf-8')) - 1
+        headers = {'Content-Length': content_length}
+        expect_etag = md5('abcd').hexdigest()
+        status, headers, body, resp_etag = \
+            self._upload_part(bucket, key, upload_id, contents,
+                              headers=headers)
+        self.assertEquals(resp_etag, expect_etag)
+
+    def test_upload_part_with_content_md5(self):
+        bucket = 'bucket'
+        keys = ['obj']
+        status, headers, body = \
+            self._initiate_multi_uploads_result_generator(bucket, keys).next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+        contents = 'abcde'
+
+        headers = {'Content-MD5': calculate_md5(contents)}
+        status, headers, body, resp_etag = \
+            self._upload_part(bucket, key, upload_id, contents,
+                              headers=headers)
+        self.assertEquals(status, 200)
 
     def test_upload_part_copy_error(self):
         src_bucket = 'src'
@@ -323,6 +544,123 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
                                    query=query)
         self.assertEquals(get_error_code(body), 'NoSuchKey')
 
+    def test_upload_part_copy_source(self):
+        dst_bucket = 'dst'
+        keys = ['dst']
+        status, headers, body = \
+            self._initiate_multi_uploads_result_generator(dst_bucket,
+                                                          keys).next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        dst_key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+
+        # /dst/src -> /dst/dst?uploadId=upload_id
+        src_obj = 'src'
+        src_contents = 'a'
+        status, headers, body, resp_etag_1 = \
+            self._upload_part_copy(dst_bucket, src_obj, dst_bucket, dst_key,
+                                   upload_id, src_contents)
+        self.assertEquals(status, 200)
+
+        # /dst/dst -> /dst/dst?uploadId=upload_id
+        src_contents = 'b'
+        status, headers, body, resp_etag_2 = \
+            self._upload_part_copy(dst_bucket, dst_key, dst_bucket, dst_key,
+                                   upload_id, src_contents)
+        self.assertEquals(status, 200)
+        self.assertNotEquals(resp_etag_1, resp_etag_2)
+
+    def test_upload_part_copy_with_if_modified_since(self):
+        src_bucket = 'src'
+        src_obj = 'src'
+        self.conn.make_request('PUT', src_bucket)
+        self.conn.make_request('PUT', src_bucket, src_obj)
+        _, headers, _ = self.conn.make_request('HEAD', src_bucket, src_obj)
+        src_datetime = mktime(parsedate(headers['last-modified']))
+        src_datetime = src_datetime - DAY
+
+        dst_bucket = 'dst'
+        keys = ['dst']
+        status, headers, body = \
+            self._initiate_multi_uploads_result_generator(dst_bucket,
+                                                          keys).next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+        headers = {'X-Amz-Copy-Source-If-Modified-Since':
+                   formatdate(src_datetime)}
+        status, headers, body, resp_etag = \
+            self._upload_part_copy(src_bucket, src_obj, dst_bucket, key,
+                                   upload_id, headers=headers, put_src=False)
+        self.assertEquals(status, 200)
+
+    def test_upload_part_copy_with_if_unmodified_since(self):
+        src_bucket = 'src'
+        src_obj = 'src'
+        self.conn.make_request('PUT', src_bucket)
+        self.conn.make_request('PUT', src_bucket, src_obj)
+        _, headers, _ = self.conn.make_request('HEAD', src_bucket, src_obj)
+        src_datetime = mktime(parsedate(headers['last-modified']))
+        src_datetime = src_datetime + DAY
+
+        dst_bucket = 'dst'
+        keys = ['dst']
+        status, headers, body = \
+            self._initiate_multi_uploads_result_generator(dst_bucket,
+                                                          keys).next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+        headers = {'X-Amz-Copy-Source-If-UnModified-Since':
+                   formatdate(src_datetime)}
+        status, headers, body, resp_etag = \
+            self._upload_part_copy(src_bucket, src_obj, dst_bucket, key,
+                                   upload_id, headers=headers, put_src=False)
+        self.assertEquals(status, 200)
+
+    def test_upload_part_copy_with_if_match(self):
+        src_bucket = 'src'
+        src_obj = 'src'
+        self.conn.make_request('PUT', src_bucket)
+        self.conn.make_request('PUT', src_bucket, src_obj)
+        _, headers, _ = self.conn.make_request('HEAD', src_bucket, src_obj)
+        etag = headers['etag']
+
+        dst_bucket = 'dst'
+        keys = ['dst']
+        status, headers, body = \
+            self._initiate_multi_uploads_result_generator(dst_bucket,
+                                                          keys).next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+        headers = {'X-Amz-Copy-Source-If-Match': etag}
+        status, headers, body, resp_etag = \
+            self._upload_part_copy(src_bucket, src_obj, dst_bucket, key,
+                                   upload_id, headers=headers, put_src=False)
+        self.assertEquals(status, 200)
+
+    def test_upload_part_copy_with_if_none_match(self):
+        src_bucket = 'src'
+        src_obj = 'src'
+        self.conn.make_request('PUT', src_bucket)
+        self.conn.make_request('PUT', src_bucket, src_obj)
+        _, headers, _ = self.conn.make_request('HEAD', src_bucket, src_obj)
+
+        dst_bucket = 'dst'
+        keys = ['dst']
+        status, headers, body = \
+            self._initiate_multi_uploads_result_generator(dst_bucket,
+                                                          keys).next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+        headers = {'X-Amz-Copy-Source-If-None-Match': 'none-match'}
+        status, headers, body, resp_etag = \
+            self._upload_part_copy(src_bucket, src_obj, dst_bucket, key,
+                                   upload_id, headers=headers, put_src=False)
+        self.assertEquals(status, 200)
+
     def test_list_parts_error(self):
         bucket = 'bucket'
         keys = ['obj']
@@ -342,6 +680,75 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('GET', bucket, key, query=query)
         self.assertEquals(get_error_code(body), 'NoSuchUpload')
+
+    def test_list_parts_with_encoding_type(self):
+        bucket = 'bucket'
+        keys = ['obj']
+        gen_multi_upload = \
+            self._initiate_multi_uploads_result_generator(bucket, keys)
+        _, _, body = gen_multi_upload.next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+
+        query = 'uploadId=%s' % upload_id
+        headers = {'encoding-type': 'url'}
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, key, query=query,
+                                   headers=headers)
+        self.assertEquals(status, 200)
+
+    def test_list_parts_with_max_parts(self):
+        bucket = 'bucket'
+        keys = ['obj']
+        gen_multi_upload = \
+            self._initiate_multi_uploads_result_generator(bucket, keys)
+        _, _, body = gen_multi_upload.next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+        contents = 'a'
+        for i in xrange(1, 10):
+            part_num = i
+            self._upload_part(bucket, key, upload_id, contents, part_num)
+
+        max_parts = '5'
+        query = 'uploadId=%s&max-parts=%s' % (upload_id, max_parts)
+        expect_part_num = ['%s' % i for i in xrange(1, 6)]
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, key, query=query)
+        elem = fromstring(body, 'ListPartsResult')
+        self.assertEquals(elem.find('MaxParts').text, max_parts)
+        self.assertEquals(len(elem.findall('Part')), len(expect_part_num))
+        for i, p in enumerate(elem.findall('Part')):
+            self.assertTrue(p.find('PartNumber').text in expect_part_num[i])
+
+    def test_list_parts_with_part_number_marker(self):
+        bucket = 'bucket'
+        keys = ['obj']
+        gen_multi_upload = \
+            self._initiate_multi_uploads_result_generator(bucket, keys)
+        _, _, body = gen_multi_upload.next()
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        key = elem.find('Key').text
+        upload_id = elem.find('UploadId').text
+        contents = 'a'
+        for i in xrange(1, 10):
+            part_num = i
+            self._upload_part(bucket, key, upload_id, contents, part_num)
+
+        part_number_marker = '5'
+        query = 'uploadId=%s&part-number-marker=%s' % \
+            (upload_id, part_number_marker)
+        expect_part_num = ['%s' % i for i in xrange(6, 10)]
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, key, query=query)
+        elem = fromstring(body, 'ListPartsResult')
+        self.assertEquals(elem.find('PartNumberMarker').text,
+                          part_number_marker)
+        self.assertEquals(len(elem.findall('Part')), len(expect_part_num))
+        for i, p in enumerate(elem.findall('Part')):
+            self.assertTrue(p.find('PartNumber').text in expect_part_num[i])
 
     def test_abort_multi_upload_error(self):
         bucket = 'bucket'
