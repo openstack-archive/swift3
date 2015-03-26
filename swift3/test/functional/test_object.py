@@ -16,6 +16,9 @@
 import unittest
 import datetime
 
+from multifile import MultiFile
+from cStringIO import StringIO
+
 from swift3.test.functional.s3_test_client import Connection
 from swift3.test.functional.utils import get_error_code,\
     assert_common_response_headers, calculate_md5, convert_date_to_datetime, \
@@ -416,14 +419,53 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.assertEquals(headers['content-length'], '5')
         self.assertEquals(body, 'fghij')
 
-        headers = {'Range': 'bytes=1-2,4-5'}
+        ranges = ['1-2', '4-5']
+
+        headers = {'Range': 'bytes=%s' % ','.join(ranges)}
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, headers=headers)
         self.assertEquals(status, 206)
-        self.assertTrue('1-2/10' in body)
-        self.assertTrue('bc' in body)
-        self.assertTrue('4-5/10' in body)
-        self.assertTrue('ef' in body)
+
+        self.assertTrue('content-type' in headers)  # sanity
+        content_type, boundary = headers['content-type'].split(';')
+
+        self.assertEquals('multipart/byteranges', content_type)
+        self.assertTrue(boundary.startswith('boundary='))  # sanity
+        boundary_str = boundary[len('boundary='):]
+
+        sio = StringIO(body)
+        mfile = MultiFile(sio)
+        mfile.push(boundary_str)
+
+        def check_line_header(line, expected_key, expected_value):
+            key, value = line.split(':', 1)
+            self.assertEquals(expected_key, key.strip())
+            self.assertEquals(expected_value, value.strip())
+
+        for range_value in ranges:
+            start, end = map(int, range_value.split('-'))
+            # go to next section and check sanity
+            self.assertTrue(mfile.next())
+
+            lines = mfile.readlines()
+            # first line should be content-type which
+            # includes original content-type
+            # e.g. Content-Type: application/octet-stream
+            check_line_header(
+                lines[0].strip(), 'Content-Type', 'application/octet-stream')
+
+            # second line should be byte range information
+            # e.g. Content-Range: bytes 1-2/11
+            expected_range = 'bytes %s/%s' % (range_value, len(contents))
+            check_line_header(
+                lines[1].strip(), 'Content-Range', expected_range)
+            # rest
+            rest = [line for line in lines[2:] if line.strip()]
+            self.assertEquals(1, len(rest))  # sanity
+            self.assertTrue(contents[start:end], rest[0])
+
+        # no next section
+        self.assertFalse(mfile.next())  # sanity
 
     def test_get_object_if_modified_since(self):
         obj = 'object'
