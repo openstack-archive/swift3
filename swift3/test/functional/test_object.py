@@ -32,11 +32,11 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
     def test_object(self):
         obj = 'object'
-        contents = 'abc123'
+        content = 'abc123'
 
         # PUT Object
         status, headers, body = \
-            self.conn.make_request('PUT', self.bucket, obj, body=contents)
+            self.conn.make_request('PUT', self.bucket, obj, body=content)
         self.assertEquals(status, 200)
 
         assert_common_response_headers(self, headers)
@@ -67,7 +67,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.assertTrue(headers['last-modified'] is not None)
         self.assertTrue(headers['etag'] is not None)
         self.assertTrue(headers['content-type'] is not None)
-        self.assertEquals(headers['content-length'], str(len(contents)))
+        self.assertEquals(headers['content-length'], str(len(content)))
 
         # HEAD Object
         status, headers, body = \
@@ -78,7 +78,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.assertTrue(headers['last-modified'] is not None)
         self.assertTrue(headers['etag'] is not None)
         self.assertTrue(headers['content-type'] is not None)
-        self.assertEquals(headers['content-length'], str(len(contents)))
+        self.assertEquals(headers['content-length'], str(len(content)))
 
         # DELETE Object
         status, headers, body = \
@@ -193,18 +193,18 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
     def test_put_object_content_md5(self):
         obj = 'object'
-        contents = 'abcdefghij'
-        headers = {'Content-MD5': calculate_md5(contents)}
+        content = 'abcdefghij'
+        headers = {'Content-MD5': calculate_md5(content)}
         status, headers, body = \
-            self.conn.make_request('PUT', self.bucket, obj, headers, contents)
+            self.conn.make_request('PUT', self.bucket, obj, headers, content)
         self.assertEquals(status, 200)
 
     def test_put_object_content_type(self):
         obj = 'object'
-        contents = 'abcdefghij'
+        content = 'abcdefghij'
         headers = {'Content-Type': 'text/plain'}
         status, headers, body = \
-            self.conn.make_request('PUT', self.bucket, obj, headers, contents)
+            self.conn.make_request('PUT', self.bucket, obj, headers, content)
         self.assertEquals(status, 200)
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, obj)
@@ -212,18 +212,18 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
     def test_put_object_expect(self):
         obj = 'object'
-        contents = 'abcdefghij'
+        content = 'abcdefghij'
         headers = {'Expect': '100-continue'}
         status, headers, body = \
-            self.conn.make_request('PUT', self.bucket, obj, headers, contents)
+            self.conn.make_request('PUT', self.bucket, obj, headers, content)
         self.assertEquals(status, 200)
 
     def test_put_object_metadata(self):
         obj = 'object'
-        contents = 'abcdefghij'
+        content = 'abcdefghij'
         headers = {'X-Amz-Meta-Bar': 'foo', 'X-Amz-Meta-Bar2': 'foo2'}
         status, headers, body = \
-            self.conn.make_request('PUT', self.bucket, obj, headers, contents)
+            self.conn.make_request('PUT', self.bucket, obj, headers, content)
         self.assertEquals(status, 200)
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, obj)
@@ -232,10 +232,10 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
     def test_put_object_storage_class(self):
         obj = 'object'
-        contents = 'abcdefghij'
+        content = 'abcdefghij'
         headers = {'X-Amz-Storage-Class': 'STANDARD'}
         status, headers, body = \
-            self.conn.make_request('PUT', self.bucket, obj, headers, contents)
+            self.conn.make_request('PUT', self.bucket, obj, headers, content)
         self.assertEquals(status, 200)
 
     def test_put_object_copy_source(self):
@@ -392,8 +392,8 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
     def test_get_object_range(self):
         obj = 'object'
-        contents = 'abcdefghij'
-        self.conn.make_request('PUT', self.bucket, obj, body=contents)
+        content = 'abcdefghij'
+        self.conn.make_request('PUT', self.bucket, obj, body=content)
 
         headers = {'Range': 'bytes=1-5'}
         status, headers, body = \
@@ -474,8 +474,8 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
     def test_head_object_range(self):
         obj = 'object'
-        contents = 'abcdefghij'
-        self.conn.make_request('PUT', self.bucket, obj, body=contents)
+        content = 'abcdefghij'
+        self.conn.make_request('PUT', self.bucket, obj, body=content)
 
         headers = {'Range': 'bytes=1-5'}
         status, headers, body = \
