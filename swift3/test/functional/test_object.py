@@ -37,9 +37,15 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.bucket = 'bucket'
         self.conn.make_request('PUT', self.bucket)
 
+    def _assertObjectEtag(self, bucket, obj, etag):
+        status, headers, _ = self.conn.make_request('HEAD', bucket, obj)
+        self.assertEquals(status, 200)  # sanity
+        assert_common_response_headers(self, headers, etag)
+
     def test_object(self):
         obj = 'object'
         content = 'abc123'
+        etag = md5(content).hexdigest()
 
         # PUT Object
         status, headers, body = \
@@ -47,14 +53,17 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.assertEquals(status, 200)
 
         assert_common_response_headers(self, headers)
-        self.assertTrue(headers['etag'] is not None)
+        self.assertTrue('content-length' in headers)  # sanity
         self.assertEquals(headers['content-length'], '0')
+        self._assertObjectEtag(self.bucket, obj, etag)
 
         # PUT Object Copy
-        self.conn.make_request('PUT', 'dst_bucket')
+        dst_bucket = 'dst_bucket'
+        dst_obj = 'dst_obj'
+        self.conn.make_request('PUT', dst_bucket)
         headers = {'x-amz-copy-source': '/%s/%s' % (self.bucket, obj)}
         status, headers, body = \
-            self.conn.make_request('PUT', 'dst_bucket', 'dst_obj',
+            self.conn.make_request('PUT', dst_bucket, dst_obj,
                                    headers=headers)
         self.assertEquals(status, 200)
 
@@ -63,16 +72,18 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
         elem = fromstring(body, 'CopyObjectResult')
         self.assertTrue(elem.find('LastModified').text is not None)
+        # TODO: assert LastModified value
         self.assertTrue(elem.find('ETag').text is not None)
+        self.assertEquals(etag, elem.find('ETag').text.strip('"'))
+        self._assertObjectEtag(dst_bucket, dst_obj, etag)
 
         # GET Object
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj)
         self.assertEquals(status, 200)
 
-        assert_common_response_headers(self, headers)
+        assert_common_response_headers(self, headers, etag)
         self.assertTrue(headers['last-modified'] is not None)
-        self.assertTrue(headers['etag'] is not None)
         self.assertTrue(headers['content-type'] is not None)
         self.assertEquals(headers['content-length'], str(len(content)))
 
@@ -81,17 +92,15 @@ class TestSwift3Object(Swift3FunctionalTestCase):
             self.conn.make_request('HEAD', self.bucket, obj)
         self.assertEquals(status, 200)
 
-        assert_common_response_headers(self, headers)
+        assert_common_response_headers(self, headers, etag)
         self.assertTrue(headers['last-modified'] is not None)
-        self.assertTrue(headers['etag'] is not None)
-        self.assertTrue(headers['content-type'] is not None)
+        self.assertTrue('content-type' in headers)
         self.assertEquals(headers['content-length'], str(len(content)))
 
         # DELETE Object
         status, headers, body = \
             self.conn.make_request('DELETE', self.bucket, obj)
         self.assertEquals(status, 204)
-
         assert_common_response_headers(self, headers)
 
     def test_put_object_error(self):
@@ -190,25 +199,33 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
     def test_put_object_content_encoding(self):
         obj = 'object'
+        etag = md5().hexdigest()
         headers = {'Content-Encoding': 'gzip'}
         status, headers, body = \
             self.conn.make_request('PUT', self.bucket, obj, headers)
         self.assertEquals(status, 200)
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, obj)
+        self.assertTrue('content-encoding' in headers)  # sanity
         self.assertEquals(headers['content-encoding'], 'gzip')
+        assert_common_response_headers(self, headers)
+        self._assertObjectEtag(self.bucket, obj, etag)
 
     def test_put_object_content_md5(self):
         obj = 'object'
         content = 'abcdefghij'
+        etag = md5(content).hexdigest()
         headers = {'Content-MD5': calculate_md5(content)}
         status, headers, body = \
             self.conn.make_request('PUT', self.bucket, obj, headers, content)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
+        self._assertObjectEtag(self.bucket, obj, etag)
 
     def test_put_object_content_type(self):
         obj = 'object'
         content = 'abcdefghij'
+        etag = md5(content).hexdigest()
         headers = {'Content-Type': 'text/plain'}
         status, headers, body = \
             self.conn.make_request('PUT', self.bucket, obj, headers, content)
@@ -216,18 +233,24 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, obj)
         self.assertEquals(headers['content-type'], 'text/plain')
+        assert_common_response_headers(self, headers)
+        self._assertObjectEtag(self.bucket, obj, etag)
 
     def test_put_object_expect(self):
         obj = 'object'
         content = 'abcdefghij'
+        etag = md5(content).hexdigest()
         headers = {'Expect': '100-continue'}
         status, headers, body = \
             self.conn.make_request('PUT', self.bucket, obj, headers, content)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
+        self._assertObjectEtag(self.bucket, obj, etag)
 
     def test_put_object_metadata(self):
         obj = 'object'
         content = 'abcdefghij'
+        etag = md5(content).hexdigest()
         headers = {'X-Amz-Meta-Bar': 'foo', 'X-Amz-Meta-Bar2': 'foo2'}
         status, headers, body = \
             self.conn.make_request('PUT', self.bucket, obj, headers, content)
@@ -236,25 +259,25 @@ class TestSwift3Object(Swift3FunctionalTestCase):
             self.conn.make_request('HEAD', self.bucket, obj)
         self.assertEquals(headers['x-amz-meta-bar'], 'foo')
         self.assertEquals(headers['x-amz-meta-bar2'], 'foo2')
+        assert_common_response_headers(self, headers)
+        self._assertObjectEtag(self.bucket, obj, etag)
 
     def test_put_object_storage_class(self):
         obj = 'object'
         content = 'abcdefghij'
+        etag = md5(content).hexdigest()
         headers = {'X-Amz-Storage-Class': 'STANDARD'}
         status, headers, body = \
             self.conn.make_request('PUT', self.bucket, obj, headers, content)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
+        self._assertObjectEtag(self.bucket, obj, etag)
 
     def test_put_object_copy_source(self):
         obj = 'object'
         content = 'abcdefghij'
-        content_md5 = md5(content).hexdigest()
+        etag = md5(content).hexdigest()
         self.conn.make_request('PUT', self.bucket, obj, body=content)
-
-        def assertCopiedObject(bucket, obj):
-            status, headers, _ = self.conn.make_request('HEAD', bucket, obj)
-            self.assertEquals(status, 200)  # sanity
-            self.assertEquals(content_md5, headers['etag'].strip('"'))
 
         dst_bucket = 'dst_bucket'
         dst_obj = 'dst_object'
@@ -265,14 +288,16 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('PUT', dst_bucket, dst_obj, headers)
         self.assertEquals(status, 200)
-        assertCopiedObject(dst_bucket, dst_obj)
+        assert_common_response_headers(self, headers)
+        self._assertObjectEtag(dst_bucket, dst_obj, etag)
 
         # /src/src -> /src/dst
         headers = {'X-Amz-Copy-Source': '/%s/%s' % (self.bucket, obj)}
         status, headers, body = \
             self.conn.make_request('PUT', self.bucket, dst_obj, headers)
         self.assertEquals(status, 200)
-        assertCopiedObject(self.bucket, dst_obj)
+        assert_common_response_headers(self, headers)
+        self._assertObjectEtag(self.bucket, dst_obj, etag)
 
         # /src/src -> /src/src
         # need changes to copy itself (e.g. metadata)
@@ -282,13 +307,15 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('PUT', self.bucket, obj, headers)
         self.assertEquals(status, 200)
-        assertCopiedObject(self.bucket, obj)
+        self._assertObjectEtag(self.bucket, obj, etag)
+        assert_common_response_headers(self, headers)
 
     def test_put_object_copy_metadata_directive(self):
         obj = 'object'
         src_headers = {'X-Amz-Meta-Test': 'src'}
         dst_bucket = 'dst_bucket'
         dst_obj = 'dst_object'
+        etag = md5().hexdigest()
         self.conn.make_request('PUT', self.bucket, obj, headers=src_headers)
         self.conn.make_request('PUT', dst_bucket)
 
@@ -298,15 +325,16 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('PUT', dst_bucket, dst_obj, headers)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
         status, headers, body = \
             self.conn.make_request('HEAD', dst_bucket, dst_obj)
         self.assertEquals(headers['x-amz-meta-test'], 'dst')
-        self.conn.make_request('DELETE', dst_bucket, dst_obj)
 
     def test_put_object_copy_source_if_modified_since(self):
         obj = 'object'
         dst_bucket = 'dst_bucket'
         dst_obj = 'dst_object'
+        etag = md5().hexdigest()
         self.conn.make_request('PUT', self.bucket, obj)
         self.conn.make_request('PUT', dst_bucket)
 
@@ -319,11 +347,14 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('PUT', dst_bucket, dst_obj, headers=headers)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
+        self._assertObjectEtag(self.bucket, obj, etag)
 
     def test_put_object_copy_source_if_unmodified_since(self):
         obj = 'object'
         dst_bucket = 'dst_bucket'
         dst_obj = 'dst_object'
+        etag = md5().hexdigest()
         self.conn.make_request('PUT', self.bucket, obj)
         self.conn.make_request('PUT', dst_bucket)
 
@@ -336,28 +367,33 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('PUT', dst_bucket, dst_obj, headers=headers)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
+        self._assertObjectEtag(self.bucket, obj, etag)
 
     def test_put_object_copy_source_if_match(self):
         obj = 'object'
         dst_bucket = 'dst_bucket'
         dst_obj = 'dst_object'
+        etag = md5().hexdigest()
         self.conn.make_request('PUT', self.bucket, obj)
         self.conn.make_request('PUT', dst_bucket)
 
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, obj)
-        etag = headers['etag']
 
         headers = {'X-Amz-Copy-Source': '/%s/%s' % (self.bucket, obj),
                    'X-Amz-Copy-Source-If-Match': etag}
         status, headers, body = \
             self.conn.make_request('PUT', dst_bucket, dst_obj, headers=headers)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
+        self._assertObjectEtag(self.bucket, obj, etag)
 
     def test_put_object_copy_source_if_none_match(self):
         obj = 'object'
         dst_bucket = 'dst_bucket'
         dst_obj = 'dst_object'
+        etag = md5().hexdigest()
         self.conn.make_request('PUT', self.bucket, obj)
         self.conn.make_request('PUT', dst_bucket)
 
@@ -366,6 +402,8 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('PUT', dst_bucket, dst_obj, headers=headers)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
+        self._assertObjectEtag(self.bucket, obj, etag)
 
     def test_get_object_response_content_type(self):
         obj = 'obj'
@@ -375,6 +413,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, query=query)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
         self.assertEquals(headers['content-type'], 'text/plain')
 
     def test_get_object_response_content_language(self):
@@ -385,6 +424,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, query=query)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
         self.assertEquals(headers['content-language'], 'en')
 
     def test_get_object_response_cache_control(self):
@@ -395,6 +435,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, query=query)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
         self.assertEquals(headers['cache-control'], 'private')
 
     def test_get_object_response_content_disposition(self):
@@ -405,6 +446,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, query=query)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
         self.assertEquals(headers['content-disposition'], 'inline')
 
     def test_get_object_response_content_encoding(self):
@@ -415,6 +457,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, query=query)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
         self.assertEquals(headers['content-encoding'], 'gzip')
 
     def test_get_object_range(self):
@@ -426,6 +469,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, headers=headers)
         self.assertEquals(status, 206)
+        assert_common_response_headers(self, headers)
         self.assertEquals(headers['content-length'], '5')
         self.assertEquals(body, 'bcdef')
 
@@ -433,6 +477,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, headers=headers)
         self.assertEquals(status, 206)
+        assert_common_response_headers(self, headers)
         self.assertEquals(headers['content-length'], '5')
         self.assertEquals(body, 'fghij')
 
@@ -440,6 +485,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, headers=headers)
         self.assertEquals(status, 206)
+        assert_common_response_headers(self, headers)
         self.assertEquals(headers['content-length'], '5')
         self.assertEquals(body, 'fghij')
 
@@ -449,6 +495,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, headers=headers)
         self.assertEquals(status, 206)
+        assert_common_response_headers(self, headers)
 
         self.assertTrue('content-type' in headers)  # sanity
         content_type, boundary = headers['content-type'].split(';')
@@ -502,6 +549,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, headers=headers)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
 
     def test_get_object_if_unmodified_since(self):
         obj = 'object'
@@ -515,6 +563,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, headers=headers)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
 
     def test_get_object_if_match(self):
         obj = 'object'
@@ -528,6 +577,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, headers=headers)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
 
     def test_get_object_if_none_match(self):
         obj = 'object'
@@ -537,6 +587,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, headers=headers)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
 
     def test_head_object_range(self):
         obj = 'object'
@@ -547,16 +598,19 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, obj, headers=headers)
         self.assertEquals(headers['content-length'], '5')
+        assert_common_response_headers(self, headers)
 
         headers = {'Range': 'bytes=5-'}
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, obj, headers=headers)
         self.assertEquals(headers['content-length'], '5')
+        assert_common_response_headers(self, headers)
 
         headers = {'Range': 'bytes=-5'}
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, obj, headers=headers)
         self.assertEquals(headers['content-length'], '5')
+        assert_common_response_headers(self, headers)
 
     def test_head_object_if_modified_since(self):
         obj = 'object'
@@ -570,6 +624,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, obj, headers=headers)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
 
     def test_head_object_if_unmodified_since(self):
         obj = 'object'
@@ -583,6 +638,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, obj, headers=headers)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
 
     def test_head_object_if_match(self):
         obj = 'object'
@@ -596,6 +652,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, obj, headers=headers)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
 
     def test_head_object_if_none_match(self):
         obj = 'object'
@@ -605,6 +662,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, obj, headers=headers)
         self.assertEquals(status, 200)
+        assert_common_response_headers(self, headers)
 
 if __name__ == '__main__':
     unittest.main()
