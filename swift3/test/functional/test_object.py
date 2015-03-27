@@ -260,6 +260,15 @@ class TestSwift3Object(Swift3FunctionalTestCase):
             self.conn.make_request('PUT', self.bucket, dst_obj, headers)
         self.assertEquals(status, 200)
 
+        # /src/src -> /src/src
+        # need changes to copy itself (e.g. metadata)
+        headers = {'X-Amz-Copy-Source': '/%s/%s' % (self.bucket, obj),
+                   'X-Amz-Meta-Foo': 'bar',
+                   'X-Amz-Metadata-Directive': 'REPLACE'}
+        status, headers, body = \
+            self.conn.make_request('PUT', self.bucket, obj, headers)
+        self.assertEquals(status, 200)
+
     def test_put_object_copy_metadata_directive(self):
         obj = 'object'
         src_headers = {'X-Amz-Meta-Test': 'src'}
