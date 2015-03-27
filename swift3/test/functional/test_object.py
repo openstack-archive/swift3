@@ -18,6 +18,7 @@ import datetime
 
 from multifile import MultiFile
 from cStringIO import StringIO
+from hashlib import md5
 
 from swift3.test.functional.s3_test_client import Connection
 from swift3.test.functional.utils import get_error_code,\
@@ -243,7 +244,15 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
     def test_put_object_copy_source(self):
         obj = 'object'
-        self.conn.make_request('PUT', self.bucket, obj)
+        content = 'abcdefghij'
+        content_md5 = md5(content).hexdigest()
+        self.conn.make_request('PUT', self.bucket, obj, body=content)
+
+        def assertCopiedObject(bucket, obj):
+            status, headers, _ = self.conn.make_request('HEAD', bucket, obj)
+            self.assertEquals(status, 200)  # sanity
+            self.assertEquals(content_md5, headers['etag'].strip('"'))
+
         dst_bucket = 'dst_bucket'
         dst_obj = 'dst_object'
         self.conn.make_request('PUT', dst_bucket)
@@ -253,12 +262,14 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('PUT', dst_bucket, dst_obj, headers)
         self.assertEquals(status, 200)
+        assertCopiedObject(dst_bucket, dst_obj)
 
         # /src/src -> /src/dst
         headers = {'X-Amz-Copy-Source': '/%s/%s' % (self.bucket, obj)}
         status, headers, body = \
             self.conn.make_request('PUT', self.bucket, dst_obj, headers)
         self.assertEquals(status, 200)
+        assertCopiedObject(self.bucket, dst_obj)
 
         # /src/src -> /src/src
         # need changes to copy itself (e.g. metadata)
@@ -268,6 +279,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('PUT', self.bucket, obj, headers)
         self.assertEquals(status, 200)
+        assertCopiedObject(self.bucket, obj)
 
     def test_put_object_copy_metadata_directive(self):
         obj = 'object'
