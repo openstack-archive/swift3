@@ -16,12 +16,16 @@
 import unittest
 import datetime
 
+from email.utils import formatdate, parsedate
+from time import mktime
+
 from swift3.test.functional.s3_test_client import Connection
 from swift3.test.functional.utils import get_error_code,\
-    assert_common_response_headers, calculate_md5, convert_date_to_datetime, \
-    convert_datetime_to_date
+    assert_common_response_headers, calculate_md5
 from swift3.test.functional import Swift3FunctionalTestCase
 from swift3.etree import fromstring
+
+DAY = 86400.0  # 60 * 60 * 24 (sec)
 
 
 class TestSwift3Object(Swift3FunctionalTestCase):
@@ -284,11 +288,11 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.conn.make_request('PUT', dst_bucket)
 
         _, headers, _ = self.conn.make_request('HEAD', self.bucket, obj)
-        src_datetime = convert_date_to_datetime(headers['last-modified'])
-        src_datetime = src_datetime + datetime.timedelta(days=-1)
+        src_datetime = mktime(parsedate(headers['last-modified']))
+        src_datetime = src_datetime - DAY
         headers = {'X-Amz-Copy-Source': '/%s/%s' % (self.bucket, obj),
                    'X-Amz-Copy-Source-If-Modified-Since':
-                   convert_datetime_to_date(src_datetime)}
+                   formatdate(src_datetime)}
         status, headers, body = \
             self.conn.make_request('PUT', dst_bucket, dst_obj, headers=headers)
         self.assertEquals(status, 200)
@@ -301,11 +305,11 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.conn.make_request('PUT', dst_bucket)
 
         _, headers, _ = self.conn.make_request('HEAD', self.bucket, obj)
-        src_datetime = convert_date_to_datetime(headers['last-modified'])
-        src_datetime = src_datetime + datetime.timedelta(days=1)
+        src_datetime = mktime(parsedate(headers['last-modified']))
+        src_datetime = src_datetime + DAY
         headers = {'X-Amz-Copy-Source': '/%s/%s' % (self.bucket, obj),
                    'X-Amz-Copy-Source-If-Unmodified-Since':
-                   convert_datetime_to_date(src_datetime)}
+                   formatdate(src_datetime)}
         status, headers, body = \
             self.conn.make_request('PUT', dst_bucket, dst_obj, headers=headers)
         self.assertEquals(status, 200)
@@ -430,9 +434,9 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.conn.make_request('PUT', self.bucket, obj)
 
         _, headers, _ = self.conn.make_request('HEAD', self.bucket, obj)
-        src_datetime = convert_date_to_datetime(headers['last-modified'])
-        src_datetime = src_datetime + datetime.timedelta(days=-1)
-        headers = {'If-Modified-Since': convert_datetime_to_date(src_datetime)}
+        src_datetime = mktime(parsedate(headers['last-modified']))
+        src_datetime = src_datetime - DAY
+        headers = {'If-Modified-Since': formatdate(src_datetime)}
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, headers=headers)
         self.assertEquals(status, 200)
@@ -442,10 +446,10 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.conn.make_request('PUT', self.bucket, obj)
 
         _, headers, _ = self.conn.make_request('HEAD', self.bucket, obj)
-        src_datetime = convert_date_to_datetime(headers['last-modified'])
-        src_datetime = src_datetime + datetime.timedelta(days=1)
+        src_datetime = mktime(parsedate(headers['last-modified']))
+        src_datetime = src_datetime + DAY
         headers = \
-            {'If-Unmodified-Since': convert_datetime_to_date(src_datetime)}
+            {'If-Unmodified-Since': formatdate(src_datetime)}
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, headers=headers)
         self.assertEquals(status, 200)
@@ -497,10 +501,10 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.conn.make_request('PUT', self.bucket, obj)
 
         _, headers, _ = self.conn.make_request('HEAD', self.bucket, obj)
-        dt = convert_date_to_datetime(headers['last-modified'])
-        dt = dt + datetime.timedelta(days=-1)
+        dt = mktime(parsedate(headers['last-modified']))
+        dt = dt - DAY
 
-        headers = {'If-Modified-Since': convert_datetime_to_date(dt)}
+        headers = {'If-Modified-Since': formatdate(dt)}
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, obj, headers=headers)
         self.assertEquals(status, 200)
@@ -510,10 +514,10 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.conn.make_request('PUT', self.bucket, obj)
 
         _, headers, _ = self.conn.make_request('HEAD', self.bucket, obj)
-        dt = convert_date_to_datetime(headers['last-modified'])
-        dt = dt + datetime.timedelta(days=1)
+        dt = mktime(parsedate(headers['last-modified']))
+        dt = dt + DAY
 
-        headers = {'If-Unmodified-Since': convert_datetime_to_date(dt)}
+        headers = {'If-Unmodified-Since': formatdate(dt)}
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, obj, headers=headers)
         self.assertEquals(status, 200)
