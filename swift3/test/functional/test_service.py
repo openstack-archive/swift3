@@ -16,8 +16,7 @@
 import unittest
 
 from swift3.test.functional.s3_test_client import Connection
-from swift3.test.functional.utils import get_error_code,\
-    assert_common_response_headers
+from swift3.test.functional.utils import get_error_code
 from swift3.etree import fromstring
 from swift3.test.functional import Swift3FunctionalTestCase
 
@@ -31,7 +30,7 @@ class TestSwift3Service(Swift3FunctionalTestCase):
         status, headers, body = self.conn.make_request('GET')
         self.assertEquals(status, 200)
 
-        assert_common_response_headers(self, headers)
+        self.assertCommonResponseHeaders(headers)
         self.assertTrue(headers['content-type'] is not None)
         # TODO; requires consideration
         # self.assertEquasl(headers['transfer-encoding'], 'chunked')

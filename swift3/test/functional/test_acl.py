@@ -18,8 +18,7 @@ import unittest
 from swift3.test.functional import Swift3FunctionalTestCase
 from swift3.test.functional.s3_test_client import Connection, \
     get_tester2_connection
-from swift3.test.functional.utils import assert_common_response_headers, \
-    get_error_code
+from swift3.test.functional.utils import get_error_code
 from swift3.etree import fromstring
 
 
@@ -41,14 +40,14 @@ class TestSwift3Acl(Swift3FunctionalTestCase):
             self.conn.make_request('PUT', self.bucket, headers=headers,
                                    query=query)
         self.assertEquals(status, 200)
-        assert_common_response_headers(self, headers)
+        self.assertCommonResponseHeaders(headers)
         self.assertEquals(headers['content-length'], '0')
 
         # GET Bucket ACL
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, query=query)
         self.assertEquals(status, 200)
-        assert_common_response_headers(self, headers)
+        self.assertCommonResponseHeaders(headers)
         # TODO: Fix the response that last-modified must be in the response.
         # self.assertTrue(headers['last-modified'] is not None)
         self.assertEquals(headers['content-length'], str(len(body)))
@@ -64,7 +63,7 @@ class TestSwift3Acl(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, self.obj, query=query)
         self.assertEquals(status, 200)
-        assert_common_response_headers(self, headers)
+        self.assertCommonResponseHeaders(headers)
         # TODO: Fix the response that last-modified must be in the response.
         # self.assertTrue(headers['last-modified'] is not None)
         self.assertEquals(headers['content-length'], str(len(body)))
