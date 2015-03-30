@@ -32,3 +32,19 @@ class Swift3FunctionalTestCase(unittest.TestCase):
                       (self.method_name, traceback.format_exc())
             # TODO: Find a way to make this go to FAIL instead of Error
             self.fail(message)
+
+    def assertCommonResponseHeaders(self, headers, etag=None):
+        """
+        asserting common response headers with args
+        :param headers: a dict of response headers
+        :param etag: a string of md5(content).hexdigest() if not given,
+                     this won't assert anything about etag. (e.g. DELETE obj)
+        """
+        self.assertTrue(headers['x-amz-id-2'] is not None)
+        self.assertTrue(headers['x-amz-request-id'] is not None)
+        self.assertTrue(headers['date'] is not None)
+        # TODO; requires consideration
+        # self.assertTrue(headers['server'] is not None)
+        if etag is not None:
+            self.assertTrue('etag' in headers)  # sanity
+            self.assertEquals(etag, headers['etag'].strip('"'))

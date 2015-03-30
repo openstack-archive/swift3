@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from swift3.test.functional.utils import assert_common_response_headers, \
-    calculate_md5, get_error_code
+from swift3.test.functional.utils import calculate_md5, get_error_code
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.controllers.multi_delete import MAX_MULTI_DELETE_BODY_SIZE
 from swift3.test.functional import Swift3FunctionalTestCase
@@ -63,7 +62,7 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
                                    headers={'Content-MD5': content_md5},
                                    query=query)
         self.assertEquals(status, 200)
-        assert_common_response_headers(self, headers)
+        self.assertCommonResponseHeaders(headers)
         self.assertTrue(headers['content-type'] is not None)
         self.assertEquals(headers['content-length'], str(len(body)))
         elem = fromstring(body)

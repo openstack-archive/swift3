@@ -16,8 +16,7 @@
 import unittest
 
 from swift3.test.functional.s3_test_client import Connection
-from swift3.test.functional.utils import get_error_code,\
-    assert_common_response_headers
+from swift3.test.functional.utils import get_error_code
 from swift3.etree import fromstring
 from swift3.cfg import CONF
 from swift3.test.functional import Swift3FunctionalTestCase
@@ -34,7 +33,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         status, headers, body = self.conn.make_request('PUT', bucket)
         self.assertEquals(status, 200)
 
-        assert_common_response_headers(self, headers)
+        self.assertCommonResponseHeaders(headers)
         self.assertEquals(headers['location'], '/' + bucket)
         self.assertEquals(headers['content-length'], '0')
 
@@ -42,7 +41,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         status, headers, body = self.conn.make_request('GET', bucket)
         self.assertEquals(status, 200)
 
-        assert_common_response_headers(self, headers)
+        self.assertCommonResponseHeaders(headers)
         self.assertTrue(headers['content-type'] is not None)
         self.assertEquals(headers['content-length'], str(len(body)))
         # TODO; requires consideration
@@ -88,7 +87,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         status, headers, body = self.conn.make_request('HEAD', bucket)
         self.assertEquals(status, 200)
 
-        assert_common_response_headers(self, headers)
+        self.assertCommonResponseHeaders(headers)
         self.assertTrue(headers['content-type'] is not None)
         self.assertEquals(headers['content-length'], str(len(body)))
         # TODO; requires consideration
@@ -100,7 +99,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         status, headers, body = self.conn.make_request('DELETE', bucket)
         self.assertEquals(status, 204)
 
-        assert_common_response_headers(self, headers)
+        self.assertCommonResponseHeaders(headers)
 
     def test_put_bucket_error(self):
         status, headers, body = \
