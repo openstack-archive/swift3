@@ -170,6 +170,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidRequest')
 
+    @patch('swift3.request.get_container_info', lambda x, y: {'status': 204})
     def _test_bucket_multipart_uploads_GET(self, query=None,
                                            multiparts=None):
         segment_bucket = '/v1/AUTH_test/bucket+segments'
@@ -212,6 +213,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
 
     @s3acl
+    @patch('swift3.request.get_container_info', lambda x, y: {'status': 204})
     def test_bucket_multipart_uploads_GET_without_segment_bucket(self):
         segment_bucket = '/v1/AUTH_test/bucket+segments'
         self.swift.register('GET', segment_bucket, swob.HTTPNotFound, {}, '')
@@ -231,6 +233,18 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEquals(elem.find('MaxUploads').text, '1000')
         self.assertEquals(elem.find('IsTruncated').text, 'false')
         self.assertEquals(len(elem.findall('Upload')), 0)
+
+    @s3acl
+    @patch('swift3.request.get_container_info', lambda x, y: {'status': 404})
+    def test_bucket_multipart_uploads_GET_without_bucket(self):
+        self.swift.register('GET', '/v1/AUTH_test/bucket',
+                            swob.HTTPNotFound, {}, '')
+        req = Request.blank('/bucket?uploads',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, haeaders, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '404')
+        self.assertEquals(self._get_error_code(body), 'NoSuchBucket')
 
     @s3acl
     def test_bucket_multipart_uploads_GET_encoding_type_error(self):
@@ -893,6 +907,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
 
     @s3acl(s3acl_only=True)
+    @patch('swift3.request.get_container_info', lambda x, y: {'status': 204})
     def test_list_multipart_uploads_acl_without_permission(self):
         status, headers, body = \
             self._test_for_s3acl('GET', '?uploads', 'test:other',
@@ -900,6 +915,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEquals(status.split()[0], '403')
 
     @s3acl(s3acl_only=True)
+    @patch('swift3.request.get_container_info', lambda x, y: {'status': 204})
     def test_list_multipart_uploads_acl_with_read_permission(self):
         status, headers, body = \
             self._test_for_s3acl('GET', '?uploads', 'test:read',
@@ -907,6 +923,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
 
     @s3acl(s3acl_only=True)
+    @patch('swift3.request.get_container_info', lambda x, y: {'status': 204})
     def test_list_multipart_uploads_acl_with_fullcontrol_permission(self):
         status, headers, body = \
             self._test_for_s3acl('GET', '?uploads', 'test:full_control',
