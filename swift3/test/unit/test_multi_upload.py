@@ -232,6 +232,15 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEquals(len(elem.findall('Upload')), 0)
 
     @s3acl
+    def test_bucket_multipart_uploads_GET_without_bucket(self):
+        self.swift.register('GET', '/v1/AUTH_test/bucket',
+                            swob.HTTPNotFound, {}, '')
+        status, headers, body = \
+            self._test_bucket_multipart_uploads_GET()
+        self.assertEquals(status.split()[0], '404')
+        self.assertEquals(self._get_error_code(body), 'NoSuchBucket')
+
+    @s3acl
     def test_bucket_multipart_uploads_GET_encoding_type_error(self):
         query = 'encoding-type=xml'
         status, headers, body = \
