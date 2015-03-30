@@ -143,6 +143,8 @@ class UploadsController(Controller):
         """
         Handles List Multipart Uploads
         """
+        # at first, check the bucket existence
+        req.get_container_info(self.app)
 
         def separate_uploads(uploads, prefix, delimiter):
             """
