@@ -114,6 +114,8 @@ class Response(ResponseBase, swob.Response):
                 headers['x-rgw-bytes-used'] = val
 
         self.headers = headers
+        # Used for pure swift header handling at the request layer
+        self.sw_headers = sw_headers
         self.sysmeta_headers = sw_sysmeta_headers
 
     @classmethod

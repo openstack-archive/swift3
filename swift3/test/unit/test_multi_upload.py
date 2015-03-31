@@ -523,7 +523,6 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertTrue(query.get('delimiter') is None)
 
     @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
-    @patch('swift3.request.get_container_info', lambda x, y: {'status': 204})
     def test_object_multipart_upload_initiate(self):
         req = Request.blank('/bucket/object?uploads',
                             environ={'REQUEST_METHOD': 'POST'},
@@ -562,7 +561,6 @@ class TestSwift3MultiUpload(Swift3TestCase):
                           tmpacl_header)
 
     @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
-    @patch('swift3.request.get_container_info', lambda x, y: {'status': 404})
     def test_object_multipart_upload_initiate_without_bucket(self):
         self.swift.register('HEAD', '/v1/AUTH_test/bucket',
                             swob.HTTPNotFound, {}, None)

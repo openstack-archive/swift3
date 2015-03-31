@@ -17,7 +17,7 @@ from contextlib import nested
 from mock import patch, MagicMock
 import unittest
 
-from swift.common.swob import Request
+from swift.common.swob import Request, HTTPNoContent
 
 from swift3.subresource import ACL, User, Owner, Grant, encode_acl
 from swift3.test.unit.test_middleware import Swift3TestCase
@@ -277,14 +277,28 @@ class TestRequest(Swift3TestCase):
             self.assertTrue(sw_req.environ['swift.proxy_access_log_made'])
 
     def test_get_container_info(self):
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket', HTTPNoContent,
+                            {'x-container-read': 'foo',
+                             'X-container-object-count': 5,
+                             'X-container-meta-foo': 'bar'}, None)
         req = Request.blank('/bucket', environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         s3_req = S3_Request(req.environ, True)
+        # first, call get_response('HEAD')
+        info = s3_req.get_container_info(self.app)
+        self.assertTrue('status' in info)  # sanity
+        self.assertEquals(204, info['status'])  # sanity
+        self.assertEquals('foo', info['read_acl'])  # sanity
+        self.assertEquals('5', info['object_count'])  # sanity
+        self.assertEquals({'foo': 'bar'}, info['meta'])  # sanity
         with patch('swift3.request.get_container_info',
-                   return_value={'status': 204}):
-            info = s3_req.get_container_info(MagicMock())
-            self.assertTrue('status' in info)
-            self.assertEquals(204, info['status'])
+                   return_value={'status': 204}) as mock_info:
+            # Then all calls goes to get_container_info
+            for x in xrange(10):
+                info = s3_req.get_container_info(self.swift)
+                self.assertTrue('status' in info)  # sanity
+                self.assertEquals(204, info['status'])  # sanity
+            self.assertEquals(10, mock_info.call_count)
 
         expected_errors = [(404, NoSuchBucket), (0, InternalError)]
         for status, expected_error in expected_errors:

@@ -30,7 +30,8 @@ from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_BAD_REQUEST, HTTP_REQUEST_TIMEOUT, is_success
 
 from swift.common.constraints import check_utf8
-from swift.proxy.controllers.base import get_container_info
+from swift.proxy.controllers.base import get_container_info, \
+    headers_to_container_info
 
 from swift3.controllers import ServiceController, BucketController, \
     ObjectController, AclController, MultiObjectDeleteController, \
@@ -412,6 +413,10 @@ class Request(swob.Request):
     def is_object_request(self):
         return self.container_name and self.object_name
 
+    @property
+    def is_authenticated(self):
+        return self.account is not None
+
     def to_swift_req(self, method, container, obj, query=None,
                      body=None, headers=None):
         """
@@ -691,14 +696,23 @@ class Request(swob.Request):
         :raises: NoSuchBucket when the container doesn't exist
         :raises: InternalError when the request failed without 404
         """
-        sw_req = self.to_swift_req(app, self.container_name, None)
-        info = get_container_info(sw_req.environ, app)
-        if is_success(info['status']):
-            return info
-        elif info['status'] == 404:
-            raise NoSuchBucket(self.container_name)
+        if self.is_authenticated:
+            # if we have already authenticated, yes we can use the account
+            # name like as AUTH_xxx for performance efficiency
+            sw_req = self.to_swift_req(app, self.container_name, None)
+            info = get_container_info(sw_req.environ, app)
+            if is_success(info['status']):
+                return info
+            elif info['status'] == 404:
+                raise NoSuchBucket(self.container_name)
+            else:
+                raise InternalError(
+                    'unexpected status code %d' % info['status'])
         else:
-            raise InternalError('unexpected status code %d' % info['status'])
+            # otherwise we do naive HEAD request with the authentication
+            resp = self.get_response(app, 'HEAD', self.container_name, '')
+            return headers_to_container_info(
+                resp.sw_headers, resp.status_int)  # pylint: disable-msg=E1101
 
 
 class S3AclRequest(Request):
