@@ -288,6 +288,10 @@ class UploadsController(Controller):
         """
         Handles Initiate Multipart Upload.
         """
+        # fist, let's check the bucket existence
+        # TODO: might need to refactor for the acl handling
+        req.get_container_info(self.app)
+
         # Create a unique S3 upload id from UUID to avoid duplicates.
         upload_id = unique_id()
 

@@ -138,6 +138,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEquals(self._get_error_code(body), 'InvalidRequest')
 
     @s3acl
+    @patch('swift3.request.get_container_info', lambda x, y: {'status': 204})
     def test_bucket_multipart_uploads_initiate(self):
         req = Request.blank('/bucket?uploads',
                             environ={'REQUEST_METHOD': 'POST'},
@@ -522,6 +523,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertTrue(query.get('delimiter') is None)
 
     @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
+    @patch('swift3.request.get_container_info', lambda x, y: {'status': 204})
     def test_object_multipart_upload_initiate(self):
         req = Request.blank('/bucket/object?uploads',
                             environ={'REQUEST_METHOD': 'POST'},
@@ -537,6 +539,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
     @s3acl(s3acl_only=True)
     @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
+    @patch('swift3.request.get_container_info', lambda x, y: {'status': 204})
     def test_object_multipart_upload_initiate_s3acl(self):
         req = Request.blank('/bucket/object?uploads',
                             environ={'REQUEST_METHOD': 'POST'},
@@ -557,6 +560,19 @@ class TestSwift3MultiUpload(Swift3TestCase):
                                                     'test:tester')))
         self.assertEquals(acl_header.get(sysmeta_header('object', 'acl')),
                           tmpacl_header)
+
+    @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
+    @patch('swift3.request.get_container_info', lambda x, y: {'status': 404})
+    def test_object_multipart_upload_initiate_without_bucket(self):
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket',
+                            swob.HTTPNotFound, {}, None)
+        req = Request.blank('/bucket/object?uploads',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization':
+                                     'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '404')
+        self.assertEquals(self._get_error_code(body), 'NoSuchBucket')
 
     @s3acl
     def test_object_multipart_upload_complete_error(self):
@@ -899,6 +915,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
     @s3acl(s3acl_only=True)
     @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
+    @patch('swift3.request.get_container_info', lambda x, y: {'status': 204})
     def test_initiate_multipart_upload_acl_without_permission(self):
         status, headers, body = \
             self._test_for_s3acl('POST', '?uploads', 'test:other')
@@ -906,6 +923,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
     @s3acl(s3acl_only=True)
     @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
+    @patch('swift3.request.get_container_info', lambda x, y: {'status': 204})
     def test_initiate_multipart_upload_acl_with_write_permission(self):
         status, headers, body = \
             self._test_for_s3acl('POST', '?uploads', 'test:write')
@@ -913,6 +931,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
     @s3acl(s3acl_only=True)
     @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
+    @patch('swift3.request.get_container_info', lambda x, y: {'status': 204})
     def test_initiate_multipart_upload_acl_with_fullcontrol_permission(self):
         status, headers, body = \
             self._test_for_s3acl('POST', '?uploads', 'test:full_control')
