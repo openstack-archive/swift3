@@ -45,21 +45,21 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
                     self.conn.make_request('POST', bucket, key, query=query)
                 yield status, resp_headers, body
 
-    def _upload_part(self, bucket, key, upload_id, contents=None, part_num=1):
+    def _upload_part(self, bucket, key, upload_id, content=None, part_num=1):
         query = 'partNumber=%s&uploadId=%s' % (part_num, upload_id)
-        contents = contents if contents else 'a' * MIN_SEGMENTS_SIZE
+        content = content if content else 'a' * MIN_SEGMENTS_SIZE
         status, headers, body = \
-            self.conn.make_request('PUT', bucket, key, body=contents,
+            self.conn.make_request('PUT', bucket, key, body=content,
                                    query=query)
         etag = replace(headers.get('etag'), '"', '')
         return status, headers, body, etag
 
     def _upload_part_copy(self, src_bucket, src_obj, dst_bucket, dst_key,
-                          upload_id, src_contents=None, part_num=1):
+                          upload_id, src_content=None, part_num=1):
         # prepare src obj
         self.conn.make_request('PUT', src_bucket)
-        contents = src_contents if src_contents else 'b' * MIN_SEGMENTS_SIZE
-        self.conn.make_request('PUT', src_bucket, src_obj, body=contents)
+        content = src_content if src_content else 'b' * MIN_SEGMENTS_SIZE
+        self.conn.make_request('PUT', src_bucket, src_obj, body=content)
 
         src_path = '%s/%s' % (src_bucket, src_obj)
         query = 'partNumber=%s&uploadId=%s' % (part_num, upload_id)
@@ -133,10 +133,10 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
 
         # Upload Part
         key, upload_id = uploads[0]
-        contents = 'a' * MIN_SEGMENTS_SIZE
-        etag = md5(contents).hexdigest()
+        content = 'a' * MIN_SEGMENTS_SIZE
+        etag = md5(content).hexdigest()
         status, headers, body, resp_etag = \
-            self._upload_part(bucket, key, upload_id, contents)
+            self._upload_part(bucket, key, upload_id, content)
         self.assertEquals(status, 200)
         self.assertCommonResponseHeaders(headers)
         self.assertEquals(headers['content-type'], 'text/html; charset=UTF-8')
@@ -147,11 +147,11 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         key, upload_id = uploads[1]
         src_bucket = 'bucket2'
         src_obj = 'obj3'
-        src_contents = 'b' * MIN_SEGMENTS_SIZE
-        etag = md5(src_contents).hexdigest()
+        src_content = 'b' * MIN_SEGMENTS_SIZE
+        etag = md5(src_content).hexdigest()
         status, headers, body, resp_etag = \
             self._upload_part_copy(src_bucket, src_obj, bucket, key,
-                                   upload_id, src_contents)
+                                   upload_id, src_content)
         self.assertEquals(status, 200)
         self.assertCommonResponseHeaders(headers)
         self.assertEquals(headers['content-type'], 'application/xml')
