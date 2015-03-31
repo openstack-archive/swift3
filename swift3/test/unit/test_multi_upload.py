@@ -211,6 +211,27 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
 
     @s3acl
+    def test_bucket_multipart_uploads_GET_without_segment_bucket(self):
+        segment_bucket = '/v1/AUTH_test/bucket+segments'
+        self.swift.register('GET', segment_bucket, swob.HTTPNotFound, {}, '')
+
+        req = Request.blank('/bucket?uploads',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+
+        status, haeaders, body = self.call_swift3(req)
+
+        self.assertEquals(status.split()[0], '200')
+        elem = fromstring(body, 'ListMultipartUploadsResult')
+        self.assertEquals(elem.find('Bucket').text, 'bucket')
+        self.assertEquals(elem.find('KeyMarker').text, None)
+        self.assertEquals(elem.find('UploadIdMarker').text, None)
+        self.assertEquals(elem.find('NextUploadIdMarker').text, None)
+        self.assertEquals(elem.find('MaxUploads').text, '1000')
+        self.assertEquals(elem.find('IsTruncated').text, 'false')
+        self.assertEquals(len(elem.findall('Upload')), 0)
+
+    @s3acl
     def test_bucket_multipart_uploads_GET_encoding_type_error(self):
         query = 'encoding-type=xml'
         status, headers, body = \

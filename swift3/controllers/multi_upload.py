@@ -52,7 +52,8 @@ from swift3.controllers.base import Controller, bucket_operation, \
     object_operation
 from swift3.response import InvalidArgument, ErrorResponse, MalformedXML, \
     InvalidPart, BucketAlreadyExists, EntityTooSmall, InvalidPartOrder, \
-    InvalidRequest, HTTPOk, HTTPNoContent, NoSuchKey, NoSuchUpload
+    InvalidRequest, HTTPOk, HTTPNoContent, NoSuchKey, NoSuchUpload, \
+    NoSuchBucket
 from swift3.exception import BadSwiftRequest
 from swift3.utils import LOGGER, unique_id, MULTIUPLOAD_SUFFIX
 from swift3.etree import Element, SubElement, fromstring, tostring, \
@@ -201,8 +202,12 @@ class UploadsController(Controller):
             query.update({'prefix': req.params['prefix']})
 
         container = req.container_name + MULTIUPLOAD_SUFFIX
-        resp = req.get_response(self.app, container=container, query=query)
-        objects = json.loads(resp.body)
+        try:
+            resp = req.get_response(self.app, container=container, query=query)
+            objects = json.loads(resp.body)
+        except NoSuchBucket:
+            # Assume NoSuchBucket as no uploads
+            objects = []
 
         def object_to_upload(object_info):
             obj, upid = object_info['name'].rsplit('/', 1)
