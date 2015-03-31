@@ -413,7 +413,7 @@ class UploadController(Controller):
             SubElement(part_elem, 'PartNumber').text = i['name'].split('/')[-1]
             SubElement(part_elem, 'LastModified').text = \
                 i['last_modified'][:-3] + 'Z'
-            SubElement(part_elem, 'ETag').text = i['hash']
+            SubElement(part_elem, 'ETag').text = '"%s"' % i['hash']
             SubElement(part_elem, 'Size').text = str(i['bytes'])
 
         body = tostring(result_elem, encoding_type=encoding_type)

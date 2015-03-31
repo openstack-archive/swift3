@@ -720,8 +720,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
             self.assertEquals(p.find('LastModified').text,
                               objects_template[partnum - 1][1][:-3]
                               + 'Z')
-            self.assertEquals(p.find('ETag').text,
-                              objects_template[partnum - 1][2])
+            self.assertEquals(p.find('ETag').text.strip(),
+                              '"%s"' % objects_template[partnum - 1][2])
             self.assertEquals(p.find('Size').text,
                               str(objects_template[partnum - 1][3]))
         self.assertEquals(status.split()[0], '200')
@@ -804,7 +804,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
                               objects_template[partnum - 1][1][:-3]
                               + 'Z')
             self.assertEquals(p.find('ETag').text,
-                              objects_template[partnum - 1][2])
+                              '"%s"' % objects_template[partnum - 1][2])
             self.assertEquals(p.find('Size').text,
                               str(objects_template[partnum - 1][3]))
         self.assertEquals(status.split()[0], '200')
