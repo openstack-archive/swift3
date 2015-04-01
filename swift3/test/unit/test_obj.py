@@ -377,7 +377,8 @@ class TestSwift3Obj(Swift3TestCase):
         content_md5 = self.etag.decode('hex').encode('base64').strip()
 
         self.swift.register('HEAD', '/v1/AUTH_test/some/source',
-                            swob.HTTPOk, {}, None)
+                            swob.HTTPOk, {'last-modified': self.last_modified},
+                            None)
         req = Request.blank(
             '/bucket/object',
             environ={'REQUEST_METHOD': 'PUT'},
@@ -392,7 +393,6 @@ class TestSwift3Obj(Swift3TestCase):
         # Check that swift3 dones not return an etag header,
         # sepcified copy source.
         self.assertTrue(headers.get('etag') is None)
-        self.assertEquals(headers['last-modified'], self.last_modified)
 
         _, _, headers = self.swift.calls_with_headers[-1]
         # Check that swift3 converts a Content-MD5 header into an etag.
@@ -407,6 +407,7 @@ class TestSwift3Obj(Swift3TestCase):
         head_headers = \
             encode_acl('object',
                        ACL(Owner(account, account), grants))
+        head_headers.update({'last-modified': self.last_modified})
         self.swift.register('HEAD', '/v1/AUTH_test/some/source',
                             head_resp, head_headers, None)
 
@@ -424,14 +425,14 @@ class TestSwift3Obj(Swift3TestCase):
 
     @s3acl
     def test_object_PUT_copy(self):
-        iso_format = '2014-04-01T12:00:00.000Z'
+        last_modified = '2014-04-01T12:00:00'
         status, headers, body = \
             self._test_object_PUT_copy(swob.HTTPOk)
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(headers['Content-Type'], 'application/xml')
         self.assertTrue(headers.get('etag') is None)
         elem = fromstring(body, 'CopyObjectResult')
-        self.assertEquals(elem.find('LastModified').text, iso_format)
+        self.assertEquals(elem.find('LastModified').text, last_modified)
         self.assertEquals(elem.find('ETag').text, '"%s"' % self.etag)
 
         _, _, headers = self.swift.calls_with_headers[-1]
@@ -470,7 +471,7 @@ class TestSwift3Obj(Swift3TestCase):
 
     def test_object_PUT_copy_headers_with_match(self):
         etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
-        last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
+        last_modified_since = 'Fri, 01 Apr 2014 11:00:00 GMT'
 
         header = {'X-Amz-Copy-Source-If-Match': etag,
                   'X-Amz-Copy-Source-If-Modified-Since': last_modified_since}
@@ -488,7 +489,7 @@ class TestSwift3Obj(Swift3TestCase):
     @s3acl(s3acl_only=True)
     def test_object_PUT_copy_headers_with_match_and_s3acl(self):
         etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
-        last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
+        last_modified_since = 'Fri, 01 Apr 2014 11:00:00 GMT'
 
         header = {'X-Amz-Copy-Source-If-Match': etag,
                   'X-Amz-Copy-Source-If-Modified-Since': last_modified_since}
@@ -681,6 +682,7 @@ class TestSwift3Obj(Swift3TestCase):
             if src_permission else [Grant(User(owner), 'FULL_CONTROL')]
         src_o_headers = \
             encode_acl('object', ACL(Owner(owner, owner), grants))
+        src_o_headers.update({'last-modified': self.last_modified})
         self.swift.register(
             'HEAD', join('/v1/AUTH_test', src_path.lstrip('/')),
             swob.HTTPOk, src_o_headers, None)

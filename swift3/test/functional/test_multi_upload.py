@@ -17,7 +17,7 @@ import unittest
 from hashlib import md5
 from itertools import izip
 from email.utils import parsedate
-from time import mktime
+from time import mktime, strptime
 
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.test.functional import Swift3FunctionalTestCase
@@ -164,11 +164,11 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
 
         # prepare src obj
         self.conn.make_request('PUT', src_bucket)
-        _, headers, _ = self.conn.make_request(
-            'PUT', src_bucket, src_obj, body=src_content)
+        self.conn.make_request('PUT', src_bucket, src_obj, body=src_content)
+        _, headers, _ = self.conn.make_request('HEAD', src_bucket, src_obj)
         self.assertCommonResponseHeaders(headers)
-        # TODO: this need by the assertion below
-        # last_modified_date_from_header = mktime(parsedate(headers['date']))
+        last_modified_date_from_header = mktime(
+            parsedate(headers['last-modified']))
 
         status, headers, body, resp_etag = \
             self._upload_part_copy(src_bucket, src_obj, bucket,
@@ -184,10 +184,10 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
 
         last_modified = elem.find('LastModified').text
         self.assertTrue(last_modified is not None)
-        # last_modified_from_xml = mktime(
-        #     strptime(last_modified, '%Y-%m-%dT%H:%M:%S'))
-        # self.assertEquals(last_modified_date_from_header,
-        #                   last_modified_from_xml)
+        last_modified_from_xml = mktime(
+            strptime(last_modified, '%Y-%m-%dT%H:%M:%S'))
+        self.assertEquals(last_modified_date_from_header,
+                          last_modified_from_xml)
 
         self.assertEquals(resp_etag, etag)
 
@@ -223,8 +223,11 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
                 izip(expected_parts_list, elem.findall('Part')):
             last_modified = p.find('LastModified').text
             self.assertTrue(last_modified is not None)
-            # TODO: fix the LastModified is formatted as %Y-%m-%dT%H:%M:%S
-            #       and time.strptime is needed for the fix.
+            # TODO: sanity check
+            #       (kota_) How do we check the sanity?
+            #       the last-modified header drops mili-seconds info
+            #       by the constraint of the format.
+            #       For now, we can do either the format check or round check
             # last_modified_from_xml = mktime(
             #     strptime(last_modified, '%Y-%m-%dT%H:%M:%S'))
             # self.assertEquals(expected_date,

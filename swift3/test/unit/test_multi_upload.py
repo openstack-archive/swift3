@@ -67,8 +67,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
         segment_bucket = '/v1/AUTH_test/bucket+segments'
         self.etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
-        last_modified = 'Fri, 01 Apr 2014 12:00:00 GMT'
-        put_headers = {'etag': self.etag, 'last-modified': last_modified}
+        self.last_modified = 'Fri, 01 Apr 2014 12:00:00 GMT'
+        put_headers = {'etag': self.etag, 'last-modified': self.last_modified}
 
         objects = map(lambda item: {'name': item[0], 'last_modified': item[1],
                                     'hash': item[2], 'bytes': item[3]},
@@ -1016,6 +1016,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
         grants = [Grant(User(account), src_permission)] \
             if src_permission else [Grant(User(owner), 'FULL_CONTROL')]
         src_o_headers = encode_acl('object', ACL(Owner(owner, owner), grants))
+        src_o_headers.update({'last-modified': self.last_modified})
         self.swift.register('HEAD', '/v1/AUTH_test/src_bucket/src_obj',
                             head_resp, src_o_headers, None)
 
@@ -1030,14 +1031,14 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
     @s3acl
     def test_upload_part_copy(self):
-        iso_format = '2014-04-01T12:00:00.000Z'
+        last_modified = '2014-04-01T12:00:00'
         status, headers, body = \
             self._test_copy_for_s3acl('test:tester')
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(headers['Content-Type'], 'application/xml')
         self.assertTrue(headers.get('etag') is None)
         elem = fromstring(body, 'CopyPartResult')
-        self.assertEquals(elem.find('LastModified').text, iso_format)
+        self.assertEquals(elem.find('LastModified').text, last_modified)
         self.assertEquals(elem.find('ETag').text, '"%s"' % self.etag)
 
         _, _, headers = self.swift.calls_with_headers[-1]
@@ -1130,7 +1131,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_upload_part_copy_headers_with_match(self):
         account = 'test:tester'
         etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
-        last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
+        last_modified_since = 'Fri, 01 Apr 2014 11:00:00 GMT'
 
         header = {'X-Amz-Copy-Source-If-Match': etag,
                   'X-Amz-Copy-Source-If-Modified-Since': last_modified_since}
@@ -1154,7 +1155,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_upload_part_copy_headers_with_match_and_s3acl(self):
         account = 'test:tester'
         etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
-        last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
+        last_modified_since = 'Fri, 01 Apr 2014 11:00:00 GMT'
 
         header = {'X-Amz-Copy-Source-If-Match': etag,
                   'X-Amz-Copy-Source-If-Modified-Since': last_modified_since}
