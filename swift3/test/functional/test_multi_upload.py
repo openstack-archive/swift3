@@ -16,11 +16,10 @@
 import unittest
 from hashlib import md5
 from itertools import izip
-from email.utils import parsedate
-from time import mktime, strptime
 
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.test.functional import Swift3FunctionalTestCase
+from swift3.test.functional.utils import mktime
 
 MIN_SEGMENT_SIZE = 5242880
 
@@ -151,9 +150,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         self.assertEquals(headers['content-type'], 'text/html; charset=UTF-8')
         self.assertTrue('content-length' in headers)
         self.assertEquals(headers['content-length'], '0')
-        # TODO: make a function like as mktime in swift3.test.function.utils
-        expected_parts_list = [(headers['etag'],
-                                mktime(parsedate(headers['date'])))]
+        expected_parts_list = [(headers['etag'], mktime(headers['date']))]
 
         # Upload Part Copy
         key, upload_id = uploads[1]
@@ -167,8 +164,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         self.conn.make_request('PUT', src_bucket, src_obj, body=src_content)
         _, headers, _ = self.conn.make_request('HEAD', src_bucket, src_obj)
         self.assertCommonResponseHeaders(headers)
-        last_modified_date_from_header = mktime(
-            parsedate(headers['last-modified']))
+        last_modified_date_from_header = mktime(headers['last-modified'])
 
         status, headers, body, resp_etag = \
             self._upload_part_copy(src_bucket, src_obj, bucket,
@@ -184,8 +180,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
 
         last_modified = elem.find('LastModified').text
         self.assertTrue(last_modified is not None)
-        last_modified_from_xml = mktime(
-            strptime(last_modified, '%Y-%m-%dT%H:%M:%S'))
+        last_modified_from_xml = mktime(last_modified)
         self.assertEquals(last_modified_date_from_header,
                           last_modified_from_xml)
 
@@ -228,8 +223,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
             #       the last-modified header drops mili-seconds info
             #       by the constraint of the format.
             #       For now, we can do either the format check or round check
-            # last_modified_from_xml = mktime(
-            #     strptime(last_modified, '%Y-%m-%dT%H:%M:%S'))
+            # last_modified_from_xml = mktime(last_modified)
             # self.assertEquals(expected_date,
             #                   last_modified_from_xml)
             self.assertEquals(expected_etag, p.find('ETag').text)

@@ -16,6 +16,9 @@
 from hashlib import md5
 from swift3.etree import fromstring
 
+import time
+from email.utils import parsedate
+
 
 def get_error_code(body):
     elem = fromstring(body, 'Error')
@@ -24,3 +27,25 @@ def get_error_code(body):
 
 def calculate_md5(body):
     return md5(body).digest().encode('base64').strip()
+
+
+def mktime(timestamp_str):
+    """
+    mktime creates a float instance in epoch time really like as time.mktime
+
+    the difference from time.mktime is allowing to 2 formats string for the
+    argumtent for the S3 testing usage.
+    TODO: support
+
+    :param timestamp_str: a string of timestamp formatted as
+                          (a) RFC2822 (e.g. date header)
+                          (b) %Y-%m-%dT%H:%M:%S (e.g. copy result)
+    :return : a float instance in epoch time
+    """
+    try:
+        epoch_time = time.mktime(parsedate(timestamp_str))
+    except TypeError:
+        epoch_time = time.mktime(
+            time.strptime(timestamp_str, '%Y-%m-%dT%H:%M:%S'))
+
+    return epoch_time
