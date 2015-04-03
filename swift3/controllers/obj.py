@@ -13,12 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from swift.common.http import HTTP_OK
+from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT
 from swift.common.swob import Range, content_range_header_value
 
 from swift3.controllers.base import Controller
-from swift3.response import S3NotImplemented, InvalidRange, \
-    HTTPPartialContent, NoSuchKey
+from swift3.response import S3NotImplemented, InvalidRange, NoSuchKey
 
 
 class ObjectController(Controller):
@@ -49,7 +48,8 @@ class ObjectController(Controller):
                 resp.headers['Content-Range'] = \
                     content_range_header_value(start, end, length)
                 resp.headers['Content-Length'] = (end - start)
-                return HTTPPartialContent(headers=resp.headers)
+                resp.status = HTTP_PARTIAL_CONTENT
+                return resp
             else:
                 # TODO: It is necessary to confirm whether need to respond to
                 #       multi-part response.(e.g. bytes=0-10,20-30)

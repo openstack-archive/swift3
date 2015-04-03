@@ -47,7 +47,7 @@ class Swift3HelperTestCase(unittest.TestCase):
 
         self._check_headers(swift, self.method, self.path, orig_headers)
 
-    def test_fake_swift_sysmeta_overrite(self):
+    def test_fake_swift_sysmeta_overwrite(self):
         swift = FakeSwift()
         orig_headers = HeaderKeyDict()
         orig_headers.update({sysmeta_header('container', 'acl'): 'test',

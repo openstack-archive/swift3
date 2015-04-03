@@ -462,14 +462,19 @@ class TestSwift3Object(Swift3FunctionalTestCase):
     def test_get_object_range(self):
         obj = 'object'
         content = 'abcdefghij'
-        self.conn.make_request('PUT', self.bucket, obj, body=content)
+        headers = {'x-amz-meta-test': 'swift'}
+        self.conn.make_request(
+            'PUT', self.bucket, obj, headers=headers, body=content)
 
         headers = {'Range': 'bytes=1-5'}
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, obj, headers=headers)
         self.assertEquals(status, 206)
         self.assertCommonResponseHeaders(headers)
+        self.assertTrue('content-length' in headers)
         self.assertEquals(headers['content-length'], '5')
+        self.assertTrue('x-amz-meta-test' in headers)
+        self.assertEquals('swift', headers['x-amz-meta-test'])
         self.assertEquals(body, 'bcdef')
 
         headers = {'Range': 'bytes=5-'}
@@ -477,7 +482,10 @@ class TestSwift3Object(Swift3FunctionalTestCase):
             self.conn.make_request('GET', self.bucket, obj, headers=headers)
         self.assertEquals(status, 206)
         self.assertCommonResponseHeaders(headers)
+        self.assertTrue('content-length' in headers)
         self.assertEquals(headers['content-length'], '5')
+        self.assertTrue('x-amz-meta-test' in headers)
+        self.assertEquals('swift', headers['x-amz-meta-test'])
         self.assertEquals(body, 'fghij')
 
         headers = {'Range': 'bytes=-5'}
@@ -485,7 +493,10 @@ class TestSwift3Object(Swift3FunctionalTestCase):
             self.conn.make_request('GET', self.bucket, obj, headers=headers)
         self.assertEquals(status, 206)
         self.assertCommonResponseHeaders(headers)
+        self.assertTrue('content-length' in headers)
         self.assertEquals(headers['content-length'], '5')
+        self.assertTrue('x-amz-meta-test' in headers)
+        self.assertEquals('swift', headers['x-amz-meta-test'])
         self.assertEquals(body, 'fghij')
 
         ranges = ['1-2', '4-5']
@@ -495,6 +506,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
             self.conn.make_request('GET', self.bucket, obj, headers=headers)
         self.assertEquals(status, 206)
         self.assertCommonResponseHeaders(headers)
+        self.assertTrue('content-length' in headers)
 
         self.assertTrue('content-type' in headers)  # sanity
         content_type, boundary = headers['content-type'].split(';')

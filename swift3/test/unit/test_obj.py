@@ -182,6 +182,10 @@ class TestSwift3Obj(Swift3TestCase):
 
     @s3acl
     def test_object_HEAD_Range(self):
+        # update response headers
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPOk, self.response_headers,
+                            self.object_body)
         range_value = 'bytes=0-3'
         status, headers, body = self._test_object_HEAD_Range(range_value)
         self.assertEquals(status.split()[0], '206')
@@ -189,6 +193,8 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEqual(headers['content-length'], '4')
         self.assertTrue('content-range' in headers)
         self.assertTrue(headers['content-range'].startswith('bytes 0-3'))
+        self.assertTrue('x-amz-meta-test' in headers)
+        self.assertEqual('swift', headers['x-amz-meta-test'])
 
         range_value = 'bytes=3-3'
         status, headers, body = self._test_object_HEAD_Range(range_value)
@@ -197,6 +203,8 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEqual(headers['content-length'], '1')
         self.assertTrue('content-range' in headers)
         self.assertTrue(headers['content-range'].startswith('bytes 3-3'))
+        self.assertTrue('x-amz-meta-test' in headers)
+        self.assertEqual('swift', headers['x-amz-meta-test'])
 
         range_value = 'bytes=1-'
         status, headers, body = self._test_object_HEAD_Range(range_value)
@@ -205,6 +213,8 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEqual(headers['content-length'], '4')
         self.assertTrue('content-range' in headers)
         self.assertTrue(headers['content-range'].startswith('bytes 1-4'))
+        self.assertTrue('x-amz-meta-test' in headers)
+        self.assertEqual('swift', headers['x-amz-meta-test'])
 
         range_value = 'bytes=-3'
         status, headers, body = self._test_object_HEAD_Range(range_value)
@@ -213,6 +223,8 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEqual(headers['content-length'], '3')
         self.assertTrue('content-range' in headers)
         self.assertTrue(headers['content-range'].startswith('bytes 2-4'))
+        self.assertTrue('x-amz-meta-test' in headers)
+        self.assertEqual('swift', headers['x-amz-meta-test'])
 
     @s3acl
     def test_object_GET_error(self):

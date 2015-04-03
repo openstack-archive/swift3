@@ -134,9 +134,9 @@ class FakeSwift(object):
     def register(self, method, path, response_class, headers, body):
         # assuming the path format like /v1/account/container/object
         resource_map = ['account', 'container', 'object']
-        index = len(split_path(path, 0, 3, True)[1:]) - 1
+        acos = filter(None, split_path(path, 0, 4, True)[1:])
+        index = len(acos) - 1
         resource = resource_map[index]
-
         if (method, path) in self._responses:
             old_headers = self._responses[(method, path)][1]
             headers = headers.copy()
