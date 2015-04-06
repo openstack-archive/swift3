@@ -96,6 +96,9 @@ class PartController(Controller):
         """
         Handles Upload Part and Upload Part Copy.
         """
+        # at first, check the bucket existence
+        req.get_container_info(self.app)
+
         if 'uploadId' not in req.params:
             raise InvalidArgument('ResourceType', 'partNumber',
                                   'Unexpected query string parameter')
