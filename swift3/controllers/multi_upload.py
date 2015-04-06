@@ -49,7 +49,7 @@ from swift.common.utils import json
 from swift.common.db import utf8encode
 
 from swift3.controllers.base import Controller, bucket_operation, \
-    object_operation
+    object_operation, check_container_existence
 from swift3.response import InvalidArgument, ErrorResponse, MalformedXML, \
     InvalidPart, BucketAlreadyExists, EntityTooSmall, InvalidPartOrder, \
     InvalidRequest, HTTPOk, HTTPNoContent, NoSuchKey, NoSuchUpload, \
@@ -92,12 +92,11 @@ class PartController(Controller):
     Those APIs are logged as PART operations in the S3 server log.
     """
     @object_operation
+    @check_container_existence
     def PUT(self, req):
         """
         Handles Upload Part and Upload Part Copy.
         """
-        # at first, check the bucket existence
-        req.get_container_info(self.app)
 
         if 'uploadId' not in req.params:
             raise InvalidArgument('ResourceType', 'partNumber',
@@ -143,12 +142,11 @@ class UploadsController(Controller):
     @bucket_operation(err_resp=InvalidRequest,
                       err_msg="Key is not expected for the GET method "
                               "?uploads subresource")
+    @check_container_existence
     def GET(self, req):
         """
         Handles List Multipart Uploads
         """
-        # at first, check the bucket existence
-        req.get_container_info(self.app)
 
         def separate_uploads(uploads, prefix, delimiter):
             """
@@ -290,13 +288,11 @@ class UploadsController(Controller):
         return HTTPOk(body=body, content_type='application/xml')
 
     @object_operation
+    @check_container_existence
     def POST(self, req):
         """
         Handles Initiate Multipart Upload.
         """
-        # fist, let's check the bucket existence
-        # TODO: might need to refactor for the acl handling
-        req.get_container_info(self.app)
 
         # Create a unique S3 upload id from UUID to avoid duplicates.
         upload_id = unique_id()

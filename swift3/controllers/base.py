@@ -61,6 +61,18 @@ def object_operation(func):
     return wrapped
 
 
+def check_container_existence(func):
+    """
+    A decorator to ensure the container existence.
+    """
+    @functools.wraps(func)
+    def check_container(self, req):
+        req.get_container_info(self.app)
+        return func(self, req)
+
+    return check_container
+
+
 class Controller(object):
     """
     Base WSGI controller class for the middleware
