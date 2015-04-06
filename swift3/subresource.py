@@ -497,15 +497,21 @@ class ACL(object):
                             Grant(Grantee.from_header(grantee), permission))
 
             if 'x-amz-acl' in headers:
-                acl = headers['x-amz-acl']
-                if len(grants) > 0:
-                    err_msg = 'Specifying both Canned ACLs and Header ' \
-                        'Grants is not allowed'
-                    raise InvalidRequest(err_msg)
-                grantees = canned_acl_grantees(bucket_owner, object_owner)[acl]
-                for permission, grantee in grantees:
-                    grants.append(Grant(grantee, permission))
+                try:
+                    acl = headers['x-amz-acl']
+                    if len(grants) > 0:
+                        err_msg = 'Specifying both Canned ACLs and Header ' \
+                            'Grants is not allowed'
+                        raise InvalidRequest(err_msg)
+                    grantees = canned_acl_grantees(
+                        bucket_owner, object_owner)[acl]
+                    for permission, grantee in grantees:
+                        grants.append(Grant(grantee, permission))
+                except KeyError:
+                    # expectscanned_acl_grantees()[] raises KeyError
+                    raise InvalidArgument('x-amz-acl', headers['x-amz-acl'])
         except (KeyError, ValueError):
+            # TODO: think about we really catch this except sequence
             raise InvalidRequest()
 
         if len(grants) == 0:

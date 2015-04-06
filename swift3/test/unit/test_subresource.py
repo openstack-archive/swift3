@@ -17,11 +17,11 @@ import unittest
 
 from swift.common.utils import json
 
-from swift3.response import AccessDenied
+from swift3.response import AccessDenied, InvalidArgument
 from swift3.subresource import User, AuthenticatedUsers, AllUsers, \
     ACLPrivate, ACLPublicRead, ACLPublicReadWrite, ACLAuthenticatedRead, \
     ACLBucketOwnerRead, ACLBucketOwnerFullControl, Owner, ACL, encode_acl, \
-    decode_acl
+    decode_acl, canned_acl_grantees
 from swift3.utils import CONF, sysmeta_header
 
 
@@ -277,6 +277,46 @@ class TestSwift3Subresource(unittest.TestCase):
         self.assertTrue('Grant' in header_value)
         self.assertEqual('test:tester', header_value['Owner'])
         self.assertEqual(len(header_value['Grant']), 99)
+
+    def test_from_headers_x_amz_acl(self):
+        canned_acls = ['public-read', 'public-read-write',
+                       'authenticated-read', 'bucket-owner-read',
+                       'bucket-owner-full-control', 'log-delivery-write']
+
+        owner = Owner('test:tester', 'test:tester')
+        # TODO: make a test for canned_acl_grantees function
+        grantee_map = canned_acl_grantees(owner)
+
+        for acl_str in canned_acls:
+            acl = ACL.from_headers({'x-amz-acl': acl_str}, owner)
+            expected = grantee_map[acl_str]
+
+            self.assertEquals(len(acl.grants), len(expected))  # sanity
+
+            # parse Grant object to permission and grantee
+            actual_grants = [(grant.permission, grant.grantee)
+                             for grant in acl.grants]
+
+            assertions = zip(sorted(expected), sorted(actual_grants))
+
+            for (expected_permission, expected_grantee), \
+                    (permission, grantee) in assertions:
+                self.assertEquals(expected_permission, permission)
+                self.assertTrue(
+                    isinstance(grantee, expected_grantee.__class__))
+                if isinstance(grantee, User):
+                    self.assertEquals(expected_grantee.id, grantee.id)
+                    self.assertEquals(expected_grantee.display_name,
+                                      grantee.display_name)
+
+    def test_from_headers_x_amz_acl_invalid(self):
+        with self.assertRaises(InvalidArgument) as cm:
+            ACL.from_headers({'x-amz-acl': 'invalid'},
+                             Owner('test:tester', 'test:tester'))
+        self.assertTrue('argument_name' in cm.exception.info)
+        self.assertEquals(cm.exception.info['argument_name'], 'x-amz-acl')
+        self.assertTrue('argument_value' in cm.exception.info)
+        self.assertEquals(cm.exception.info['argument_value'], 'invalid')
 
 
 if __name__ == '__main__':
