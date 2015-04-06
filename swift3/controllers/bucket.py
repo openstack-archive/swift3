@@ -17,7 +17,6 @@ from swift.common.http import HTTP_OK
 from swift.common.utils import json
 
 from swift3.controllers.base import Controller
-from swift3.controllers.acl import handle_acl_header
 from swift3.etree import Element, SubElement, tostring, fromstring, \
     XMLSyntaxError, DocumentInvalid
 from swift3.response import HTTPOk, S3NotImplemented, InvalidArgument, \
@@ -140,9 +139,6 @@ class BucketController(Controller):
             if location != CONF.location:
                 # Swift3 cannot support multiple reagions now.
                 raise InvalidLocationConstraint()
-
-        if 'HTTP_X_AMZ_ACL' in req.environ:
-            handle_acl_header(req)
 
         resp = req.get_response(self.app)
 

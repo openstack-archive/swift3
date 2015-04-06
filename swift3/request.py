@@ -49,6 +49,7 @@ from swift3.utils import utf8encode, LOGGER, check_path_header
 from swift3.cfg import CONF
 from swift3.subresource import decode_acl, encode_acl
 from swift3.utils import sysmeta_header, validate_bucket_name
+from swift3.acl_utils import handle_acl_header
 from swift3.acl_handlers import get_acl_handler
 
 # List of sub-resources that must be maintained as part of the HMAC
@@ -666,6 +667,10 @@ class Request(swob.Request):
         we can override this method. swift3.request.Request need to just call
         _get_response to get pure swift response.
         """
+
+        if 'HTTP_X_AMZ_ACL' in self.environ:
+            handle_acl_header(self)
+
         return self._get_response(app, method, container, obj,
                                   headers, body, query)
 
