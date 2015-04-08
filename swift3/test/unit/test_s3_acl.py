@@ -48,7 +48,10 @@ def s3acl(func=None, s3acl_only=False):
 
         def call_func(failing_point=''):
             try:
-                func(*args, **kwargs)
+                # as a default, we patches 204 status for get_container_info
+                with patch('swift3.request.get_container_info',
+                           lambda x, y: {'status': 204}):
+                    func(*args, **kwargs)
             except AssertionError:
                 # Make traceback message to clarify the assertion
                 exc_type, exc_instance, exc_traceback = sys.exc_info()
