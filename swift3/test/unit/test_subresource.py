@@ -17,12 +17,13 @@ import unittest
 
 from swift.common.utils import json
 
-from swift3.response import AccessDenied, InvalidArgument
+from swift3.response import AccessDenied, InvalidArgument, S3NotImplemented
 from swift3.subresource import User, AuthenticatedUsers, AllUsers, \
     ACLPrivate, ACLPublicRead, ACLPublicReadWrite, ACLAuthenticatedRead, \
     ACLBucketOwnerRead, ACLBucketOwnerFullControl, Owner, ACL, encode_acl, \
-    decode_acl, canned_acl_grantees
+    decode_acl, canned_acl_grantees, Grantee
 from swift3.utils import CONF, sysmeta_header
+from swift3.exception import InvalidSubresource
 
 
 class TestSwift3Subresource(unittest.TestCase):
@@ -238,6 +239,17 @@ class TestSwift3Subresource(unittest.TestCase):
         self.assertEqual(None, acl.owner.id)
         self.assertEqual(len(acl.grants), 0)
 
+    def test_decode_acl_empty_list(self):
+        headers = {sysmeta_header('container', 'acl'): '[]'}
+        acl = decode_acl('container', headers)
+        self.assertEqual(type(acl), ACL)
+        self.assertEqual(None, acl.owner.id)
+        self.assertEqual(len(acl.grants), 0)
+
+    def test_decode_acl_with_invalid_json(self):
+        headers = {sysmeta_header('container', 'acl'): '['}
+        self.assertRaises(InvalidSubresource, decode_acl, 'container', headers)
+
     def test_encode_acl_container(self):
         acl = ACLPrivate(Owner(id='test:tester',
                                name='test:tester'))
@@ -284,7 +296,6 @@ class TestSwift3Subresource(unittest.TestCase):
                        'bucket-owner-full-control', 'log-delivery-write']
 
         owner = Owner('test:tester', 'test:tester')
-        # TODO: make a test for canned_acl_grantees function
         grantee_map = canned_acl_grantees(owner)
 
         for acl_str in canned_acls:
@@ -318,6 +329,19 @@ class TestSwift3Subresource(unittest.TestCase):
         self.assertTrue('argument_value' in cm.exception.info)
         self.assertEquals(cm.exception.info['argument_value'], 'invalid')
 
+    def test_canned_acl_grantees(self):
+        grantee_map = canned_acl_grantees(Owner('test:tester', 'test:tester'))
+        canned_acls = ['private', 'public-read', 'public-read-write',
+                       'authenticated-read', 'bucket-owner-read',
+                       'bucket-owner-full-control', 'log-delivery-write']
+        for canned_acl in canned_acls:
+            self.assertTrue(canned_acl in grantee_map)
+        self.assertEquals(len(canned_acls), len(grantee_map))  # sanity
+
+    def test_base_grantee(self):
+        grantee = Grantee()
+        func = lambda: '' in grantee
+        self.assertRaises(S3NotImplemented, func)
 
 if __name__ == '__main__':
     unittest.main()
