@@ -18,11 +18,9 @@ import unittest
 from swift.common.swob import Request, HTTPAccepted
 
 from swift3.test.unit import Swift3TestCase
-from swift3.etree import fromstring, tostring, Element, SubElement
-from swift3.controllers.acl import handle_acl_header
+from swift3.etree import fromstring, tostring, Element, SubElement, XMLNS_XSI
 from swift3.test.unit.test_s3_acl import s3acl
-
-XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
+import mock
 
 
 class TestSwift3Acl(Swift3TestCase):
@@ -75,6 +73,17 @@ class TestSwift3Acl(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
+    @s3acl(s3acl_only=True)
+    def test_bucket_canned_acl_PUT_with_s3acl(self):
+        req = Request.blank('/bucket?acl',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'X-AMZ-ACL': 'public-read'})
+        with mock.patch('swift3.request.handle_acl_header') as mock_handler:
+            status, headers, body = self.call_swift3(req)
+            self.assertEquals(status.split()[0], '200')
+            self.assertEquals(mock_handler.call_count, 0)
+
     def test_bucket_fails_with_both_acl_header_and_xml_PUT(self):
         elem = Element('AccessControlPolicy')
         owner = SubElement(elem, 'Owner')
@@ -111,41 +120,6 @@ class TestSwift3Acl(Swift3TestCase):
                             body='invalid')
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'MalformedACLError')
-
-    def test_handle_acl_header(self):
-        def check_generated_acl_header(acl, targets):
-            req = Request.blank('/bucket',
-                                headers={'X-Amz-Acl': acl})
-            handle_acl_header(req)
-            for target in targets:
-                self.assertTrue(target[0] in req.headers)
-                self.assertEquals(req.headers[target[0]], target[1])
-
-        check_generated_acl_header('public-read',
-                                   [('X-Container-Read', '.r:*,.rlistings')])
-        check_generated_acl_header('public-read-write',
-                                   [('X-Container-Read', '.r:*,.rlistings'),
-                                    ('X-Container-Write', '.r:*')])
-        check_generated_acl_header('private',
-                                   [('X-Container-Read', '.'),
-                                    ('X-Container-Write', '.')])
-
-    @s3acl(s3acl_only=True)
-    def test_handle_acl_header_with_s3acl(self):
-        def check_generated_acl_header(acl, targets):
-            req = Request.blank('/bucket',
-                                headers={'X-Amz-Acl': acl})
-            handle_acl_header(req)
-            for target in targets:
-                self.assertTrue(target not in req.headers)
-            self.assertTrue('HTTP_X_AMZ_ACL' in req.environ)
-
-        check_generated_acl_header('public-read',
-                                   ['X-Container-Read'])
-        check_generated_acl_header('public-read-write',
-                                   ['X-Container-Read', 'X-Container-Write'])
-        check_generated_acl_header('private',
-                                   ['X-Container-Read', 'X-Container-Write'])
 
 if __name__ == '__main__':
     unittest.main()

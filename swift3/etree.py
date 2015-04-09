@@ -21,6 +21,7 @@ from swift3.exception import S3Exception
 from swift3.utils import LOGGER, camel_to_snake, utf8encode, utf8decode
 
 XMLNS_S3 = 'http://s3.amazonaws.com/doc/2006-03-01/'
+XMLNS_XSI = 'http://www.w3.org/2001/XMLSchema-instance'
 
 
 class XMLSyntaxError(S3Exception):
