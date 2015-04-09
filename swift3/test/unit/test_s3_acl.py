@@ -48,7 +48,17 @@ def s3acl(func=None, s3acl_only=False):
 
         def call_func(failing_point=''):
             try:
-                func(*args, **kwargs)
+                # For maintainancibility, we patch 204 status for every
+                # get_container_info. if you want, we can rewrite the
+                # statement easily with nested decorator like as:
+                #
+                #  @s3acl
+                #  @patch(xxx)
+                #  def test_xxxx(self)
+
+                with patch('swift3.request.get_container_info',
+                           lambda x, y: {'status': 204}):
+                    func(*args, **kwargs)
             except AssertionError:
                 # Make traceback message to clarify the assertion
                 exc_type, exc_instance, exc_traceback = sys.exc_info()

@@ -328,6 +328,7 @@ class UploadController(Controller):
     Those APIs are logged as UPLOAD operations in the S3 server log.
     """
     @object_operation
+    @check_container_existence
     def GET(self, req):
         """
         Handles List Parts.
@@ -421,6 +422,7 @@ class UploadController(Controller):
         return HTTPOk(body=body, content_type='application/xml')
 
     @object_operation
+    @check_container_existence
     def DELETE(self, req):
         """
         Handles Abort Multipart Upload.
@@ -456,6 +458,7 @@ class UploadController(Controller):
         return HTTPNoContent()
 
     @object_operation
+    @check_container_existence
     def POST(self, req):
         """
         Handles Complete Multipart Upload.
