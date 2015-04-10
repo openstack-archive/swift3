@@ -21,6 +21,8 @@ from swift3.test.unit import Swift3TestCase
 from swift3.etree import fromstring, tostring, Element, SubElement, XMLNS_XSI
 from swift3.test.unit.test_s3_acl import s3acl
 import mock
+from swift3.response import InvalidArgument
+from swift3.acl_utils import handle_acl_header
 
 
 class TestSwift3Acl(Swift3TestCase):
@@ -120,6 +122,51 @@ class TestSwift3Acl(Swift3TestCase):
                             body='invalid')
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'MalformedACLError')
+
+    def test_handle_acl_header(self):
+        def check_generated_acl_header(acl, targets):
+            req = Request.blank('/bucket',
+                                headers={'X-Amz-Acl': acl})
+            handle_acl_header(req)
+            for target in targets:
+                self.assertTrue(target[0] in req.headers)
+                self.assertEquals(req.headers[target[0]], target[1])
+
+        check_generated_acl_header('public-read',
+                                   [('X-Container-Read', '.r:*,.rlistings')])
+        check_generated_acl_header('public-read-write',
+                                   [('X-Container-Read', '.r:*,.rlistings'),
+                                    ('X-Container-Write', '.r:*')])
+        check_generated_acl_header('private',
+                                   [('X-Container-Read', '.'),
+                                    ('X-Container-Write', '.')])
+
+    @s3acl(s3acl_only=True)
+    def test_handle_acl_header_with_s3acl(self):
+        def check_generated_acl_header(acl, targets):
+            req = Request.blank('/bucket',
+                                headers={'X-Amz-Acl': acl})
+            for target in targets:
+                self.assertTrue(target not in req.headers)
+            self.assertTrue('HTTP_X_AMZ_ACL' in req.environ)
+            # TODO: add transration and assertion for s3acl
+
+        check_generated_acl_header('public-read',
+                                   ['X-Container-Read'])
+        check_generated_acl_header('public-read-write',
+                                   ['X-Container-Read', 'X-Container-Write'])
+        check_generated_acl_header('private',
+                                   ['X-Container-Read', 'X-Container-Write'])
+
+    def test_handle_acl_with_invalid_header_string(self):
+        req = Request.blank('/bucket', headers={'X-Amz-Acl': 'invalid'})
+        with self.assertRaises(InvalidArgument) as cm:
+            handle_acl_header(req)
+        self.assertTrue('argument_name' in cm.exception.info)
+        self.assertEquals(cm.exception.info['argument_name'], 'x-amz-acl')
+        self.assertTrue('argument_value' in cm.exception.info)
+        self.assertEquals(cm.exception.info['argument_value'], 'invalid')
+
 
 if __name__ == '__main__':
     unittest.main()

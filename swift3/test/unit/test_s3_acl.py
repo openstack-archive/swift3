@@ -236,7 +236,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'x-amz-acl': 'invalid'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidRequest')
+        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
 
     def _test_grant_header(self, permission):
         req = Request.blank('/bucket/object?acl',
