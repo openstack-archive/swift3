@@ -25,6 +25,11 @@ def get_error_code(body):
     return elem.find('Code').text
 
 
+def get_error_msg(body):
+    elem = fromstring(body, 'Error')
+    return elem.find('Message').text
+
+
 def calculate_md5(body):
     return md5(body).digest().encode('base64').strip()
 
