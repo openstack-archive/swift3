@@ -35,8 +35,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         for i, etag in enumerate(etags):
             elem_part = SubElement(elem, 'Part')
             SubElement(elem_part, 'PartNumber').text = str(i + 1)
-            if etag:
-                SubElement(elem_part, 'ETag').text = etag
+            SubElement(elem_part, 'ETag').text = etag
         return tostring(elem)
 
     def _initiate_multi_uploads_result_generator(self, bucket, keys,
@@ -467,14 +466,6 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
                                    query=query)
         self.assertEquals(get_error_code(body), 'MalformedXML')
 
-        # with fiewer etags in xml
-        etags[1] = ''
-        xml = self._gen_comp_xml(etags)
-        status, headers, body = \
-            self.conn.make_request('POST', bucket, keys[0], body=xml,
-                                   query=query)
-        self.assertEquals(get_error_code(body), 'MalformedXML')
-
         # with ivalid etag in xml
         invalid_etag = 'invalid'
         xml = self._gen_comp_xml([invalid_etag])
@@ -495,6 +486,31 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
             self.conn.make_request('POST', bucket, keys[1], body=xml,
                                    query=query)
         self.assertEquals(get_error_code(body), 'InvalidPart')
+
+    def test_complete_upload_with_fewer_etags(self):
+        bucket = 'bucket'
+        key = 'obj'
+        self.conn.make_request('PUT', bucket)
+        query = 'uploads'
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, key, query=query)
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        upload_id = elem.find('UploadId').text
+
+        etags = []
+        for i in xrange(1, 4):
+            query = 'partNumber=%s&uploadId=%s' % (i, upload_id)
+            status, headers, body = \
+                self.conn.make_request('PUT', bucket, key,
+                                       body='A' * 1024 * 1024 * 5, query=query)
+            etags.append(headers['etag'])
+        query = 'uploadId=%s' % upload_id
+        xml = self._gen_comp_xml(etags[:-1])
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, key, body=xml,
+                                   query=query)
+        self.assertEquals(status, 200)
+
 
 if __name__ == '__main__':
     unittest.main()
