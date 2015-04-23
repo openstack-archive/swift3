@@ -18,6 +18,7 @@ import unittest
 from swift.common.swob import Request
 
 from swift3.test.unit import Swift3TestCase
+from swift3.etree import fromstring
 
 
 class TestSwift3Logging(Swift3TestCase):
@@ -25,14 +26,32 @@ class TestSwift3Logging(Swift3TestCase):
     def setUp(self):
         super(TestSwift3Logging, self).setUp()
 
-    def test_object_logging_GET(self):
+    def test_bucket_logging_GET(self):
+        req = Request.blank('/bucket?logging',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        xml = fromstring(body, 'BucketLoggingStatus')
+        self.assertEquals(xml.keys(), [])
+        self.assertEquals(status.split()[0], '200')
+
+    def test_object_logging_GET_error(self):
         req = Request.blank('/bucket/object?logging',
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'NoLoggingStatusForKey')
 
-    def test_object_logging_PUT(self):
+    def test_bucket_logging_PUT(self):
+        req = Request.blank('/bucket?logging',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac'})
+        status, headers, body = self.call_swift3(req)
+        # FIXME: Support PUT logging
+        # self.assertEquals(status, 201)
+        self.assertEquals(self._get_error_code(body), 'NotImplemented')
+
+    def test_object_logging_PUT_error(self):
         req = Request.blank('/bucket/object?logging',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
