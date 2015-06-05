@@ -1,5 +1,6 @@
 [DEFAULT]
 user = %USER%
+bind_port = 6000
 swift_dir = %TEST_DIR%/etc
 devices = %TEST_DIR%
 mount_check = false
