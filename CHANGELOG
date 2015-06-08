@@ -1,3 +1,74 @@
+Swift3 (1.8)
+
+    * multi object deletion support
+
+        - achieve the stuff in Swift3 and drop s3multi dependency off
+
+    * multi object upload support
+
+        - includes Initiate, Upload Part, Upload Part (copy),
+          Abort, List (Uploads and Parts)
+
+    * Swift 2.3.0 Support
+
+    * x-amz-request-id is now transuction id in Swift
+
+    * new ACL mechanism partially support
+
+        Swift3 now has a couple of ACL scheme. One is a traditional scheme
+        using native container ACL conpatible with backend Swift. The other
+        is new scheme called 's3acl' that works as completely compatible with
+        actual S3 ACLs. The new scheme is build espicially forcused on:
+
+        - Single bucket namespace
+
+        - Owner/Grant achievement
+
+        - Object ACL support
+
+        Note that the new scheme is still under development, so don't use it
+        for production w/o enough testing.
+
+    * logger improvement
+
+    * review workflow changed
+
+        - because Swift3 has joined to stackforge, use gerrit review instead
+          of git hub pull request
+
+    * test and package environment improvement
+
+        - Add tox based test
+
+        - pbr support
+
+        - functional tests improvement
+
+        - FakeSwift to simulate backend Swift
+
+        - pylint support
+
+
+    * Refactors
+
+        - split controllers like as original Swift
+
+        - create Swift3 request/response classes
+
+        - add XML validation
+
+        - add pipeline validation
+
+        - ACL handlers for s3acl
+
+    * A tons of bug fixes
+
+        - Thanks guys for working this!!
+
+Swift3 (<1.7)
+
+    * TODO (or skip to write down?)
+
 swift3 (0.5)
 
     * Initial separation release
