@@ -73,6 +73,7 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '404')
+        self.assertEquals(body, '')  # sanifty
 
     def test_bucket_HEAD_slash(self):
         req = Request.blank('/junk/',
