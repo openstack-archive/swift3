@@ -108,26 +108,32 @@ class TestSwift3Obj(Swift3TestCase):
                             swob.HTTPUnauthorized, {}, None)
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '403')
+        self.assertEquals(body, '')  # sanifty
         self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
                             swob.HTTPForbidden, {}, None)
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '403')
+        self.assertEquals(body, '')  # sanifty
         self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
                             swob.HTTPNotFound, {}, None)
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '404')
+        self.assertEquals(body, '')  # sanifty
         self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
                             swob.HTTPPreconditionFailed, {}, None)
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '412')
+        self.assertEquals(body, '')  # sanifty
         self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
                             swob.HTTPServerError, {}, None)
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '500')
+        self.assertEquals(body, '')  # sanifty
         self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
                             swob.HTTPServiceUnavailable, {}, None)
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '500')
+        self.assertEquals(body, '')  # sanifty
 
     def test_object_HEAD(self):
         self._test_object_GETorHEAD('HEAD')

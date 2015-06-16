@@ -171,14 +171,17 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             auth_error_conn.make_request('HEAD', self.bucket, obj)
         self.assertEquals(status, 403)
+        self.assertEquals(body, '')  # sanifty
 
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, 'invalid')
         self.assertEquals(status, 404)
+        self.assertEquals(body, '')  # sanifty
 
         status, headers, body = \
             self.conn.make_request('HEAD', 'invalid', obj)
         self.assertEquals(status, 404)
+        self.assertEquals(body, '')  # sanifty
 
     def test_delete_object_error(self):
         obj = 'object'

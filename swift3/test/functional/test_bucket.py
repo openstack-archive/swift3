@@ -273,14 +273,17 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('HEAD', 'bucket+invalid')
         self.assertEquals(status, 400)
+        self.assertEquals(body, '')  # sanifty
 
         auth_error_conn = Connection(aws_secret_key='invalid')
         status, headers, body = \
             auth_error_conn.make_request('HEAD', 'bucket')
         self.assertEquals(status, 403)
+        self.assertEquals(body, '')  # sanifty
 
         status, headers, body = self.conn.make_request('HEAD', 'nothing')
         self.assertEquals(status, 404)
+        self.assertEquals(body, '')  # sanifty
 
     def test_delete_bucket_error(self):
         status, headers, body = \
