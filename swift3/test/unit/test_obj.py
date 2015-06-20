@@ -341,7 +341,7 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEquals(code, 'InternalError')
         code = self._test_method_error('PUT', '/bucket/object',
                                        swob.HTTPUnprocessableEntity)
-        self.assertEquals(code, 'InvalidDigest')
+        self.assertEquals(code, 'BadDigest')
         code = self._test_method_error('PUT', '/bucket/object',
                                        swob.HTTPLengthRequired)
         self.assertEquals(code, 'MissingContentLength')

@@ -43,7 +43,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
-    MalformedXML, InvalidRequest, RequestTimeout, InvalidBucketName
+    MalformedXML, InvalidRequest, RequestTimeout, InvalidBucketName, BadDigest
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.utils import utf8encode, LOGGER, check_path_header
 from swift3.cfg import CONF
@@ -225,6 +225,9 @@ class Request(swob.Request):
             except Exception:
                 raise InvalidDigest(content_md5=value)
 
+            if len(self.headers['ETag']) != 32:
+                raise InvalidDigest(content_md5=value)
+
         if 'X-Amz-Copy-Source' in self.headers:
             try:
                 check_path_header(self, 'X-Amz-Copy-Source', 2, '')
@@ -294,7 +297,7 @@ class Request(swob.Request):
 
         digest = md5.new(body).digest().encode('base64').strip()
         if self.environ['HTTP_CONTENT_MD5'] != digest:
-            raise InvalidDigest(content_md5=self.environ['HTTP_CONTENT_MD5'])
+            raise BadDigest(content_md5=self.environ['HTTP_CONTENT_MD5'])
 
     def _copy_source_headers(self):
         env = {}
@@ -580,7 +583,7 @@ class Request(swob.Request):
                 },
                 'PUT': {
                     HTTP_NOT_FOUND: (NoSuchBucket, container),
-                    HTTP_UNPROCESSABLE_ENTITY: InvalidDigest,
+                    HTTP_UNPROCESSABLE_ENTITY: BadDigest,
                     HTTP_REQUEST_ENTITY_TOO_LARGE: EntityTooLarge,
                     HTTP_LENGTH_REQUIRED: MissingContentLength,
                     HTTP_REQUEST_TIMEOUT: RequestTimeout,
