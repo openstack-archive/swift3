@@ -103,7 +103,7 @@ class BucketController(Controller):
                 contents = SubElement(elem, 'Contents')
                 SubElement(contents, 'Key').text = o['name']
                 SubElement(contents, 'LastModified').text = \
-                    o['last_modified'] + 'Z'
+                    o['last_modified'][:-3] + 'Z'
                 SubElement(contents, 'ETag').text = o['hash']
                 SubElement(contents, 'Size').text = str(o['bytes'])
                 owner = SubElement(contents, 'Owner')
