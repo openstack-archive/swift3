@@ -81,6 +81,8 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         for o in resp_objects:
             self.assertTrue(o.find('Key').text in req_objects)
             self.assertTrue(o.find('LastModified').text is not None)
+            self.assertEqual('Z', o.find('LastModified').text[-1])
+            self.assertEqual('.', o.find('LastModified').text[-5])
             self.assertTrue(o.find('ETag').text is not None)
             self.assertTrue(o.find('Size').text is not None)
             self.assertTrue(o.find('StorageClass').text is not None)
@@ -165,6 +167,8 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         for i, o in enumerate(resp_objects):
             self.assertEquals(o.find('Key').text, expect_objects[i])
             self.assertTrue(o.find('LastModified').text is not None)
+            self.assertEqual('Z', o.find('LastModified').text[-1])
+            self.assertEqual('.', o.find('LastModified').text[-5])
             self.assertTrue(o.find('ETag').text is not None)
             self.assertTrue(o.find('Size').text is not None)
             self.assertEquals(o.find('StorageClass').text, 'STANDARD')
@@ -208,6 +212,8 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         for i, o in enumerate(resp_objects):
             self.assertEquals(o.find('Key').text, expect_objects[i])
             self.assertTrue(o.find('LastModified').text is not None)
+            self.assertEqual('Z', o.find('LastModified').text[-1])
+            self.assertEqual('.', o.find('LastModified').text[-5])
             self.assertTrue(o.find('ETag').text is not None)
             self.assertTrue(o.find('Size').text is not None)
             self.assertEquals(o.find('StorageClass').text, 'STANDARD')
@@ -234,6 +240,8 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         for i, o in enumerate(resp_objects):
             self.assertEquals(o.find('Key').text, expect_objects[i])
             self.assertTrue(o.find('LastModified').text is not None)
+            self.assertEqual('Z', o.find('LastModified').text[-1])
+            self.assertEqual('.', o.find('LastModified').text[-5])
             self.assertTrue(o.find('ETag').text is not None)
             self.assertTrue(o.find('Size').text is not None)
             self.assertEquals(o.find('StorageClass').text, 'STANDARD')
@@ -260,6 +268,8 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         for i, o in enumerate(resp_objects):
             self.assertEquals(o.find('Key').text, expect_objects[i])
             self.assertTrue(o.find('LastModified').text is not None)
+            self.assertEqual('Z', o.find('LastModified').text[-1])
+            self.assertEqual('.', o.find('LastModified').text[-5])
             self.assertTrue(o.find('ETag').text is not None)
             self.assertTrue(o.find('Size').text is not None)
             self.assertEquals(o.find('StorageClass').text, 'STANDARD')
