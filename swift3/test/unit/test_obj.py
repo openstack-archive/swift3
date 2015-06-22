@@ -346,6 +346,9 @@ class TestSwift3Obj(Swift3TestCase):
                                        swob.HTTPLengthRequired)
         self.assertEquals(code, 'MissingContentLength')
         code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPPreconditionFailed)
+        self.assertEquals(code, 'PreconditionFailed')
+        code = self._test_method_error('PUT', '/bucket/object',
                                        swob.HTTPServiceUnavailable)
         self.assertEquals(code, 'InternalError')
         code = self._test_method_error('PUT', '/bucket/object',
