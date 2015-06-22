@@ -239,6 +239,21 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.assertCommonResponseHeaders(headers)
         self._assertObjectEtag(self.bucket, obj, etag)
 
+    def test_put_object_if_none_match(self):
+        obj = 'object'
+        content = 'abcdefghij'
+        headers = {'If-None-Match': '*'}
+        status, headers, body = \
+            self.conn.make_request('PUT', self.bucket, obj, headers, content)
+        self.assertEquals(status, 200)
+
+        # Need to reset headers, or we'll try to reuse trans ids
+        headers = {'If-None-Match': '*'}
+        status, headers, body = \
+            self.conn.make_request('PUT', self.bucket, obj, headers, content)
+        self.assertEquals(status, 412)
+        self.assertEquals(get_error_code(body), 'PreconditionFailed')
+
     def test_put_object_expect(self):
         obj = 'object'
         content = 'abcdefghij'

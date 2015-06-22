@@ -584,6 +584,7 @@ class Request(swob.Request):
                     HTTP_REQUEST_ENTITY_TOO_LARGE: EntityTooLarge,
                     HTTP_LENGTH_REQUIRED: MissingContentLength,
                     HTTP_REQUEST_TIMEOUT: RequestTimeout,
+                    HTTP_PRECONDITION_FAILED: PreconditionFailed,
                 },
                 'POST': {
                     HTTP_NOT_FOUND: (NoSuchKey, obj),
