@@ -105,26 +105,30 @@ def validate_bucket_name(name):
         Validates the name of the bucket against S3 criteria,
         http://docs.amazonwebservices.com/AmazonS3/latest/BucketRestrictions.html
         True is valid, False is invalid.
-        TODO:
-            - Create an option to follow which region's rule
         """
+        valid_chars = '-.a-z0-9'
+        if not CONF.dns_compliant_bucket_names:
+            valid_chars += 'A-Z_'
+        max_len = 63 if CONF.dns_compliant_bucket_names else 255
 
-        if len(name) < 3 or len(name) > 63 or not name[-1].isalnum():
-            # FIXME: Bucket names should not contain underscores (_)
-            # Bucket names must end with a letter or number
-            # Bucket names should be between 3 and 63 characters long
+        if len(name) < 3 or len(name) > max_len or not name[0].isalnum():
+            # Bucket names should be between 3 and 63 (or 255) characters long
+            # Bucket names must start with a letter or a number
             return False
-        elif '.-' in name or '-.' in name or '..' in name or '+' in name or \
-                not name[0].isalnum():
+        elif CONF.dns_compliant_bucket_names and (
+                '.-' in name or '-.' in name or '..' in name or
+                not name[-1].isalnum()):
             # Bucket names cannot contain dashes next to periods
             # Bucket names cannot contain two adjacent periods
-            # Bucket names cannot contain plus character
-            # Bucket names Must start with a lowercase letter or a number
+            # Bucket names must end with a letter or a number
             return False
         elif re.match("^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.)"
                       "{3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$",
                       name):
             # Bucket names cannot be formatted as an IP Address
+            return False
+        elif not re.match("^[%s]*$" % valid_chars, name):
+            # Bucket names can contain lowercase letters, numbers, and hyphens.
             return False
         else:
             return True
