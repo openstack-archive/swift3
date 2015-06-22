@@ -40,6 +40,10 @@ use = egg:swift3#swift3
 # GET Bucket location API.
 # location = US
 #
+# Set whether to enforce DNS-compliant bucket names. Note that S3 enforces
+# these conventions in all regions except the US Standard region.
+# dns_compliant_bucket_names = True
+#
 # Set the default maximum number of objects returned in the GET Bucket
 # response.
 # max_bucket_listing = 1000
