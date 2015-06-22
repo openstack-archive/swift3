@@ -239,6 +239,34 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.assertCommonResponseHeaders(headers)
         self._assertObjectEtag(self.bucket, obj, etag)
 
+    def test_put_object_conditional_requests(self):
+        obj = 'object'
+        content = 'abcdefghij'
+        headers = {'If-None-Match': '*'}
+        status, headers, body = \
+            self.conn.make_request('PUT', self.bucket, obj, headers, content)
+        self.assertEquals(status, 501)
+
+        headers = {'If-Match': '*'}
+        status, headers, body = \
+            self.conn.make_request('PUT', self.bucket, obj, headers, content)
+        self.assertEquals(status, 501)
+
+        headers = {'If-Modified-Since': 'Sat, 27 Jun 2015 00:00:00 GMT'}
+        status, headers, body = \
+            self.conn.make_request('PUT', self.bucket, obj, headers, content)
+        self.assertEquals(status, 501)
+
+        headers = {'If-Unmodified-Since': 'Sat, 27 Jun 2015 00:00:00 GMT'}
+        status, headers, body = \
+            self.conn.make_request('PUT', self.bucket, obj, headers, content)
+        self.assertEquals(status, 501)
+
+        # None of the above should actually have created an object
+        status, headers, body = \
+            self.conn.make_request('HEAD', self.bucket, obj, {}, '')
+        self.assertEquals(status, 404)
+
     def test_put_object_expect(self):
         obj = 'object'
         content = 'abcdefghij'

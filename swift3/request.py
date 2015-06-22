@@ -228,6 +228,12 @@ class Request(swob.Request):
             if len(self.headers['ETag']) != 32:
                 raise InvalidDigest(content_md5=value)
 
+        if self.method == 'PUT' and any(h in self.headers for h in (
+                'If-Match', 'If-None-Match',
+                'If-Modified-Since', 'If-Unmodified-Since')):
+            raise S3NotImplemented(
+                'Conditional object PUTs are not supported.')
+
         if 'X-Amz-Copy-Source' in self.headers:
             try:
                 check_path_header(self, 'X-Amz-Copy-Source', 2, '')
@@ -665,7 +671,7 @@ class Request(swob.Request):
     def get_response(self, app, method=None, container=None, obj=None,
                      headers=None, body=None, query=None):
         """
-        get_response is an entry point to be extended for chiled classes.
+        get_response is an entry point to be extended for child classes.
         If additional tasks needed at that time of getting swift response,
         we can override this method. swift3.request.Request need to just call
         _get_response to get pure swift response.
