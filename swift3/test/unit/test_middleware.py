@@ -20,6 +20,7 @@ from datetime import datetime
 import hashlib
 import base64
 from urllib import unquote, quote
+from md5 import md5
 
 from swift.common import swob, utils
 from swift.common.swob import Request
@@ -243,18 +244,24 @@ class TestSwift3Middleware(Swift3TestCase):
         self.assertEquals(self._get_error_code(body), 'InvalidDigest')
 
     def test_object_create_bad_md5_too_short(self):
-        req = Request.blank('/bucket/object',
-                            environ={'REQUEST_METHOD': 'PUT',
-                                     'HTTP_AUTHORIZATION': 'AWS X:Y:Z',
-                                     'HTTP_CONTENT_MD5': 'xxxx'})
+        too_short_digest = md5('hey').hexdigest()[:-1]
+        md5_str = too_short_digest.encode('base64').strip()
+        req = Request.blank(
+            '/bucket/object',
+            environ={'REQUEST_METHOD': 'PUT',
+                     'HTTP_AUTHORIZATION': 'AWS X:Y:Z',
+                     'HTTP_CONTENT_MD5': md5_str})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidDigest')
 
     def test_object_create_bad_md5_too_long(self):
-        req = Request.blank('/bucket/object', environ={
-            'REQUEST_METHOD': 'PUT',
-            'HTTP_AUTHORIZATION': 'AWS X:Y:Z',
-            'HTTP_CONTENT_MD5': '1B2M2Y8AsgTpgAmY7PhCfgo='})
+        too_long_digest = md5('hey').hexdigest() + 'suffix'
+        md5_str = too_long_digest.encode('base64').strip()
+        req = Request.blank(
+            '/bucket/object',
+            environ={'REQUEST_METHOD': 'PUT',
+                     'HTTP_AUTHORIZATION': 'AWS X:Y:Z',
+                     'HTTP_CONTENT_MD5': md5_str})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidDigest')
 
