@@ -470,6 +470,8 @@ class UploadController(Controller):
             _key = key.lower()
             if _key.startswith('x-amz-meta-'):
                 headers['x-object-meta-' + _key[11:]] = val
+            elif _key == 'content-type':
+                req.environ['CONTENT_TYPE'] = val
 
         # Query for the objects in the segments area to make sure it completed
         query = {
