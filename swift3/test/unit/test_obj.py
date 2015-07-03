@@ -59,7 +59,7 @@ class TestSwift3Obj(Swift3TestCase):
         self.last_modified = 'Fri, 01 Apr 2014 12:00:00 GMT'
 
         self.response_headers = {'Content-Type': 'text/html',
-                                 'Content-Length': len(self.object_body),
+                                 'Content-Length': str(len(self.object_body)),
                                  'x-object-meta-test': 'swift',
                                  'etag': self.etag,
                                  'last-modified': self.last_modified}
@@ -69,8 +69,8 @@ class TestSwift3Obj(Swift3TestCase):
                             self.object_body)
         self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
                             swob.HTTPCreated,
-                            {'etag': self.etag,
-                             'last-modified': self.last_modified},
+                            {'ETag': self.etag,
+                             'Last-Modified': self.last_modified},
                             None)
 
     def _test_object_GETorHEAD(self, method):
@@ -81,8 +81,8 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
 
         for key, val in self.response_headers.iteritems():
-            if key in ('content-length', 'content-type', 'content-encoding',
-                       'last-modified'):
+            if key in ('Content-Length', 'Content-Type', 'Content-Encoding',
+                       'Last-Modified'):
                 self.assertTrue(key in headers)
                 self.assertEquals(headers[key], val)
 
@@ -90,7 +90,7 @@ class TestSwift3Obj(Swift3TestCase):
                 self.assertTrue('x-amz-meta-' + key[14:] in headers)
                 self.assertEquals(headers['x-amz-meta-' + key[14:]], val)
 
-        self.assertEquals(headers['etag'],
+        self.assertEquals(headers['ETag'],
                           '"%s"' % self.response_headers['etag'])
 
         if method == 'GET':
@@ -150,37 +150,37 @@ class TestSwift3Obj(Swift3TestCase):
         range_value = ''
         status, headers, body = self._test_object_HEAD_Range(range_value)
         self.assertEquals(status.split()[0], '200')
-        self.assertTrue('content-length' in headers)
-        self.assertEqual(headers['content-length'], '5')
-        self.assertTrue('content-range' not in headers)
+        self.assertTrue('Content-Length' in headers)
+        self.assertEqual(headers['Content-Length'], '5')
+        self.assertTrue('Content-Range' not in headers)
 
         range_value = 'hoge'
         status, headers, body = self._test_object_HEAD_Range(range_value)
         self.assertEquals(status.split()[0], '200')
-        self.assertTrue('content-length' in headers)
-        self.assertEqual(headers['content-length'], '5')
-        self.assertTrue('content-range' not in headers)
+        self.assertTrue('Content-Length' in headers)
+        self.assertEqual(headers['Content-Length'], '5')
+        self.assertTrue('Content-Range' not in headers)
 
         range_value = 'bytes='
         status, headers, body = self._test_object_HEAD_Range(range_value)
         self.assertEquals(status.split()[0], '200')
-        self.assertTrue('content-length' in headers)
-        self.assertEqual(headers['content-length'], '5')
-        self.assertTrue('content-range' not in headers)
+        self.assertTrue('Content-Length' in headers)
+        self.assertEqual(headers['Content-Length'], '5')
+        self.assertTrue('Content-Range' not in headers)
 
         range_value = 'bytes=1'
         status, headers, body = self._test_object_HEAD_Range(range_value)
         self.assertEquals(status.split()[0], '200')
-        self.assertTrue('content-length' in headers)
-        self.assertEqual(headers['content-length'], '5')
-        self.assertTrue('content-range' not in headers)
+        self.assertTrue('Content-Length' in headers)
+        self.assertEqual(headers['Content-Length'], '5')
+        self.assertTrue('Content-Range' not in headers)
 
         range_value = 'bytes=5-1'
         status, headers, body = self._test_object_HEAD_Range(range_value)
         self.assertEquals(status.split()[0], '200')
-        self.assertTrue('content-length' in headers)
-        self.assertEqual(headers['content-length'], '5')
-        self.assertTrue('content-range' not in headers)
+        self.assertTrue('Content-Length' in headers)
+        self.assertEqual(headers['Content-Length'], '5')
+        self.assertTrue('Content-Range' not in headers)
 
         range_value = 'bytes=5-10'
         status, headers, body = self._test_object_HEAD_Range(range_value)
@@ -195,40 +195,40 @@ class TestSwift3Obj(Swift3TestCase):
         range_value = 'bytes=0-3'
         status, headers, body = self._test_object_HEAD_Range(range_value)
         self.assertEquals(status.split()[0], '206')
-        self.assertTrue('content-length' in headers)
-        self.assertEqual(headers['content-length'], '4')
-        self.assertTrue('content-range' in headers)
-        self.assertTrue(headers['content-range'].startswith('bytes 0-3'))
+        self.assertTrue('Content-Length' in headers)
+        self.assertEqual(headers['Content-Length'], '4')
+        self.assertTrue('Content-Range' in headers)
+        self.assertTrue(headers['Content-Range'].startswith('bytes 0-3'))
         self.assertTrue('x-amz-meta-test' in headers)
         self.assertEqual('swift', headers['x-amz-meta-test'])
 
         range_value = 'bytes=3-3'
         status, headers, body = self._test_object_HEAD_Range(range_value)
         self.assertEquals(status.split()[0], '206')
-        self.assertTrue('content-length' in headers)
-        self.assertEqual(headers['content-length'], '1')
-        self.assertTrue('content-range' in headers)
-        self.assertTrue(headers['content-range'].startswith('bytes 3-3'))
+        self.assertTrue('Content-Length' in headers)
+        self.assertEqual(headers['Content-Length'], '1')
+        self.assertTrue('Content-Range' in headers)
+        self.assertTrue(headers['Content-Range'].startswith('bytes 3-3'))
         self.assertTrue('x-amz-meta-test' in headers)
         self.assertEqual('swift', headers['x-amz-meta-test'])
 
         range_value = 'bytes=1-'
         status, headers, body = self._test_object_HEAD_Range(range_value)
         self.assertEquals(status.split()[0], '206')
-        self.assertTrue('content-length' in headers)
-        self.assertEqual(headers['content-length'], '4')
-        self.assertTrue('content-range' in headers)
-        self.assertTrue(headers['content-range'].startswith('bytes 1-4'))
+        self.assertTrue('Content-Length' in headers)
+        self.assertEqual(headers['Content-Length'], '4')
+        self.assertTrue('Content-Range' in headers)
+        self.assertTrue(headers['Content-Range'].startswith('bytes 1-4'))
         self.assertTrue('x-amz-meta-test' in headers)
         self.assertEqual('swift', headers['x-amz-meta-test'])
 
         range_value = 'bytes=-3'
         status, headers, body = self._test_object_HEAD_Range(range_value)
         self.assertEquals(status.split()[0], '206')
-        self.assertTrue('content-length' in headers)
-        self.assertEqual(headers['content-length'], '3')
-        self.assertTrue('content-range' in headers)
-        self.assertTrue(headers['content-range'].startswith('bytes 2-4'))
+        self.assertTrue('Content-Length' in headers)
+        self.assertEqual(headers['Content-Length'], '3')
+        self.assertTrue('Content-Range' in headers)
+        self.assertTrue(headers['Content-Range'].startswith('bytes 2-4'))
         self.assertTrue('x-amz-meta-test' in headers)
         self.assertEqual('swift', headers['x-amz-meta-test'])
 
@@ -279,8 +279,8 @@ class TestSwift3Obj(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '206')
 
-        self.assertTrue('content-range' in headers)
-        self.assertTrue(headers['content-range'].startswith('bytes 0-3'))
+        self.assertTrue('Content-Range' in headers)
+        self.assertTrue(headers['Content-Range'].startswith('bytes 0-3'))
 
     @s3acl
     def test_object_GET_Range_error(self):
@@ -308,19 +308,19 @@ class TestSwift3Obj(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
-        self.assertTrue('content-type' in headers)
-        self.assertEquals(headers['content-type'], 'text/plain')
-        self.assertTrue('content-language' in headers)
-        self.assertEquals(headers['content-language'], 'en')
-        self.assertTrue('expires' in headers)
-        self.assertEquals(headers['expires'], 'Fri, 01 Apr 2014 12:00:00 GMT')
-        self.assertTrue('cache-control' in headers)
-        self.assertEquals(headers['cache-control'], 'no-cache')
-        self.assertTrue('content-disposition' in headers)
-        self.assertEquals(headers['content-disposition'],
+        self.assertTrue('Content-Type' in headers)
+        self.assertEquals(headers['Content-Type'], 'text/plain')
+        self.assertTrue('Content-Language' in headers)
+        self.assertEquals(headers['Content-Language'], 'en')
+        self.assertTrue('Expires' in headers)
+        self.assertEquals(headers['Expires'], 'Fri, 01 Apr 2014 12:00:00 GMT')
+        self.assertTrue('Cache-Control' in headers)
+        self.assertEquals(headers['Cache-Control'], 'no-cache')
+        self.assertTrue('Content-Disposition' in headers)
+        self.assertEquals(headers['Content-Disposition'],
                           'attachment')
-        self.assertTrue('content-encoding' in headers)
-        self.assertEquals(headers['content-encoding'], 'gzip')
+        self.assertTrue('Content-Encoding' in headers)
+        self.assertEquals(headers['Content-Encoding'], 'gzip')
 
     @s3acl
     def test_object_PUT_error(self):
@@ -388,7 +388,7 @@ class TestSwift3Obj(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
         # Check that swift3 returns an etag header.
-        self.assertEquals(headers['etag'], '"%s"' % etag)
+        self.assertEquals(headers['ETag'], '"%s"' % etag)
 
         _, _, headers = self.swift.calls_with_headers[-1]
         # Check that swift3 converts a Content-MD5 header into an etag.
