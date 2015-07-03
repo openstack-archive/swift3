@@ -47,11 +47,21 @@ class TestSwift3Bucket(Swift3TestCase):
             object_list_subdir.append({"subdir": p})
 
         self.swift.register('HEAD', '/v1/AUTH_test/junk', swob.HTTPNoContent,
-                            {}, None)
+                            {'Content-Length': '0',
+                             'Content-Type': 'text/plain; charset=utf8',
+                             'X-Timestamp': '1435880156.96058',
+                             'X-Container-Object-Count': '123',
+                             'X-Container-Bytes-Used': '54321',
+                             'X-Storage-Policy': 'Policy-0'}, None)
         self.swift.register('HEAD', '/v1/AUTH_test/nojunk', swob.HTTPNotFound,
                             {}, None)
         self.swift.register('GET', '/v1/AUTH_test/junk', swob.HTTPOk, {},
-                            object_list)
+                            {'Content-Length': '163',
+                             'Content-Type': 'application/json; charset=utf8',
+                             'X-Timestamp': '1435880156.96058',
+                             'X-Container-Object-Count': '123',
+                             'X-Container-Bytes-Used': '54321',
+                             'X-Storage-Policy': 'Policy-0'}, object_list)
         self.swift.register('GET', '/v1/AUTH_test/junk_subdir', swob.HTTPOk,
                             {}, json.dumps(object_list_subdir))
 
@@ -66,6 +76,13 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
+        self.assertEqual({
+            'content-length': '0',
+            'content-type': 'text/plain; charset=utf8',
+            'x-rgw-object-count': '123',
+            'x-rgw-bytes-used': '54321',
+            # No: storage policy, timestamp
+        }, headers)
 
     def test_bucket_HEAD_error(self):
         req = Request.blank('/nojunk',
@@ -107,6 +124,14 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
+        self.assertNotEqual('0', headers['content-length'])
+        del headers['content-length']
+        self.assertEqual({
+            'content-type': 'application/xml',
+            'x-rgw-object-count': '123',
+            'x-rgw-bytes-used': '54321',
+            # No: storage policy, timestamp
+        }, headers)
 
         elem = fromstring(body, 'ListBucketResult')
         name = elem.find('./Name').text
