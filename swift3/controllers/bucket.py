@@ -118,7 +118,12 @@ class BucketController(Controller):
 
         body = tostring(elem, encoding_type=encoding_type)
 
-        return HTTPOk(body=body, content_type='application/xml')
+        # Headers were already translated in req.get_response()
+        headers = dict((k, resp.headers[k]) for k in (
+            'x-rgw-object-count', 'x-rgw-bytes-used'))
+
+        return HTTPOk(body=body, content_type='application/xml',
+                      headers=headers)
 
     def PUT(self, req):
         """
