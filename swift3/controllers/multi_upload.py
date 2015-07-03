@@ -463,6 +463,7 @@ class UploadController(Controller):
         """
         Handles Complete Multipart Upload.
         """
+        req.pop('CONTENT_TYPE', None)
         upload_id = req.params['uploadId']
         resp = _get_upload_info(req, self.app, upload_id)
         headers = {}
@@ -470,6 +471,8 @@ class UploadController(Controller):
             _key = key.lower()
             if _key.startswith('x-amz-meta-'):
                 headers['x-object-meta-' + _key[11:]] = val
+            elif _key == 'content-type':
+                headers['Content-Type'] = val
 
         # Query for the objects in the segments area to make sure it completed
         query = {
