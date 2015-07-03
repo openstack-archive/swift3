@@ -107,7 +107,7 @@ class Swift3TestCase(unittest.TestCase):
 
         def start_response(s, h, ei=None):
             status[0] = s
-            headers[0] = swob.HeaderKeyDict(h)
+            headers[0] = dict(h)
 
         body_iter = app(req.environ, start_response)
         body = ''
