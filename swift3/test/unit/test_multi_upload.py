@@ -81,7 +81,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.swift.register('GET', segment_bucket, swob.HTTPOk, {},
                             object_list)
         self.swift.register('HEAD', segment_bucket + '/object/X',
-                            swob.HTTPOk, {'x-object-meta-foo': 'bar'}, None)
+                            swob.HTTPOk, {'x-object-meta-foo': 'bar',
+                                          'content-type': 'baz/quux'}, None)
         self.swift.register('PUT', segment_bucket + '/object/X',
                             swob.HTTPCreated, {}, None)
         self.swift.register('DELETE', segment_bucket + '/object/X',
@@ -615,6 +616,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
         _, _, headers = self.swift.calls_with_headers[-2]
         self.assertEquals(headers.get('X-Object-Meta-Foo'), 'bar')
+        self.assertEquals(headers.get('Content-Type'), 'baz/quux')
 
     @s3acl(s3acl_only=True)
     def test_object_multipart_upload_complete_s3acl(self):
@@ -624,6 +626,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
         headers[sysmeta_header('object', 'tmpacl')] = \
             acl_headers.get(sysmeta_header('object', 'acl'))
         headers['X-Object-Meta-Foo'] = 'bar'
+        headers['Content-Type'] = 'baz/quux'
         self.swift.register('HEAD', '/v1/AUTH_test/bucket+segments/object/X',
                             swob.HTTPOk, headers, None)
         req = Request.blank('/bucket/object?uploadId=X',
@@ -636,6 +639,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
         _, _, headers = self.swift.calls_with_headers[-2]
         self.assertEquals(headers.get('X-Object-Meta-Foo'), 'bar')
+        self.assertEquals(headers.get('Content-Type'), 'baz/quux')
         self.assertEquals(tostring(ACLPublicRead(Owner('test:tester',
                                                        'test:tester')).elem()),
                           tostring(decode_acl('object', headers).elem()))
