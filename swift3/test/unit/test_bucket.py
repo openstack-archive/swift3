@@ -31,7 +31,7 @@ class TestSwift3Bucket(Swift3TestCase):
     def setup_objects(self):
         self.objects = (('rose', '2011-01-05T02:19:14.275290', 0, 303),
                         ('viola', '2011-01-05T02:19:14.275290', 0, 3909),
-                        ('lily', '2011-01-05T02:19:14.275290', 0, 3909),
+                        ('lily', '2011-01-05T02:19:14.275290', '"0"', 3909),
                         ('with space', '2011-01-05T02:19:14.275290', 0, 390),
                         ('with%20space', '2011-01-05T02:19:14.275290', 0, 390))
 
@@ -118,6 +118,7 @@ class TestSwift3Bucket(Swift3TestCase):
         for o in objects:
             names.append(o.find('./Key').text)
             self.assertTrue(o.find('./LastModified').text.endswith('Z'))
+            self.assertEqual('"0"', o.find('./ETag').text)
 
         self.assertEquals(len(names), len(self.objects))
         for i in self.objects:
