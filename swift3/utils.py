@@ -122,6 +122,9 @@ def validate_bucket_name(name):
             # Bucket names cannot contain two adjacent periods
             # Bucket names must end with a letter or a number
             return False
+        elif name.endswith('.'):
+            # Bucket names must not end with dot
+            return False
         elif re.match("^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.)"
                       "{3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$",
                       name):
