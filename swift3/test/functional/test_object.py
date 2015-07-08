@@ -58,7 +58,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self._assertObjectEtag(self.bucket, obj, etag)
 
         # PUT Object Copy
-        dst_bucket = 'dst_bucket'
+        dst_bucket = 'dst-bucket'
         dst_obj = 'dst_obj'
         self.conn.make_request('PUT', dst_bucket)
         headers = {'x-amz-copy-source': '/%s/%s' % (self.bucket, obj)}
@@ -116,7 +116,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
     def test_put_object_copy_error(self):
         obj = 'object'
         self.conn.make_request('PUT', self.bucket, obj)
-        dst_bucket = 'dst_bucket'
+        dst_bucket = 'dst-bucket'
         self.conn.make_request('PUT', dst_bucket)
         dst_obj = 'dst_object'
 
@@ -310,7 +310,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         etag = md5(content).hexdigest()
         self.conn.make_request('PUT', self.bucket, obj, body=content)
 
-        dst_bucket = 'dst_bucket'
+        dst_bucket = 'dst-bucket'
         dst_obj = 'dst_object'
         self.conn.make_request('PUT', dst_bucket)
 
@@ -344,7 +344,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
     def test_put_object_copy_metadata_directive(self):
         obj = 'object'
         src_headers = {'X-Amz-Meta-Test': 'src'}
-        dst_bucket = 'dst_bucket'
+        dst_bucket = 'dst-bucket'
         dst_obj = 'dst_object'
         self.conn.make_request('PUT', self.bucket, obj, headers=src_headers)
         self.conn.make_request('PUT', dst_bucket)
@@ -362,7 +362,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
     def test_put_object_copy_source_if_modified_since(self):
         obj = 'object'
-        dst_bucket = 'dst_bucket'
+        dst_bucket = 'dst-bucket'
         dst_obj = 'dst_object'
         etag = md5().hexdigest()
         self.conn.make_request('PUT', self.bucket, obj)
@@ -382,7 +382,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
     def test_put_object_copy_source_if_unmodified_since(self):
         obj = 'object'
-        dst_bucket = 'dst_bucket'
+        dst_bucket = 'dst-bucket'
         dst_obj = 'dst_object'
         etag = md5().hexdigest()
         self.conn.make_request('PUT', self.bucket, obj)
@@ -402,7 +402,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
     def test_put_object_copy_source_if_match(self):
         obj = 'object'
-        dst_bucket = 'dst_bucket'
+        dst_bucket = 'dst-bucket'
         dst_obj = 'dst_object'
         etag = md5().hexdigest()
         self.conn.make_request('PUT', self.bucket, obj)
@@ -421,7 +421,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
     def test_put_object_copy_source_if_none_match(self):
         obj = 'object'
-        dst_bucket = 'dst_bucket'
+        dst_bucket = 'dst-bucket'
         dst_obj = 'dst_object'
         etag = md5().hexdigest()
         self.conn.make_request('PUT', self.bucket, obj)

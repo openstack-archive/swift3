@@ -52,7 +52,7 @@ class TestSwift3Bucket(Swift3TestCase):
                             {}, None)
         self.swift.register('GET', '/v1/AUTH_test/junk', swob.HTTPOk, {},
                             object_list)
-        self.swift.register('GET', '/v1/AUTH_test/junk_subdir', swob.HTTPOk,
+        self.swift.register('GET', '/v1/AUTH_test/junk-subdir', swob.HTTPOk,
                             {}, json.dumps(object_list_subdir))
 
     def setUp(self):
@@ -124,7 +124,7 @@ class TestSwift3Bucket(Swift3TestCase):
             self.assertTrue(i[0] in names)
 
     def test_bucket_GET_subdir(self):
-        bucket_name = 'junk_subdir'
+        bucket_name = 'junk-subdir'
         req = Request.blank('/%s' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
@@ -259,7 +259,7 @@ class TestSwift3Bucket(Swift3TestCase):
         self.assertEquals(elem.find('./IsTruncated').text, 'true')
 
     def test_bucket_GET_subdir_with_delimiter_max_keys(self):
-        bucket_name = 'junk_subdir'
+        bucket_name = 'junk-subdir'
         req = Request.blank('/%s?delimiter=a&max-keys=1' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
