@@ -373,16 +373,22 @@ class TestSwift3Middleware(Swift3TestCase):
 
             pipeline.return_value = 'swift3 authtoken s3token keystoneauth ' \
                 'proxy-server'
-            with self.assertRaises(ValueError):
+            with self.assertRaises(ValueError) as cm:
                 self.swift3.check_pipeline(conf)
+            self.assertIn('expected filter s3token before authtoken before '
+                          'keystoneauth', cm.exception.message)
 
             pipeline.return_value = 'swift3 proxy-server'
-            with self.assertRaises(ValueError):
+            with self.assertRaises(ValueError) as cm:
                 self.swift3.check_pipeline(conf)
+            self.assertIn('expected auth between swift3 and proxy-server',
+                          cm.exception.message)
 
             pipeline.return_value = 'proxy-server'
-            with self.assertRaises(ValueError):
+            with self.assertRaises(ValueError) as cm:
                 self.swift3.check_pipeline(conf)
+            self.assertIn("missing filters ['swift3']",
+                          cm.exception.message)
 
     def test_swift3_initialization_with_disabled_pipeline_check(self):
         with nested(patch("swift3.middleware.CONF"),
