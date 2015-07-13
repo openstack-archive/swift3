@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+
 from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT
 from swift.common.swob import Range, content_range_header_value
 
@@ -114,6 +116,7 @@ class ObjectController(Controller):
             resp = req.get_response(self.app)
         except NoSuchKey:
             # expect to raise NoSuchBucket when the bucket doesn't exist
+            exc_type, exc_value, exc_traceback = sys.exc_info()
             req.get_container_info(self.app)
-            raise
+            raise exc_type, exc_value, exc_traceback
         return resp

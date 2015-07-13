@@ -44,6 +44,7 @@ upload information:
 
 import os
 import re
+import sys
 
 from swift.common.utils import json
 from swift.common.db import utf8encode
@@ -515,8 +516,9 @@ class UploadController(Controller):
         except ErrorResponse:
             raise
         except Exception as e:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
             LOGGER.error(e)
-            raise
+            raise exc_type, exc_value, exc_traceback
 
         try:
             # TODO: add support for versioning

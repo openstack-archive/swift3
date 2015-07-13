@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+
 from swift3.controllers.base import Controller, bucket_operation
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
@@ -76,8 +78,9 @@ class MultiObjectDeleteController(Controller):
         except ErrorResponse:
             raise
         except Exception as e:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
             LOGGER.error(e)
-            raise
+            raise exc_type, exc_value, exc_traceback
 
         elem = Element('DeleteResult')
 

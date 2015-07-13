@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+
 from swift3.subresource import ACL, Owner, encode_acl
 from swift3.response import MissingSecurityHeader, \
     MalformedACLError, UnexpectedContent
@@ -67,8 +69,9 @@ def get_acl(headers, body, bucket_owner, object_owner=None):
         except(XMLSyntaxError, DocumentInvalid):
             raise MalformedACLError()
         except Exception as e:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
             LOGGER.error(e)
-            raise
+            raise exc_type, exc_value, exc_traceback
     else:
         if body:
             # Specifying grant with both header and xml is not allowed.
