@@ -5,6 +5,7 @@
 # more middleware.
 #
 # Keystone pipeline
+# Note that s3token and authtoken require the keystonemiddleware package.
 pipeline = proxy-logging cache swift3 s3token authtoken keystoneauth bulk slo proxy-logging proxy-server
 
 # Tempauth pipeline
@@ -134,7 +135,7 @@ use = egg:swift#memcache
 
 [filter:s3token]
 # See swift manual for more details.
-paste.filter_factory = keystone.middleware.s3_token:filter_factory
+paste.filter_factory = keystonemiddleware.s3_token:filter_factory
 auth_host = keystonehost
 auth_port = 35357
 auth_protocol = http
@@ -146,7 +147,7 @@ cache = swift.cache
 
 [filter:authtoken]
 # See swift manual for more details.
-paste.filter_factory = keystoneclient.middleware.auth_token:filter_factory
+paste.filter_factory = keystonemiddleware.auth_token:filter_factory
 auth_host = keystonehost
 auth_port = 35357
 auth_protocol = http
