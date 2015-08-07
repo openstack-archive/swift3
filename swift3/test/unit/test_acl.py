@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import unittest
+from cStringIO import StringIO
 
 from swift.common.swob import Request, HTTPAccepted
 
@@ -64,6 +65,16 @@ class TestSwift3Acl(Swift3TestCase):
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac'},
                             body=xml)
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+
+        req = Request.blank('/bucket?acl',
+                            environ={'REQUEST_METHOD': 'PUT',
+                                     'wsgi.input': StringIO(xml)},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Transfer-Encoding': 'chunked'})
+        self.assertIsNone(req.content_length)
+        self.assertIsNone(req.message_length())
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
