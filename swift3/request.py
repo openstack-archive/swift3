@@ -43,7 +43,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
-    MalformedXML, InvalidRequest, RequestTimeout, InvalidBucketName, BadDigest
+    InvalidRequest, RequestTimeout, InvalidBucketName, BadDigest
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.utils import utf8encode, LOGGER, check_path_header
 from swift3.cfg import CONF
@@ -279,17 +279,19 @@ class Request(swob.Request):
         Similar to swob.Request.body, but it checks the content length before
         creating a body string.
         """
-        if self.headers.get('transfer-encoding'):
-            # FIXME: Raise error only when the input body is larger than
-            # 'max_length'.
+        te = self.headers.get('transfer-encoding', '')
+        te = [x for x in te.split(',') if x]
+        if te and (len(te) > 1 or te[-1] != 'chunked'):
             raise S3NotImplemented('A header you provided implies '
                                    'functionality that is not implemented',
                                    header='Transfer-Encoding')
 
-        if self.message_length() > max_length:
-            raise MalformedXML()
-
-        body = swob.Request.body.fget(self)
+        if not te and self.message_length() is None:
+            body = ''
+        else:
+            # Since we limit the read, too-long bodies should raise
+            # MalformedXML errors when we actually try to parse them.
+            body = self.body_file.read(max_length)
 
         if check_md5:
             self.check_md5(body)
