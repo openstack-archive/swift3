@@ -279,9 +279,9 @@ class Request(swob.Request):
         Similar to swob.Request.body, but it checks the content length before
         creating a body string.
         """
-        if self.headers.get('transfer-encoding'):
-            # FIXME: Raise error only when the input body is larger than
-            # 'max_length'.
+        te = self.headers.get('transfer-encoding', '')
+        te = [x.strip() for x in te.split(',') if x.strip()]
+        if te and (len(te) > 1 or te[-1] != 'chunked'):
             raise S3NotImplemented('A header you provided implies '
                                    'functionality that is not implemented',
                                    header='Transfer-Encoding')
@@ -289,7 +289,8 @@ class Request(swob.Request):
         if self.message_length() > max_length:
             raise MalformedXML()
 
-        body = swob.Request.body.fget(self)
+        # Limit the read similar to how SLO handles manifests
+        body = self.body_file.read(max_length)
 
         if check_md5:
             self.check_md5(body)
