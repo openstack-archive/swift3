@@ -317,6 +317,16 @@ class TestSwift3Bucket(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(headers['Location'], '/bucket')
 
+        # Apparently some clients will include a chunked transfer-encoding
+        # even with no body
+        req = Request.blank('/bucket',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Transfer-Encoding': 'chunked'})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+        self.assertEquals(headers['Location'], '/bucket')
+
     @s3acl
     def test_bucket_PUT_with_location(self):
         elem = Element('CreateBucketConfiguration')
