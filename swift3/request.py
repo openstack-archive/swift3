@@ -95,7 +95,7 @@ class Request(swob.Request):
     def __init__(self, env, slo_enabled=True):
         swob.Request.__init__(self, env)
 
-        self.access_key, self.signature = self._parse_authorization()
+        self.access_key = self._parse_authorization()
         self.bucket_in_host = self._parse_host()
         self.container_name, self.object_name = self._parse_uri()
         self._validate_headers()
@@ -167,14 +167,14 @@ class Request(swob.Request):
             raise NotS3Request()
 
         try:
-            access_key, signature = info.rsplit(':', 1)
+            access_key = info.rsplit(':', 1)[0]
         except Exception:
             err_msg = 'AWS authorization header is invalid.  ' \
                 'Expected AwsAccessKeyId:signature'
             raise InvalidArgument('Authorization',
                                   self.headers['Authorization'], err_msg)
 
-        return access_key, signature
+        return access_key
 
     def _validate_headers(self):
         if 'CONTENT_LENGTH' in self.environ:
