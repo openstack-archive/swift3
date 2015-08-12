@@ -14,6 +14,12 @@
 # limitations under the License.
 
 import unittest
+import os
+import boto
+
+# For an issue with venv and distutils, disable pylint message here
+# pylint: disable-msg=E0611,F0401
+from distutils.version import StrictVersion
 
 from email.utils import formatdate, parsedate
 from time import mktime
@@ -767,6 +773,48 @@ class TestSwift3Object(Swift3FunctionalTestCase):
             self.conn.make_request('HEAD', self.bucket, obj, headers=headers)
         self.assertEquals(status, 200)
         self.assertCommonResponseHeaders(headers)
+
+
+@unittest.skipIf(os.environ['AUTH'] == 'tempauth',
+                 'v4 is supported only in keystone')
+class TestSwift3ObjectSigV4(TestSwift3Object):
+    @classmethod
+    def setUpClass(cls):
+        os.environ['S3_USE_SIGV4'] = "True"
+
+    @classmethod
+    def tearDownClass(cls):
+        del os.environ['S3_USE_SIGV4']
+
+    @unittest.skipIf(StrictVersion(boto.__version__) < StrictVersion('3.0'),
+                     'This stuff got the signing issue of boto<=2.x')
+    def test_put_object_metadata(self):
+        super(TestSwift3ObjectSigV4, self).test_put_object_metadata()
+
+    @unittest.skipIf(StrictVersion(boto.__version__) < StrictVersion('3.0'),
+                     'This stuff got the signing issue of boto<=2.x')
+    def test_put_object_copy_source_if_modified_since(self):
+        super(TestSwift3ObjectSigV4, self).\
+            test_put_object_copy_source_if_modified_since()
+
+    @unittest.skipIf(StrictVersion(boto.__version__) < StrictVersion('3.0'),
+                     'This stuff got the signing issue of boto<=2.x')
+    def test_put_object_copy_source_if_unmodified_since(self):
+        super(TestSwift3ObjectSigV4, self).\
+            test_put_object_copy_source_if_unmodified_since()
+
+    @unittest.skipIf(StrictVersion(boto.__version__) < StrictVersion('3.0'),
+                     'This stuff got the signing issue of boto<=2.x')
+    def test_put_object_copy_source_if_match(self):
+        super(TestSwift3ObjectSigV4,
+              self).test_put_object_copy_source_if_match()
+
+    @unittest.skipIf(StrictVersion(boto.__version__) < StrictVersion('3.0'),
+                     'This stuff got the signing issue of boto<=2.x')
+    def test_put_object_copy_source_if_none_match(self):
+        super(TestSwift3ObjectSigV4,
+              self).test_put_object_copy_source_if_none_match()
+
 
 if __name__ == '__main__':
     unittest.main()
