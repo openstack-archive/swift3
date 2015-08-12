@@ -33,17 +33,18 @@ class FakeApp(object):
     def _update_s3_path_info(self, env):
         """
         For S3 requests, Swift auth middleware replaces a user name in
-        env['PATH_INFO'] with a valid tenant id.
-        E.g. '/v1/test:tester/bucket/object' will become
-        '/v1/AUTH_test/bucket/object'.  This method emulates the behavior.
+        env['PATH_INFO'] with a valid access key.
+        E.g. '/v1/access_key:project_id/bucket/object' will become
+        '/v1/AUTH_access_key/bucket/object'. This method emulates the behavior.
+        This behavior depends on nova's 'affix_tenant' config parameter and
+        can be present or not.
         """
         _, authorization = env['HTTP_AUTHORIZATION'].split(' ')
-        tenant_user, sign = authorization.rsplit(':', 1)
-        tenant, user = tenant_user.rsplit(':', 1)
+        access, _ = authorization.rsplit(':', 1)
 
         path = env['PATH_INFO']
-
-        env['PATH_INFO'] = path.replace(tenant_user, 'AUTH_' + tenant)
+        env['PATH_INFO'] = path.replace(access,
+                                        'AUTH_' + access.rsplit(':', 1)[0])
 
     def __call__(self, env, start_response):
         if 'HTTP_AUTHORIZATION' in env:
@@ -84,6 +85,10 @@ class Swift3TestCase(unittest.TestCase):
         elem = fromstring(body, 'Error')
         return elem.find('./Code').text
 
+    def _get_error_message(self, body):
+        elem = fromstring(body, 'Error')
+        return elem.find('./Message').text
+
     def _test_method_error(self, method, path, response_class, headers={}):
         if not path.startswith('/'):
             path = '/' + path  # add a missing slash before the path
@@ -102,6 +107,9 @@ class Swift3TestCase(unittest.TestCase):
 
     def get_date_header(self):
         return email.utils.formatdate(time.mktime(datetime.now().timetuple()))
+
+    def get_amz_date_header(self):
+        return datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
 
     def call_app(self, req, app=None, expect_exception=False):
         if app is None:

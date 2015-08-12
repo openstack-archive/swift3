@@ -249,8 +249,8 @@ class TestRequest(Swift3TestCase):
             m_swift_resp.return_value = FakeSwiftResponse()
             s3_req = S3AclRequest(req.environ, MagicMock())
             sw_req = s3_req.to_swift_req(method, container, obj)
-            self.assertTrue('HTTP_AUTHORIZATION' not in sw_req.environ)
-            self.assertTrue('Authorization' not in sw_req.headers)
+            self.assertNotIn('HTTP_AUTHORIZATION', sw_req.environ)
+            self.assertNotIn('Authorization', sw_req.headers)
             self.assertEquals(sw_req.headers['X-Auth-Token'], 'token')
 
     def test_to_swift_req_subrequest_proxy_access_log(self):
@@ -354,7 +354,7 @@ class TestRequest(Swift3TestCase):
                                      'x-amz-date': self.get_date_header()})
 
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '404')
+        self.assertEquals(status.split()[0], '403')
         self.assertEquals(body, '')
 
     def test_date_header_with_x_amz_date_expired(self):
@@ -368,7 +368,7 @@ class TestRequest(Swift3TestCase):
                                      'Fri, 01 Apr 2014 12:00:00 GMT'})
 
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '403')
+        self.assertEquals(status.split()[0], '404')
         self.assertEquals(body, '')
 
 if __name__ == '__main__':
