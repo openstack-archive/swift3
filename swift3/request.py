@@ -13,14 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
-import md5
-from urllib import quote, unquote
 import base64
-import email.utils
-from email.header import Header
+import collections
 import datetime
+from email.header import Header
+import email.utils
+from hashlib import sha256
+import md5
+import os.path
+import re
+import six
 import string
+from urllib import quote, unquote
+from urlparse import urlsplit
 
 from swift.common.utils import split_path
 from swift.common import swob
@@ -45,7 +50,8 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
-    MalformedXML, InvalidRequest, RequestTimeout, InvalidBucketName, BadDigest
+    MalformedXML, InvalidRequest, RequestTimeout, InvalidBucketName, \
+    BadDigest, AuthorizationHeaderMalformed
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.utils import utf8encode, LOGGER, check_path_header
 from swift3.cfg import CONF
@@ -53,6 +59,7 @@ from swift3.subresource import decode_acl, encode_acl
 from swift3.utils import sysmeta_header, validate_bucket_name
 from swift3.acl_utils import handle_acl_header
 from swift3.acl_handlers import get_acl_handler
+
 
 # List of sub-resources that must be maintained as part of the HMAC
 # signature string.
@@ -66,6 +73,7 @@ ALLOWED_SUB_RESOURCES = sorted([
 ])
 
 MAX_32BIT_INT = 2147483647
+SIGV4_TIMESTAMP = '%Y%m%dT%H%M%SZ'
 
 
 def _header_acl_property(resource):
@@ -97,15 +105,22 @@ class Request(swob.Request):
     def __init__(self, env, slo_enabled=True):
         swob.Request.__init__(self, env)
 
-        self.access_key = self._parse_authorization()
+        self.access_key, is_v4_request = self._get_access()
+        signature = self._get_signature()
+
         self.bucket_in_host = self._parse_host()
         self.container_name, self.object_name = self._parse_uri()
         self._validate_headers()
-        self.token = base64.urlsafe_b64encode(self._canonical_string())
+        self.token = base64.urlsafe_b64encode(
+            self._string_to_sign(is_v4_request))
         self.account = None
         self.user_id = None
         self.slo_enabled = slo_enabled
 
+        # NOTE(andrey-mp): substitute authorization header for next modules
+        # in pipeline (s3token). it uses this and X-Auth-Token in specific
+        # format.
+        self.auth_header = 'AWS %s:%s' % (self.access_key, signature)
         # Avoids that swift.swob.Response replaces Location header value
         # by full URL when absolute path given. See swift.swob for more detail.
         self.environ['swift.leave_relative_location'] = True
@@ -134,49 +149,97 @@ class Request(swob.Request):
         return None
 
     def _parse_uri(self):
-        if not check_utf8(self.environ['PATH_INFO']):
+        path_info = self.environ['PATH_INFO']
+        path_info = os.path.normpath(unquote(path_info))
+        if not check_utf8(path_info):
             raise InvalidURI(self.path)
 
         if self.bucket_in_host:
-            obj = self.environ['PATH_INFO'][1:] or None
+            obj = path_info[1:] or None
             return self.bucket_in_host, obj
 
-        bucket, obj = self.split_path(0, 2, True)
+        bucket, obj = split_path(
+            self.environ.get('SCRIPT_NAME', '') + path_info,
+            0, 2, True)
 
         if bucket and not validate_bucket_name(bucket):
             # Ignore GET service case
             raise InvalidBucketName(bucket)
         return (bucket, obj)
 
-    def _parse_authorization(self):
+    def _get_access(self):
+        """Extract the access key identifier.
+
+        For version 0/1/2/3 this is passed as the AccessKeyId parameter, for
+        version 4 it is either an X-Amz-Credential parameter or a Credential=
+        field in the 'Authorization' header string.
+        Returns tuple with access_key and boolen that equals to True if
+        this is version 4 request
+        """
         if 'AWSAccessKeyId' in self.params:
-            try:
-                self.headers['Date'] = self.params['Expires']
-                self.headers['Authorization'] = \
-                    'AWS %(AWSAccessKeyId)s:%(Signature)s' % self.params
-            except KeyError:
+            access = self.params['AWSAccessKeyId']
+            if not access:
                 raise AccessDenied()
+            return access, False
+
+        if 'X-Amz-Credential' in self.params:
+            if self.params.get('X-Amz-Algorithm') != 'AWS4-HMAC-SHA256':
+                raise InvalidArgument('X-Amz-Algorithm',
+                                      self.params.get('X-Amz-Algorithm'))
+            cred_param = self.params['X-Amz-Credential']
+            if cred_param and '/' in cred_param:
+                access = cred_param.split("/")[0]
+                if access:
+                    return access, True
+            raise AccessDenied()
 
         if 'Authorization' not in self.headers:
             raise NotS3Request()
 
-        try:
-            keyword, info = self.headers['Authorization'].split(' ', 1)
-        except Exception:
+        auth_str = self.headers['Authorization']
+        if auth_str.startswith('AWS4-HMAC-SHA256 '):
+            # This means that we recieve V4 signature headers
+            cred_str = auth_str.partition("Credential=")[2].split(',')[0]
+            access = cred_str.split("/")[0]
+            if not access:
+                raise AccessDenied()
+            return access, True
+        if auth_str.startswith('AWS '):
+            # This means signature format V2
+            return auth_str.split(' ', 1)[1].rsplit(':', 1)[0], False
+
+        raise AccessDenied()
+
+    def _get_signature(self):
+        """Extract the signature from the request.
+
+        This can be a get/post variable or for version 4 also in a header
+        called 'Authorization'.
+        - params['Signature'] == version 0,1,2,3
+        - params['X-Amz-Signature'] == version 4
+        - header 'Authorization' == version 4
+        """
+        sig = (self.params.get('Signature')
+               or self.params.get('X-Amz-Signature'))
+        if sig is not None:
+            return sig
+
+        if 'Authorization' not in self.headers:
             raise AccessDenied()
 
-        if keyword != 'AWS':
-            raise NotS3Request()
-
         try:
-            access_key = info.rsplit(':', 1)[0]
-        except Exception:
-            err_msg = 'AWS authorization header is invalid.  ' \
-                'Expected AwsAccessKeyId:signature'
-            raise InvalidArgument('Authorization',
-                                  self.headers['Authorization'], err_msg)
+            auth_str = self.headers['Authorization']
+            if auth_str.startswith('AWS4-HMAC-SHA256 '):
+                signature = auth_str.partition("Signature=")[2].split(',')[0]
+                if not signature:
+                    raise AccessDenied()
+                return signature
+            if auth_str.startswith('AWS '):
+                return auth_str.split(' ', 1)[1].rsplit(':', 1)[1]
+        except IndexError:
+            raise InvalidArgument('Authorization', auth_str)
 
-        return access_key
+        raise AccessDenied()
 
     def _validate_headers(self):
         if 'CONTENT_LENGTH' in self.environ:
@@ -188,40 +251,55 @@ class Request(swob.Request):
                 raise InvalidArgument('Content-Length',
                                       self.environ['CONTENT_LENGTH'])
 
-        date_header = self.headers.get('x-amz-date',
-                                       self.headers.get('Date', None))
-        if date_header:
-            now = datetime.datetime.utcnow()
-            date = email.utils.parsedate(date_header)
-            if 'Expires' in self.params:
-                try:
-                    d = email.utils.formatdate(float(self.params['Expires']))
-                except ValueError:
-                    raise AccessDenied()
-
-                # check expiration
-                expdate = email.utils.parsedate(d)
-                ex = datetime.datetime(*expdate[0:6])
-                if now > ex:
-                    raise AccessDenied('Request has expired')
-            elif date is not None:
-                epoch = datetime.datetime(1970, 1, 1, 0, 0, 0, 0)
-
-                d1 = datetime.datetime(*date[0:6])
-                if d1 < epoch:
-                    raise AccessDenied()
-
-                # If the standard date is too far ahead or behind, it is an
-                # error
-                delta = datetime.timedelta(seconds=60 * 5)
-                if abs(d1 - now) > delta:
-                    raise RequestTimeTooSkewed()
-            else:
-                raise AccessDenied('AWS authentication requires a valid Date '
-                                   'or x-amz-date header')
-        else:
+        date_header = self.headers.get('Date')
+        amz_date_header = self.headers.get('x-amz-date')
+        if not date_header and not amz_date_header:
             raise AccessDenied('AWS authentication requires a valid Date '
                                'or x-amz-date header')
+
+        # NOTE(andrey-mp): Date in Signature V4 has different format
+        try:
+            if amz_date_header:
+                amz_date = datetime.datetime.strptime(amz_date_header,
+                                                      SIGV4_TIMESTAMP)
+        except ValueError:
+            amz_date = None
+
+        now = datetime.datetime.utcnow()
+        if 'Expires' in self.params:
+            try:
+                d = email.utils.formatdate(float(self.params['Expires']))
+            except ValueError:
+                raise AccessDenied()
+
+            # check expiration
+            expdate = email.utils.parsedate(d)
+            ex = datetime.datetime(*expdate[0:6])
+            if now > ex:
+                raise AccessDenied('Request has expired')
+        elif 'X-Amz-Expires' in self.params:
+            if amz_date is None:
+                raise AccessDenied('AWS authentication requires a valid '
+                                   'x-amz-date header')
+            expires = self.params['X-Amz-Expires']
+            if amz_date + datetime.timedelta(seconds=int(expires)) < now:
+                raise RequestTimeTooSkewed()
+        else:
+            date = email.utils.parsedate(date_header)
+            date = amz_date if not date else datetime.datetime(*date[0:6])
+            if date is None:
+                raise AccessDenied('AWS authentication requires a valid Date '
+                                   'or x-amz-date header')
+
+            epoch = datetime.datetime(1970, 1, 1, 0, 0, 0, 0)
+            if date < epoch:
+                raise AccessDenied()
+
+            # If the standard date is too far ahead or behind, it is an
+            # error
+            delta = datetime.timedelta(seconds=60 * 5)
+            if abs(date - now) > delta:
+                raise RequestTimeTooSkewed()
 
         if 'Content-MD5' in self.headers:
             value = self.headers['Content-MD5']
@@ -358,15 +436,21 @@ class Request(swob.Request):
                                          "attributes.")
 
     def _canonical_uri(self):
-        raw_path_info = self.environ.get('RAW_PATH_INFO', self.path)
+        raw_path_info = self.environ.get('RAW_PATH_INFO', self.path_info)
         if self.bucket_in_host:
             raw_path_info = '/' + self.bucket_in_host + raw_path_info
         return raw_path_info
 
-    def _canonical_string(self):
+    def _string_to_sign(self, is_v4_request):
         """
-        Canonicalize a request to a token that can be signed.
+        Create 'StringToSign' value in Amazon terminology.
         """
+        if is_v4_request:
+            return self._string_to_sign_v4()
+
+        return self._string_to_sign_v2()
+
+    def _string_to_sign_v2(self):
         amz_headers = {}
 
         buf = "%s\n%s\n%s\n" % (self.method,
@@ -398,6 +482,125 @@ class Request(swob.Request):
                 return '%s%s?%s' % (buf, path, '&'.join(params))
 
         return buf + path
+
+    def _string_to_sign_v4(self):
+        timestamp = self.headers.get('X-Amz-Date',
+                                     self.params.get('X-Amz-Date'))
+        scope = (timestamp.split('T')[0] +
+                 '/' + CONF.location + '/s3/aws4_request')
+
+        # prepare 'canonical_request'
+        cr = [self.method.upper()]
+        path = self._canonical_uri()
+        new_path = os.path.normpath('///' + unquote(path))
+        if path.endswith('/') and len(new_path) > 1:
+            new_path += '/'
+        cr.append(quote(new_path))
+        cr.append(self._canonical_query_string())
+        headers_to_sign = self._headers_to_sign()
+        cr.append(self._canonical_headers(headers_to_sign) + '\n')
+        cr.append(self._signed_headers(headers_to_sign))
+        if 'X-Amz-Credential' in self.params:
+            # V4 with query parameters only
+            payload = 'UNSIGNED-PAYLOAD'
+        elif 'X-Amz-Content-SHA256' not in self.headers:
+            msg = 'Missing required header for this request: ' \
+                  'x-amz-content-sha256'
+            raise InvalidRequest(msg)
+        else:
+            payload = self.headers['X-Amz-Content-SHA256']
+        cr.append(payload)
+        canonical_request = '\n'.join(cr)
+
+        return ('AWS4-HMAC-SHA256' + '\n'
+                + timestamp + '\n'
+                + scope + '\n'
+                + sha256(canonical_request.encode('utf-8')).hexdigest())
+
+    def _canonical_query_string(self):
+        # The query string can come from two parts.  One is the
+        # params attribute of the request.  The other is from the request
+        # url (in which case we have to re-split the url into its components
+        # and parse out the query string component).
+        if self.params:
+            return self._canonical_query_string_params(self.params)
+        else:
+            return self._canonical_query_string_url(urlsplit(self.url))
+
+    def _canonical_query_string_params(self, params):
+        return '&'.join(
+            '%s=%s' % (quote(key, safe='-_.~'),
+                       quote(value, safe='-_.~'))
+            for key, value in sorted(params.items()))
+
+    def _canonical_query_string_url(self, parts):
+        canonical_query_string = ''
+        if parts.query:
+            # [(key, value), (key2, value2)]
+            key_val_pairs = []
+            for pair in parts.query.split('&'):
+                key, _, value = pair.partition('=')
+                key_val_pairs.append((key, value))
+            # Sort by the key names, and in the case of
+            # repeated keys, then sort by the value.
+            canonical_query_string = '&'.join(
+                '%s=%s' % (key, value)
+                for key, value in sorted(key_val_pairs))
+        return canonical_query_string
+
+    def _headers_to_sign(self):
+        """
+        Select the headers from the request that need to be included
+        in the StringToSign.
+        """
+        sh_str = None
+        auth_str = self.headers.get('Authorization')
+        if auth_str and auth_str.startswith('AWS4-HMAC-SHA256 '):
+            sh_str = auth_str.partition("SignedHeaders=")[2].split(',')[0]
+        else:
+            sh_str = self.params.get('X-Amz-SignedHeaders')
+        if not sh_str:
+            raise AuthorizationHeaderMalformed()
+        headers_lower = dict((k.lower().strip(), ' '.join(v.strip().split()))
+                             for (k, v) in six.iteritems(self.headers)
+                             if v)
+
+        # Boto versions < 2.9.3 strip the port component of the host:port
+        # header, so detect the user-agent via the header and strip the
+        # port if we detect an old boto version.  FIXME: remove when all
+        # distros package boto >= 2.9.3, this is a transitional workaround
+        user_agent = headers_lower.get('user-agent', '')
+        strip_port = re.match('Boto/2.[0-9].[0-2]', user_agent)
+
+        header_map = collections.defaultdict(list)
+        for h in sh_str.split(';'):
+            if h not in headers_lower:
+                continue
+            if h == 'host' and strip_port:
+                header_map[h].append(headers_lower[h].split(':')[0])
+                continue
+            header_map[h].append(headers_lower[h])
+        return header_map
+
+    def _canonical_headers(self, headers_to_sign):
+        """
+        Return the headers that need to be included in the StringToSign
+        in their canonical form by converting all header keys to lower
+        case, sorting them in alphabetical order and then joining
+        them into a string, separated by newlines.
+        """
+        headers = []
+        sorted_header_names = sorted(set(headers_to_sign))
+        for key in sorted_header_names:
+            value = ','.join(str(v).strip() for v in
+                             sorted(headers_to_sign.get(key)))
+            headers.append('%s:%s' % (key, value))
+        return '\n'.join(headers)
+
+    def _signed_headers(self, headers_to_sign):
+        return ';'.join(sorted(
+            n.lower().strip()
+            for n in headers_to_sign))
 
     @property
     def controller_name(self):
@@ -491,6 +694,8 @@ class Request(swob.Request):
             env['REQUEST_METHOD'] = method
 
         env['HTTP_X_AUTH_TOKEN'] = self.token
+        if self.auth_header:
+            env['HTTP_AUTHORIZATION'] = self.auth_header
 
         if obj:
             path = '/v1/%s/%s/%s' % (account, container, obj)
@@ -815,6 +1020,7 @@ class S3AclRequest(Request):
             # Need to skip S3 authorization since authtoken middleware
             # overwrites account in PATH_INFO
             del self.headers['Authorization']
+            self.auth_header = None
         else:
             # tempauth
             self.user_id = self.access_key
