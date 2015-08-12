@@ -146,33 +146,71 @@ class Request(swob.Request):
             raise InvalidBucketName(bucket)
         return (bucket, obj)
 
+    def _get_access(self, req):
+        """Extract the access key identifier.
+
+        For version 0/1/2/3 this is passed as the AccessKeyId parameter, for
+        version 4 it is either an X-Amz-Credential parameter or a Credential=
+        field in the 'Authorization' header string.
+        """
+        access = self.params.get('AWSAccessKeyId')
+        if access is not None:
+            return access
+
+        cred_param = req.params.get('X-Amz-Credential')
+        if cred_param:
+            access = cred_param.split("/")[0]
+            if access is not None:
+                return access
+
+        if 'Authorization' not in req.headers:
+            return None
+        auth_str = req.headers['Authorization']
+        if not auth_str.startswith('AWS4-HMAC-SHA256'):
+            return None
+        cred_str = auth_str.partition("Credential=")[2].split(',')[0]
+        return cred_str.split("/")[0]
+
+    def _get_signature(self, req):
+        """Extract the signature from the request.
+
+        This can be a get/post variable or for version 4 also in a header
+        called 'Authorization'.
+        - params['Signature'] == version 0,1,2,3
+        - params['X-Amz-Signature'] == version 4
+        - header 'Authorization' == version 4
+        """
+        sig = req.params.get('Signature') or req.params.get('X-Amz-Signature')
+        if sig is not None:
+            return sig
+
+        if 'Authorization' not in req.headers:
+            return None
+
+        auth_str = req.headers['Authorization']
+        if not auth_str.startswith('AWS4-HMAC-SHA256'):
+            return None
+
+        return auth_str.partition("Signature=")[2].split(',')[0]
+
     def _parse_authorization(self):
-        if 'AWSAccessKeyId' in self.params:
-            try:
-                self.headers['Date'] = self.params['Expires']
-                self.headers['Authorization'] = \
-                    'AWS %(AWSAccessKeyId)s:%(Signature)s' % self.params
-            except KeyError:
-                raise AccessDenied()
-
-        if 'Authorization' not in self.headers:
+        access = self._get_access(req)
+        if not access:
             raise NotS3Request()
-
-        try:
-            keyword, info = self.headers['Authorization'].split(' ', 1)
-        except Exception:
+        signature = self._get_signature(req)
+        if not signature:
             raise AccessDenied()
 
-        if keyword != 'AWS':
-            raise NotS3Request()
+        if ('X-Amz-Signature' not in req.params 
+                and 'Authorization' not in req.headers):
+            # Not part of authentication args
+            self.params.pop('Signature', None)
 
-        try:
-            access_key = info.rsplit(':', 1)[0]
-        except Exception:
-            err_msg = 'AWS authorization header is invalid.  ' \
-                'Expected AwsAccessKeyId:signature'
-            raise InvalidArgument('Authorization',
-                                  self.headers['Authorization'], err_msg)
+        expires = self.params.get('Expires')
+        if expires:
+            self.headers['Date'] = expires
+
+        self.headers['Authorization'] = 'AWS %s:%s' % (access_key, signature)
 
         return access_key
 

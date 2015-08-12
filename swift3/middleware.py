@@ -100,6 +100,7 @@ class Swift3Middleware(object):
         LOGGER.debug(req.__dict__)
 
         controller = req.controller(self.app)
+        LOGGER.debug(str(controller))
         if hasattr(controller, req.method):
             res = getattr(controller, req.method)(req)
         else:
