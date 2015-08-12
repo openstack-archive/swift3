@@ -223,6 +223,13 @@ class AmbiguousGrantByEmailAddress(ErrorResponse):
            'one account.'
 
 
+class AuthorizationHeaderMalformed(ErrorResponse):
+    _status = '400 Bad Request'
+    _msg = 'The authorization header is malformed; the authorization ' \
+           'header requires three components: Credential, SignedHeaders, ' \
+           'and Signature.'
+
+
 class BadDigest(ErrorResponse):
     _status = '400 Bad Request'
     _msg = 'The Content-MD5 you specified did not match what we received.'
