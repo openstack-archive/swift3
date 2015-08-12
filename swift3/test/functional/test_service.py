@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import unittest
+import os
 
 from swift3.test.functional.s3_test_client import Connection
 from swift3.test.functional.utils import get_error_code
@@ -70,6 +71,19 @@ class TestSwift3Service(Swift3FunctionalTestCase):
         self.assertEqual(get_error_code(body), 'AccessDenied')
         self.assertIn('AWS authentication requires a valid Date '
                       'or x-amz-date header', body)
+
+
+@unittest.skipIf(os.environ['AUTH'] == 'tempauth',
+                 'v4 is supported only in keystone')
+class TestSwift3ServiceSigV4(TestSwift3Service):
+    @classmethod
+    def setUpClass(cls):
+        os.environ['S3_USE_SIGV4'] = "True"
+
+    @classmethod
+    def tearDownClass(cls):
+        del os.environ['S3_USE_SIGV4']
+
 
 if __name__ == '__main__':
     unittest.main()
