@@ -14,13 +14,20 @@
 # limitations under the License.
 
 import unittest
+import os
+import boto
+
+# For an issue with venv and distutils, disable pylint message here
+# pylint: disable-msg=E0611,F0401
+from distutils.version import StrictVersion
+
 from hashlib import md5
 from itertools import izip
 
 from swift3.test.functional.utils import get_error_code, get_error_msg
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.test.functional import Swift3FunctionalTestCase
-from swift3.test.functional.utils import mktime
+from swift3.utils import mktime
 from swift3.test.functional.s3_test_client import Connection
 
 MIN_SEGMENT_SIZE = 5242880
@@ -572,6 +579,22 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
             self.conn.make_request('POST', bucket, key, body=xml,
                                    query=query)
         self.assertEquals(status, 200)
+
+
+@unittest.skipIf(os.environ['AUTH'] == 'tempauth',
+                 'v4 is supported only in keystone')
+class TestSwift3MultiUploadSigV4(TestSwift3MultiUpload):
+    @classmethod
+    def setUpClass(cls):
+        os.environ['S3_USE_SIGV4'] = "True"
+
+    @classmethod
+    def tearDownClass(cls):
+        del os.environ['S3_USE_SIGV4']
+
+    def test_object_multi_upload(self):
+        if StrictVersion(boto.__version__) < StrictVersion('3.0'):
+            self.skipTest('This stuff got the issue of boto<=2.x')
 
 
 if __name__ == '__main__':

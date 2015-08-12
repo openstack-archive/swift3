@@ -18,8 +18,8 @@ import uuid
 import base64
 import time
 
-
 from swift.common.utils import get_logger
+import email.utils
 
 # Need for check_path_header
 from swift.common import utils
@@ -143,6 +143,41 @@ class S3Timestamp(utils.Timestamp):
     def s3xmlformat(self):
         return self.isoformat[:-7] + '.000Z'
 
+    @property
+    def amz_date_format(self):
+        """
+        this format should be like 'YYYYMMDDThhmmss'
+        """
+        return self.isoformat.replace(
+            '-', '').replace(':', '')[:-7] + 'Z'
+
     @classmethod
     def now(cls):
         return cls(time.time())
+
+
+def mktime(timestamp_str, time_format='%Y-%m-%dT%H:%M:%S'):
+    """
+    mktime creates a float instance in epoch time really like as time.mktime
+
+    the difference from time.mktime is allowing to 2 formats string for the
+    argumtent for the S3 testing usage.
+    TODO: support
+
+    :param timestamp_str: a string of timestamp formatted as
+                          (a) RFC2822 (e.g. date header)
+                          (b) %Y-%m-%dT%H:%M:%S (e.g. copy result)
+    :param time_format: a string of format to parase in (b) process
+    :return : a float instance in epoch time
+    """
+    try:
+        epoch_time = email.utils.mktime_tz(
+            email.utils.parsedate_tz(timestamp_str))
+    except TypeError:
+        time_list = list(time.strptime(timestamp_str, time_format))
+
+        # add timezone info as utc (no time difference)
+        time_list.append(0)
+        epoch_time = email.utils.mktime_tz(tuple(time_list))
+
+    return epoch_time
