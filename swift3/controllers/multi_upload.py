@@ -604,6 +604,15 @@ class UploadController(Controller):
         req.get_response(self.app, 'DELETE', container, obj)
 
         result_elem = Element('CompleteMultipartUploadResult')
+
+        # NOTE: boto with sig v4 appends port to HTTP_HOST value at the
+        # request header when the port is non default value and it makes
+        # req.host_url like as http://localhost:8080:8080/path
+        # that obviously invalid.
+        # in detail, https://github.com/boto/boto/pull/3513
+        host_url = req.host_url
+        if host_url.count(':') > 1:
+            host_url = host_url.split(':')[0]
         SubElement(result_elem, 'Location').text = req.host_url + req.path
         SubElement(result_elem, 'Bucket').text = req.container_name
         SubElement(result_elem, 'Key').text = req.object_name

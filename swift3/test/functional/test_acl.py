@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import unittest
+import os
 
 from swift3.test.functional import Swift3FunctionalTestCase
 from swift3.test.functional.s3_test_client import Connection, \
@@ -123,6 +124,19 @@ class TestSwift3Acl(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn2.make_request('GET', self.bucket, self.obj, query='acl')
         self.assertEquals(get_error_code(body), 'AccessDenied')
+
+
+@unittest.skipIf(os.environ['AUTH'] == 'tempauth',
+                 'v4 is supported only in keystone')
+class TestSwift3AclSigV4(TestSwift3Acl):
+    @classmethod
+    def setUpClass(cls):
+        os.environ['S3_USE_SIGV4'] = "True"
+
+    @classmethod
+    def tearDownClass(cls):
+        del os.environ['S3_USE_SIGV4']
+
 
 if __name__ == '__main__':
     unittest.main()
