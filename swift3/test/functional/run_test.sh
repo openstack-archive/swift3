@@ -112,7 +112,8 @@ nosetests -v ./
 rvalue=$?
 
 # cleanup
-kill -HUP $proxy_pid $account_pid $container_pid $object_pid $keystone_pid
+kill -HUP $proxy_pid $account_pid $container_pid $object_pid
+kill -TERM $keystone_pid
 
 # show report
 sleep 3

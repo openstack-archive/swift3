@@ -14,13 +14,20 @@
 # limitations under the License.
 
 import unittest
+import os
+import boto
+
+# For an issue with venv and distutils, disable pylint message here
+# pylint: disable-msg=E0611,F0401
+from distutils.version import StrictVersion
+
 from hashlib import md5
 from itertools import izip
 
 from swift3.test.functional.utils import get_error_code, get_error_msg
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.test.functional import Swift3FunctionalTestCase
-from swift3.test.functional.utils import mktime
+from swift3.utils import mktime
 from swift3.test.functional.s3_test_client import Connection
 
 MIN_SEGMENT_SIZE = 5242880
@@ -182,39 +189,8 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         self.assertTrue('etag' not in headers)
         elem = fromstring(body, 'CopyPartResult')
 
-        last_modified_1 = elem.find('LastModified').text
-        self.assertTrue(last_modified_1 is not None)
-
-        self.assertEquals(resp_etag, etag)
-
-        # Upload Part Copy Range
-        key, upload_id = uploads[1]
-        src_bucket = 'bucket2'
-        src_obj = 'obj4'
-        src_content = 'y' * (MIN_SEGMENT_SIZE / 2) + 'z' * MIN_SEGMENT_SIZE
-        src_range = 'bytes=0-%d' % (MIN_SEGMENT_SIZE - 1)
-        etag = md5(src_content[:MIN_SEGMENT_SIZE]).hexdigest()
-
-        # prepare src obj
-        self.conn.make_request('PUT', src_bucket)
-        self.conn.make_request('PUT', src_bucket, src_obj, body=src_content)
-        _, headers, _ = self.conn.make_request('HEAD', src_bucket, src_obj)
-        self.assertCommonResponseHeaders(headers)
-
-        status, headers, body, resp_etag = \
-            self._upload_part_copy(src_bucket, src_obj, bucket,
-                                   key, upload_id, 2, src_range)
-        self.assertEquals(status, 200)
-        self.assertCommonResponseHeaders(headers)
-        self.assertTrue('content-type' in headers)
-        self.assertEquals(headers['content-type'], 'application/xml')
-        self.assertTrue('content-length' in headers)
-        self.assertEquals(headers['content-length'], str(len(body)))
-        self.assertTrue('etag' not in headers)
-        elem = fromstring(body, 'CopyPartResult')
-
-        last_modified_2 = elem.find('LastModified').text
-        self.assertTrue(last_modified_2 is not None)
+        last_modified = elem.find('LastModified').text
+        self.assertTrue(last_modified is not None)
 
         self.assertEquals(resp_etag, etag)
 
@@ -231,14 +207,10 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
                               for p in elem.iterfind('Part')]
         self.assertEquals(
             last_modified_gets[0].rsplit('.', 1)[0],
-            last_modified_1.rsplit('.', 1)[0],
-            '%r != %r' % (last_modified_gets[0], last_modified_1))
-        self.assertEquals(
-            last_modified_gets[1].rsplit('.', 1)[0],
-            last_modified_2.rsplit('.', 1)[0],
-            '%r != %r' % (last_modified_gets[1], last_modified_2))
+            last_modified.rsplit('.', 1)[0],
+            '%r != %r' % (last_modified_gets[0], last_modified))
         # There should be *exactly* two parts in the result
-        self.assertEqual([], last_modified_gets[2:])
+        self.assertEqual(1, len(last_modified_gets))
 
         # List Parts
         key, upload_id = uploads[0]
@@ -572,6 +544,114 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
             self.conn.make_request('POST', bucket, key, body=xml,
                                    query=query)
         self.assertEquals(status, 200)
+
+    def test_object_multi_upload_part_copy_range(self):
+        bucket = 'bucket'
+        keys = ['obj1']
+        uploads = []
+
+        results_generator = self._initiate_multi_uploads_result_generator(
+            bucket, keys)
+
+        # Initiate Multipart Upload
+        for expected_key, (status, headers, body) in \
+                izip(keys, results_generator):
+            self.assertEquals(status, 200)
+            self.assertCommonResponseHeaders(headers)
+            self.assertTrue('content-type' in headers)
+            self.assertEquals(headers['content-type'], 'application/xml')
+            self.assertTrue('content-length' in headers)
+            self.assertEquals(headers['content-length'], str(len(body)))
+            elem = fromstring(body, 'InitiateMultipartUploadResult')
+            self.assertEquals(elem.find('Bucket').text, bucket)
+            key = elem.find('Key').text
+            self.assertEquals(expected_key, key)
+            upload_id = elem.find('UploadId').text
+            self.assertTrue(upload_id is not None)
+            self.assertTrue((key, upload_id) not in uploads)
+            uploads.append((key, upload_id))
+
+        self.assertEquals(len(uploads), len(keys))  # sanity
+
+        # Upload Part Copy Range
+        key, upload_id = uploads[0]
+        src_bucket = 'bucket2'
+        src_obj = 'obj4'
+        src_content = 'y' * (MIN_SEGMENT_SIZE / 2) + 'z' * MIN_SEGMENT_SIZE
+        src_range = 'bytes=0-%d' % (MIN_SEGMENT_SIZE - 1)
+        etag = md5(src_content[:MIN_SEGMENT_SIZE]).hexdigest()
+
+        # prepare src obj
+        self.conn.make_request('PUT', src_bucket)
+        self.conn.make_request('PUT', src_bucket, src_obj, body=src_content)
+        _, headers, _ = self.conn.make_request('HEAD', src_bucket, src_obj)
+        self.assertCommonResponseHeaders(headers)
+
+        status, headers, body, resp_etag = \
+            self._upload_part_copy(src_bucket, src_obj, bucket,
+                                   key, upload_id, 1, src_range)
+        self.assertEquals(status, 200)
+        self.assertCommonResponseHeaders(headers)
+        self.assertTrue('content-type' in headers)
+        self.assertEquals(headers['content-type'], 'application/xml')
+        self.assertTrue('content-length' in headers)
+        self.assertEquals(headers['content-length'], str(len(body)))
+        self.assertTrue('etag' not in headers)
+        elem = fromstring(body, 'CopyPartResult')
+
+        last_modified = elem.find('LastModified').text
+        self.assertTrue(last_modified is not None)
+
+        self.assertEquals(resp_etag, etag)
+
+        # Check last-modified timestamp
+        key, upload_id = uploads[0]
+        query = 'uploadId=%s' % upload_id
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, key, query=query)
+
+        elem = fromstring(body, 'ListPartsResult')
+
+        # FIXME: COPY result drops mili/microseconds but GET doesn't
+        last_modified_gets = [p.find('LastModified').text
+                              for p in elem.iterfind('Part')]
+        self.assertEquals(
+            last_modified_gets[0].rsplit('.', 1)[0],
+            last_modified.rsplit('.', 1)[0],
+            '%r != %r' % (last_modified_gets[0], last_modified))
+
+        # There should be *exactly* one parts in the result
+        self.assertEqual(1, len(last_modified_gets))
+
+        # Abort Multipart Upload
+        key, upload_id = uploads[0]
+        query = 'uploadId=%s' % upload_id
+        status, headers, body = \
+            self.conn.make_request('DELETE', bucket, key, query=query)
+
+        # sanities
+        self.assertEquals(status, 204)
+        self.assertCommonResponseHeaders(headers)
+        self.assertTrue('content-type' in headers)
+        self.assertEquals(headers['content-type'], 'text/html; charset=UTF-8')
+        self.assertTrue('content-length' in headers)
+        self.assertEquals(headers['content-length'], '0')
+
+
+@unittest.skipIf(os.environ['AUTH'] == 'tempauth',
+                 'v4 is supported only in keystone')
+class TestSwift3MultiUploadSigV4(TestSwift3MultiUpload):
+    @classmethod
+    def setUpClass(cls):
+        os.environ['S3_USE_SIGV4'] = "True"
+
+    @classmethod
+    def tearDownClass(cls):
+        del os.environ['S3_USE_SIGV4']
+
+    def test_object_multi_upload_part_copy_range(self):
+        if StrictVersion(boto.__version__) < StrictVersion('3.0'):
+            self.skipTest('This stuff got the issue of boto<=2.x')
 
     def test_delete_bucket_multi_upload_object_exisiting(self):
         bucket = 'bucket'
