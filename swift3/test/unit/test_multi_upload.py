@@ -1112,7 +1112,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
                             head_resp, src_o_headers, None)
         put_header = put_header or {}
         put_headers = {'Authorization': 'AWS %s:hmac' % account,
-                       'Date': self.get_date_header(),
+                       'Date': self.get_date_header(1396353600.000000),
                        'X-Amz-Copy-Source': src_path}
         put_headers.update(put_header)
         req = Request.blank(
