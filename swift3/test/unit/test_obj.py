@@ -28,6 +28,7 @@ from swift3.test.unit import Swift3TestCase
 from swift3.test.unit.test_s3_acl import s3acl
 from swift3.subresource import ACL, User, encode_acl, Owner, Grant
 from swift3.etree import fromstring
+from swift3.utils import mktime, S3Timestamp
 from swift3.test.unit.helpers import FakeSwift
 
 
@@ -288,9 +289,9 @@ class TestSwift3Obj(Swift3TestCase):
 
             self._test_object_GETorHEAD('GET')
             _, _, headers = self.swift.calls_with_headers[-1]
-            self.assertTrue('Authorization' not in headers)
+            self.assertNotIn('Authorization', headers)
             _, _, headers = self.swift.calls_with_headers[0]
-            self.assertTrue('Authorization' not in headers)
+            self.assertNotIn('Authorization', headers)
 
     @s3acl
     def test_object_GET_Range(self):
@@ -466,7 +467,7 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEquals(headers['Content-Length'], '0')
 
     def _test_object_PUT_copy(self, head_resp, put_header=None,
-                              src_path='/some/source'):
+                              src_path='/some/source', timestamp=None):
         account = 'test:tester'
         grants = [Grant(User(account), 'FULL_CONTROL')]
         head_headers = \
@@ -476,9 +477,10 @@ class TestSwift3Obj(Swift3TestCase):
         self.swift.register('HEAD', '/v1/AUTH_test/some/source',
                             head_resp, head_headers, None)
         put_header = put_header or {}
-        return self._call_object_copy(src_path, put_header)
+        return self._call_object_copy(src_path, put_header, timestamp)
 
-    def _test_object_PUT_copy_self(self, head_resp, put_header=None):
+    def _test_object_PUT_copy_self(self, head_resp,
+                                   put_header=None, timestamp=None):
         account = 'test:tester'
         grants = [Grant(User(account), 'FULL_CONTROL')]
         head_headers = \
@@ -488,9 +490,9 @@ class TestSwift3Obj(Swift3TestCase):
         self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
                             head_resp, head_headers, None)
         put_header = put_header or {}
-        return self._call_object_copy('/bucket/object', put_header)
+        return self._call_object_copy('/bucket/object', put_header, timestamp)
 
-    def _call_object_copy(self, src_path, put_header):
+    def _call_object_copy(self, src_path, put_header, timestamp=None):
         put_headers = {'Authorization': 'AWS test:tester:hmac',
                        'X-Amz-Copy-Source': src_path,
                        'Date': self.get_date_header()}
@@ -502,13 +504,18 @@ class TestSwift3Obj(Swift3TestCase):
 
         req.date = datetime.now()
         req.content_type = 'text/plain'
-        with patch('swift3.utils.time.time', return_value=1396353600.000000):
+        timestamp = timestamp or time.time()
+        with patch('swift3.utils.time.time', return_value=timestamp):
             return self.call_swift3(req)
 
     @s3acl
     def test_object_PUT_copy(self):
-        last_modified = '2014-04-01T12:00:00.000Z'
-        status, headers, body = self._test_object_PUT_copy(swob.HTTPOk)
+        date_header = self.get_date_header()
+        timestamp = mktime(date_header)
+        last_modified = S3Timestamp(timestamp).s3xmlformat
+        status, headers, body = self._test_object_PUT_copy(
+            swob.HTTPOk, put_header={'Date': date_header},
+            timestamp=timestamp)
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(headers['Content-Type'], 'application/xml')
         self.assertTrue(headers.get('etag') is None)
@@ -523,11 +530,14 @@ class TestSwift3Obj(Swift3TestCase):
 
     @s3acl
     def test_object_PUT_copy_no_slash(self):
-        last_modified = '2014-04-01T12:00:00.000Z'
+        date_header = self.get_date_header()
+        timestamp = mktime(date_header)
+        last_modified = S3Timestamp(timestamp).s3xmlformat
         # Some clients (like Boto) don't include the leading slash;
         # AWS seems to tolerate this so we should, too
         status, headers, body = self._test_object_PUT_copy(
-            swob.HTTPOk, src_path='some/source')
+            swob.HTTPOk, src_path='some/source',
+            put_header={'Date': date_header}, timestamp=timestamp)
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(headers['Content-Type'], 'application/xml')
         self.assertTrue(headers.get('etag') is None)
@@ -569,10 +579,13 @@ class TestSwift3Obj(Swift3TestCase):
 
     @s3acl
     def test_object_PUT_copy_self_metadata_replace(self):
-        last_modified = '2014-04-01T12:00:00.000Z'
-        header = {'x-amz-metadata-directive': 'REPLACE'}
-        status, headers, body = \
-            self._test_object_PUT_copy_self(swob.HTTPOk, header)
+        date_header = self.get_date_header()
+        timestamp = mktime(date_header)
+        last_modified = S3Timestamp(timestamp).s3xmlformat
+        header = {'x-amz-metadata-directive': 'REPLACE',
+                  'Date': date_header}
+        status, headers, body = self._test_object_PUT_copy_self(
+            swob.HTTPOk, header, timestamp=timestamp)
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(headers['Content-Type'], 'application/xml')
         self.assertTrue(headers.get('etag') is None)
