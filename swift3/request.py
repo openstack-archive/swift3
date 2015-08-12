@@ -95,11 +95,11 @@ class Request(swob.Request):
     def __init__(self, env, slo_enabled=True):
         swob.Request.__init__(self, env)
 
-        self.access_key = self._parse_authorization()
+        self.access_key, self.is_v4_request = self._parse_authorization()
         self.bucket_in_host = self._parse_host()
         self.container_name, self.object_name = self._parse_uri()
         self._validate_headers()
-        self.token = base64.urlsafe_b64encode(self._canonical_string())
+        self.token = base64.urlsafe_b64encode(self._string_to_sign())
         self.account = None
         self.user_id = None
         self.slo_enabled = slo_enabled
@@ -146,35 +146,83 @@ class Request(swob.Request):
             raise InvalidBucketName(bucket)
         return (bucket, obj)
 
-    def _parse_authorization(self):
+    def _get_access(self):
+        """Extract the access key identifier.
+
+        For version 0/1/2/3 this is passed as the AccessKeyId parameter, for
+        version 4 it is either an X-Amz-Credential parameter or a Credential=
+        field in the 'Authorization' header string.
+        Returns tuple with access_key and boolen that equals to True if
+        this is version 4 request
+        """
         if 'AWSAccessKeyId' in self.params:
-            try:
-                self.headers['Date'] = self.params['Expires']
-                self.headers['Authorization'] = \
-                    'AWS %(AWSAccessKeyId)s:%(Signature)s' % self.params
-            except KeyError:
+            access = self.params['AWSAccessKeyId']
+            if not access:
                 raise AccessDenied()
+            return access, False
+
+        if 'X-Amz-Credential' in self.params:
+            cred_param = self.params['X-Amz-Credential']
+            if cred_param:
+                access = cred_param.split("/")[0]
+                if access is not None:
+                    return access, True
+            raise AccessDenied()
 
         if 'Authorization' not in self.headers:
             raise NotS3Request()
 
-        try:
-            keyword, info = self.headers['Authorization'].split(' ', 1)
-        except Exception:
+        auth_str = self.headers['Authorization']
+        if auth_str.startswith('AWS4-HMAC-SHA256 '):
+            cred_str = auth_str.partition("Credential=")[2].split(',')[0]
+            return cred_str.split("/")[0], True
+        if auth_str.startswith('AWS '):
+            cred_str = self.headers['Authorization'].split(' ', 1)[1]
+            return cred_str.rsplit(':', 1)[0], False
+
+        raise AccessDenied()
+
+    def _get_signature(self):
+        """Extract the signature from the request.
+
+        This can be a get/post variable or for version 4 also in a header
+        called 'Authorization'.
+        - params['Signature'] == version 0,1,2,3
+        - params['X-Amz-Signature'] == version 4
+        - header 'Authorization' == version 4
+        """
+        sig = (self.params.get('Signature')
+               or self.params.get('X-Amz-Signature'))
+        if sig is not None:
+            return sig
+
+        if 'Authorization' not in self.headers:
             raise AccessDenied()
 
-        if keyword != 'AWS':
-            raise NotS3Request()
+        auth_str = self.headers['Authorization']
+        if auth_str.startswith('AWS4-HMAC-SHA256 '):
+            return auth_str.partition("Signature=")[2].split(',')[0]
+        if auth_str.startswith('AWS '):
+            cred_str = self.headers['Authorization'].split(' ', 1)[1]
+            return cred_str.rsplit(':', 1)[1]
 
-        try:
-            access_key = info.rsplit(':', 1)[0]
-        except Exception:
-            err_msg = 'AWS authorization header is invalid.  ' \
-                'Expected AwsAccessKeyId:signature'
-            raise InvalidArgument('Authorization',
-                                  self.headers['Authorization'], err_msg)
+        raise AccessDenied()
 
-        return access_key
+    def _parse_authorization(self):
+        access, is_v4_request = self._get_access()
+        signature = self._get_signature()
+        self.headers['Authorization'] = 'AWS %s:%s' % (access, signature)
+
+        if ('X-Amz-Signature' not in self.params
+                and 'Authorization' not in self.headers):
+            # Not part of authentication args
+            self.params.pop('Signature', None)
+
+        expires = self.params.get('Expires')
+        if expires:
+            self.headers['Date'] = expires
+
+        return access, is_v4_request
 
     def _validate_headers(self):
         if 'CONTENT_LENGTH' in self.environ:
@@ -343,10 +391,16 @@ class Request(swob.Request):
             raw_path_info = '/' + self.bucket_in_host + raw_path_info
         return raw_path_info
 
-    def _canonical_string(self):
+    def _string_to_sign(self):
         """
-        Canonicalize a request to a token that can be signed.
+        Create 'StringToSign' value in Amazon terminology.
         """
+        if self.is_v4_request:
+            return self._string_to_sign_v4()
+
+        return self._string_to_sign_v1()
+
+    def _string_to_sign_v1(self):
         amz_headers = {}
 
         buf = "%s\n%s\n%s\n" % (self.method,
@@ -378,6 +432,15 @@ class Request(swob.Request):
                 return '%s%s?%s' % (buf, path, '&'.join(params))
 
         return buf + path
+
+    def _string_to_sign_v4(self):
+        timestamp = self.headers['X-Amz-Date']
+        scope = (timestamp.split('T')[0] +
+            '/' + CONF.location + '/s3/aws4_request')
+        return ('AWS4-HMAC-SHA256' + '\n'
+                + timestamp + '\n'
+                + scope + '\n'
+                + 'Hex(SHA256Hash(<CanonicalRequest>))')
 
     @property
     def controller_name(self):
