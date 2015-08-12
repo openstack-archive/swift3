@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import unittest
+import os
 
 from swift3.test.functional.s3_test_client import Connection
 from swift3.test.functional.utils import get_error_code
@@ -124,7 +125,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
 
     def test_put_bucket_with_LocationConstraint(self):
         bucket = 'bucket'
-        xml = self._gen_location_xml('US')
+        xml = self._gen_location_xml('RegionOne')
         status, headers, body = \
             self.conn.make_request('PUT', bucket, body=xml)
         self.assertEquals(status, 200)
@@ -312,6 +313,19 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
 
         status, headers, body = self.conn.make_request('DELETE', 'bucket')
         self.assertEquals(get_error_code(body), 'NoSuchBucket')
+
+
+@unittest.skipIf(os.environ['AUTH'] == 'tempauth',
+                 'v4 is supported only in keystone')
+class TestSwift3BucketSigV4(TestSwift3Bucket):
+    @classmethod
+    def setUpClass(cls):
+        os.environ['S3_USE_SIGV4'] = "True"
+
+    @classmethod
+    def tearDownClass(cls):
+        del os.environ['S3_USE_SIGV4']
+
 
 if __name__ == '__main__':
     unittest.main()
