@@ -33,17 +33,18 @@ class FakeApp(object):
     def _update_s3_path_info(self, env):
         """
         For S3 requests, Swift auth middleware replaces a user name in
-        env['PATH_INFO'] with a valid tenant id.
-        E.g. '/v1/test:tester/bucket/object' will become
-        '/v1/AUTH_test/bucket/object'.  This method emulates the behavior.
+        env['PATH_INFO'] with a valid access key.
+        E.g. '/v1/access_key:project_id/bucket/object' will become
+        '/v1/AUTH_access_key/bucket/object'. This method emulates the behavior.
+        This behavior depends on nova's 'affix_tenant' config parameter and
+        can be present or not.
         """
         _, authorization = env['HTTP_AUTHORIZATION'].split(' ')
-        tenant_user, sign = authorization.rsplit(':', 1)
-        tenant, user = tenant_user.rsplit(':', 1)
+        access, _ = authorization.rsplit(':', 1)
 
         path = env['PATH_INFO']
-
-        env['PATH_INFO'] = path.replace(tenant_user, 'AUTH_' + tenant)
+        env['PATH_INFO'] = path.replace(access,
+                                        'AUTH_' + access.rsplit(':', 1)[0])
 
     def __call__(self, env, start_response):
         if 'HTTP_AUTHORIZATION' in env:
