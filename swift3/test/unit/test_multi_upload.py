@@ -29,7 +29,7 @@ from swift3.subresource import Owner, Grant, User, ACL, encode_acl, \
     decode_acl, ACLPublicRead
 from swift3.test.unit.test_s3_acl import s3acl
 from swift3.cfg import CONF
-from swift3.utils import sysmeta_header
+from swift3.utils import sysmeta_header, mktime, S3Timestamp
 from swift3.request import MAX_32BIT_INT
 
 xml = '<CompleteMultipartUpload>' \
@@ -1230,7 +1230,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
     def _test_copy_for_s3acl(self, account, src_permission=None,
                              src_path='/src_bucket/src_obj', src_headers=None,
-                             head_resp=swob.HTTPOk, put_header=None):
+                             head_resp=swob.HTTPOk, put_header=None,
+                             timestamp=None):
         owner = 'test:tester'
         grants = [Grant(User(account), src_permission)] \
             if src_permission else [Grant(User(owner), 'FULL_CONTROL')]
@@ -1248,14 +1249,18 @@ class TestSwift3MultiUpload(Swift3TestCase):
             '/bucket/object?partNumber=1&uploadId=X',
             environ={'REQUEST_METHOD': 'PUT'},
             headers=put_headers)
-        with patch('swift3.utils.time.time', return_value=1396353600.592270):
+        timestamp = timestamp or time.time()
+        with patch('swift3.utils.time.time', return_value=timestamp):
             return self.call_swift3(req)
 
     @s3acl
     def test_upload_part_copy(self):
-        last_modified = '2014-04-01T12:00:00.000Z'
-        status, headers, body = \
-            self._test_copy_for_s3acl('test:tester')
+        date_header = self.get_date_header()
+        timestamp = mktime(date_header)
+        last_modified = S3Timestamp(timestamp).s3xmlformat
+        status, headers, body = self._test_copy_for_s3acl(
+            'test:tester', put_header={'Date': date_header},
+            timestamp=timestamp)
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(headers['Content-Type'], 'application/xml')
         self.assertTrue(headers.get('etag') is None)
