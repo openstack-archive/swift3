@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import unittest
+import os
+
 from swift3.test.functional.utils import calculate_md5, get_error_code
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.controllers.multi_delete import MAX_MULTI_DELETE_BODY_SIZE
@@ -215,3 +218,19 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
         elem = fromstring(body, 'DeleteResult')
         resp_objects = elem.findall('Deleted')
         self.assertEquals(len(resp_objects), 1)
+
+
+@unittest.skipIf(os.environ['AUTH'] == 'tempauth',
+                 'v4 is supported only in keystone')
+class TestSwift3MultiDeleteSigV4(TestSwift3MultiDelete):
+    @classmethod
+    def setUpClass(cls):
+        os.environ['S3_USE_SIGV4'] = "True"
+
+    @classmethod
+    def tearDownClass(cls):
+        del os.environ['S3_USE_SIGV4']
+
+
+if __name__ == '__main__':
+    unittest.main()
