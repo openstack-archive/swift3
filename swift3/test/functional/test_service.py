@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import unittest
+import os
 
 from swift3.test.functional.s3_test_client import Connection
 from swift3.test.functional.utils import get_error_code
@@ -61,6 +62,19 @@ class TestSwift3Service(Swift3FunctionalTestCase):
         status, headers, body = auth_error_conn.make_request('GET')
         self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
         self.assertEquals(headers['content-type'], 'application/xml')
+
+
+@unittest.skipIf(os.environ['AUTH'] == 'tempauth',
+                 'v4 is supported only in keystone')
+class TestSwift3ServiceSigV4(TestSwift3Service):
+    @classmethod
+    def setUpClass(cls):
+        os.environ['S3_USE_SIGV4'] = "True"
+
+    @classmethod
+    def tearDownClass(cls):
+        del os.environ['S3_USE_SIGV4']
+
 
 if __name__ == '__main__':
     unittest.main()
