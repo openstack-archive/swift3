@@ -88,7 +88,7 @@ class TestSwift3Middleware(Swift3TestCase):
                 'HTTP_AUTHORIZATION': 'AWS X:Y:Z',
             })
             req.headers.update(headers)
-            return req._canonical_string()
+            return req._string_to_sign()
 
         def verify(hash, path, headers):
             s = canonical_string(path, headers)
