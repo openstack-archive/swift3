@@ -50,6 +50,8 @@ from swift.common.swob import Range
 from swift.common.utils import json
 from swift.common.db import utf8encode
 
+from six.moves.urllib.parse import urlparse
+
 from swift3.controllers.base import Controller, bucket_operation, \
     object_operation, check_container_existence
 from swift3.response import InvalidArgument, ErrorResponse, MalformedXML, \
@@ -604,7 +606,20 @@ class UploadController(Controller):
         req.get_response(self.app, 'DELETE', container, obj)
 
         result_elem = Element('CompleteMultipartUploadResult')
-        SubElement(result_elem, 'Location').text = req.host_url + req.path
+
+        # NOTE: boto with sig v4 appends port to HTTP_HOST value at the
+        # request header when the port is non default value and it makes
+        # req.host_url like as http://localhost:8080:8080/path
+        # that obviously invalid. Probably it should be resolved at
+        # swift.common.swob though, tentatively we are parsing and
+        # reconstructing the correct host_url info here.
+        # in detail, https://github.com/boto/boto/pull/3513
+        parsed_url = urlparse(req.host_url)
+        host_url = '%s://%s' % (parsed_url.scheme, parsed_url.hostname)
+        if parsed_url.port:
+            host_url += ':%s' % parsed_url.port
+
+        SubElement(result_elem, 'Location').text = host_url + req.path
         SubElement(result_elem, 'Bucket').text = req.container_name
         SubElement(result_elem, 'Key').text = req.object_name
         SubElement(result_elem, 'ETag').text = resp.etag

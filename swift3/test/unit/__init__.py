@@ -35,14 +35,13 @@ class FakeApp(object):
         For S3 requests, Swift auth middleware replaces a user name in
         env['PATH_INFO'] with a valid tenant id.
         E.g. '/v1/test:tester/bucket/object' will become
-        '/v1/AUTH_test/bucket/object'.  This method emulates the behavior.
+        '/v1/AUTH_test/bucket/object'. This method emulates the behavior.
         """
         _, authorization = env['HTTP_AUTHORIZATION'].split(' ')
         tenant_user, sign = authorization.rsplit(':', 1)
         tenant, user = tenant_user.rsplit(':', 1)
 
         path = env['PATH_INFO']
-
         env['PATH_INFO'] = path.replace(tenant_user, 'AUTH_' + tenant)
 
     def __call__(self, env, start_response):
@@ -84,6 +83,10 @@ class Swift3TestCase(unittest.TestCase):
         elem = fromstring(body, 'Error')
         return elem.find('./Code').text
 
+    def _get_error_message(self, body):
+        elem = fromstring(body, 'Error')
+        return elem.find('./Message').text
+
     def _test_method_error(self, method, path, response_class, headers={}):
         if not path.startswith('/'):
             path = '/' + path  # add a missing slash before the path
@@ -101,7 +104,11 @@ class Swift3TestCase(unittest.TestCase):
         return self._get_error_code(body)
 
     def get_date_header(self):
-        return email.utils.formatdate(time.mktime(datetime.now().timetuple()))
+        # email.utils.formatdate returns utc timestamp in default
+        return email.utils.formatdate(time.time())
+
+    def get_v4_amz_date_header(self):
+        return datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
 
     def call_app(self, req, app=None, expect_exception=False):
         if app is None:

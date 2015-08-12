@@ -20,12 +20,14 @@ import unittest
 from swift.common import swob
 from swift.common.swob import Request, HTTPNoContent
 
+from swift3.utils import mktime
 from swift3.subresource import ACL, User, Owner, Grant, encode_acl
 from swift3.test.unit.test_middleware import Swift3TestCase
 from swift3.cfg import CONF
 from swift3.request import Request as S3_Request
-from swift3.request import S3AclRequest
-from swift3.response import InvalidArgument, NoSuchBucket, InternalError
+from swift3.request import S3AclRequest, SigV4Request, SIGV4_X_AMZ_DATE_FORMAT
+from swift3.response import InvalidArgument, NoSuchBucket, InternalError, \
+    AccessDenied, SignatureDoesNotMatch
 
 
 Fake_ACL_MAP = {
@@ -249,8 +251,8 @@ class TestRequest(Swift3TestCase):
             m_swift_resp.return_value = FakeSwiftResponse()
             s3_req = S3AclRequest(req.environ, MagicMock())
             sw_req = s3_req.to_swift_req(method, container, obj)
-            self.assertTrue('HTTP_AUTHORIZATION' not in sw_req.environ)
-            self.assertTrue('Authorization' not in sw_req.headers)
+            self.assertNotIn('HTTP_AUTHORIZATION', sw_req.environ)
+            self.assertNotIn('Authorization', sw_req.headers)
             self.assertEquals(sw_req.headers['X-Auth-Token'], 'token')
 
     def test_to_swift_req_subrequest_proxy_access_log(self):
@@ -370,6 +372,181 @@ class TestRequest(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '403')
         self.assertEquals(body, '')
+
+    def _test_request_timestamp_sigv4(self, date_header):
+        # signature v4 here
+        environ = {
+            'REQUEST_METHOD': 'GET'}
+
+        if 'X-Amz-Date' in date_header:
+            included_header = 'x-amz-date'
+        elif 'Date' in date_header:
+            included_header = 'date'
+        else:
+            self.fail('Invalid date header specified as test')
+
+        headers = {
+            'Authorization':
+                'AWS4-HMAC-SHA256 '
+                'Credential=test/20130524/US/s3/aws4_request, '
+                'SignedHeaders=host;%s,'
+                'Signature=X' % included_header,
+            'X-Amz-Content-SHA256': '0123456789'}
+
+        headers.update(date_header)
+        req = Request.blank('/', environ=environ, headers=headers)
+        sigv4_req = SigV4Request(req.environ)
+
+        if 'X-Amz-Date' in date_header:
+            timestamp = mktime(
+                date_header['X-Amz-Date'], SIGV4_X_AMZ_DATE_FORMAT)
+        elif 'Date' in date_header:
+            timestamp = mktime(date_header['Date'])
+
+        self.assertEqual(timestamp, int(sigv4_req.timestamp))
+
+    def test_request_timestamp_sigv4(self):
+        access_denied_message = \
+            'AWS authentication requires a valid Date or x-amz-date header'
+
+        # normal X-Amz-Date header
+        date_header = {'X-Amz-Date': self.get_v4_amz_date_header()}
+        self._test_request_timestamp_sigv4(date_header)
+
+        # normal Date header
+        date_header = {'Date': self.get_date_header()}
+        self._test_request_timestamp_sigv4(date_header)
+
+        # mangled X-Amz-Date header
+        date_header = {'X-Amz-Date': self.get_v4_amz_date_header()[:-1]}
+        with self.assertRaises(AccessDenied) as cm:
+            self._test_request_timestamp_sigv4(date_header)
+
+        self.assertEqual('403 Forbidden', cm.exception.message)
+        self.assertIn(access_denied_message, cm.exception.body)
+
+        # mangled Date header
+        date_header = {'Date': self.get_date_header()[20:]}
+        with self.assertRaises(AccessDenied) as cm:
+            self._test_request_timestamp_sigv4(date_header)
+
+        self.assertEqual('403 Forbidden', cm.exception.message)
+        self.assertIn(access_denied_message, cm.exception.body)
+
+        # Negative timestamp
+        date_header = {'X-Amz-Date': '00160523T054055Z'}
+        with self.assertRaises(AccessDenied) as cm:
+            self._test_request_timestamp_sigv4(date_header)
+
+        self.assertEqual('403 Forbidden', cm.exception.message)
+
+    def _test_request_timestamp_sigv2(self, date_header):
+        # signature v4 here
+        environ = {
+            'REQUEST_METHOD': 'GET'}
+
+        headers = {'Authorization': 'AWS test:tester:hmac'}
+        headers.update(date_header)
+        req = Request.blank('/', environ=environ, headers=headers)
+        sigv2_req = S3_Request(req.environ)
+
+        if 'X-Amz-Date' in date_header:
+            timestamp = mktime(req.headers.get('X-Amz-Date'))
+        elif 'Date' in date_header:
+            timestamp = mktime(req.headers.get('Date'))
+        else:
+            self.fail('Invalid date header specified as test')
+        self.assertEqual(timestamp, int(sigv2_req.timestamp))
+
+    def test_request_timestamp_sigv2(self):
+        access_denied_message = \
+            'AWS authentication requires a valid Date or x-amz-date header'
+
+        # In v2 format, normal X-Amz-Date header is same
+        date_header = {'X-Amz-Date': self.get_date_header()}
+        self._test_request_timestamp_sigv2(date_header)
+
+        # normal Date header
+        date_header = {'Date': self.get_date_header()}
+        self._test_request_timestamp_sigv2(date_header)
+
+        # mangled X-Amz-Date header
+        date_header = {'X-Amz-Date': self.get_date_header()[:-20]}
+        with self.assertRaises(AccessDenied) as cm:
+            self._test_request_timestamp_sigv2(date_header)
+
+        self.assertEqual('403 Forbidden', cm.exception.message)
+        self.assertIn(access_denied_message, cm.exception.body)
+
+        # mangled Date header
+        date_header = {'Date': self.get_date_header()[:-20]}
+        with self.assertRaises(AccessDenied) as cm:
+            self._test_request_timestamp_sigv2(date_header)
+
+        self.assertEqual('403 Forbidden', cm.exception.message)
+        self.assertIn(access_denied_message, cm.exception.body)
+
+    def test_headers_to_sign_sigv4(self):
+        environ = {
+            'REQUEST_METHOD': 'GET'}
+
+        # host and x-amz-date
+        x_amz_date = self.get_v4_amz_date_header()
+        headers = {
+            'Authorization':
+                'AWS4-HMAC-SHA256 '
+                'Credential=test/20130524/US/s3/aws4_request, '
+                'SignedHeaders=host;x-amz-content-sha256;x-amz-date,'
+                'Signature=X',
+            'X-Amz-Content-SHA256': '0123456789',
+            'Date': self.get_date_header(),
+            'X-Amz-Date': x_amz_date}
+
+        req = Request.blank('/', environ=environ, headers=headers)
+        sigv4_req = SigV4Request(req.environ)
+
+        headers_to_sign = sigv4_req._headers_to_sign()
+        self.assertEqual(['host', 'x-amz-content-sha256', 'x-amz-date'],
+                         sorted(headers_to_sign.keys()))
+        self.assertEqual(headers_to_sign['host'], 'localhost:80')
+        self.assertEqual(headers_to_sign['x-amz-date'], x_amz_date)
+        self.assertEqual(headers_to_sign['x-amz-content-sha256'], '0123456789')
+
+        # no x-amz-date
+        headers = {
+            'Authorization':
+                'AWS4-HMAC-SHA256 '
+                'Credential=test/20130524/US/s3/aws4_request, '
+                'SignedHeaders=host;x-amz-content-sha256,'
+                'Signature=X',
+            'X-Amz-Content-SHA256': '0123456789',
+            'Date': self.get_date_header()}
+
+        req = Request.blank('/', environ=environ, headers=headers)
+        sigv4_req = SigV4Request(req.environ)
+
+        headers_to_sign = sigv4_req._headers_to_sign()
+        self.assertEqual(['host', 'x-amz-content-sha256'],
+                         sorted(headers_to_sign.keys()))
+        self.assertEqual(headers_to_sign['host'], 'localhost:80')
+        self.assertEqual(headers_to_sign['x-amz-content-sha256'], '0123456789')
+
+        # SignedHeaders says, host and x-amz-date included but there is not
+        # X-Amz-Date header
+        headers = {
+            'Authorization':
+                'AWS4-HMAC-SHA256 '
+                'Credential=test/20130524/US/s3/aws4_request, '
+                'SignedHeaders=host;x-amz-content-sha256;x-amz-date,'
+                'Signature=X',
+            'X-Amz-Content-SHA256': '0123456789',
+            'Date': self.get_date_header()}
+
+        req = Request.blank('/', environ=environ, headers=headers)
+        with self.assertRaises(SignatureDoesNotMatch):
+            sigv4_req = SigV4Request(req.environ)
+            sigv4_req._headers_to_sign()
+
 
 if __name__ == '__main__':
     unittest.main()
