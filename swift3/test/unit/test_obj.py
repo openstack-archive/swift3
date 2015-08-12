@@ -283,9 +283,9 @@ class TestSwift3Obj(Swift3TestCase):
 
             self._test_object_GETorHEAD('GET')
             _, _, headers = self.swift.calls_with_headers[-1]
-            self.assertTrue('Authorization' not in headers)
+            self.assertNotIn('Authorization', headers)
             _, _, headers = self.swift.calls_with_headers[0]
-            self.assertTrue('Authorization' not in headers)
+            self.assertNotIn('Authorization', headers)
 
     @s3acl
     def test_object_GET_Range(self):

@@ -237,8 +237,8 @@ class TestRequest(Swift3TestCase):
             m_swift_resp.return_value = FakeSwiftResponse()
             s3_req = S3AclRequest(req.environ, MagicMock())
             sw_req = s3_req.to_swift_req(method, container, obj)
-            self.assertTrue('HTTP_AUTHORIZATION' not in sw_req.environ)
-            self.assertTrue('Authorization' not in sw_req.headers)
+            self.assertNotIn('HTTP_AUTHORIZATION', sw_req.environ)
+            self.assertNotIn('Authorization', sw_req.headers)
             self.assertEquals(sw_req.headers['X-Auth-Token'], 'token')
 
     def test_to_swift_req_subrequest_proxy_access_log(self):
