@@ -13,12 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
-import md5
-from urllib import quote
 import base64
-import email.utils
 import datetime
+import email.utils
+from hashlib import sha256
+import functools
+import md5
+import re
+from urllib import quote
+from urlparse import urlsplit
 
 from swift.common.utils import split_path
 from swift.common import swob
@@ -52,6 +55,7 @@ from swift3.utils import sysmeta_header, validate_bucket_name
 from swift3.acl_utils import handle_acl_header
 from swift3.acl_handlers import get_acl_handler
 
+
 # List of sub-resources that must be maintained as part of the HMAC
 # signature string.
 ALLOWED_SUB_RESOURCES = sorted([
@@ -64,6 +68,14 @@ ALLOWED_SUB_RESOURCES = sorted([
 ])
 
 MAX_32BIT_INT = 2147483647
+
+EMPTY_SHA256_HASH = (
+    'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')
+# This is the buffer size used when calculating sha256 checksums.
+# Experimenting with various buffer sizes showed that this value generally
+# gave the best result (in terms of performance).
+
+PAYLOAD_BUFFER = 1024 * 1024
 
 
 def _header_acl_property(resource):
@@ -95,11 +107,11 @@ class Request(swob.Request):
     def __init__(self, env, slo_enabled=True):
         swob.Request.__init__(self, env)
 
-        self.access_key = self._parse_authorization()
+        self.access_key, self.is_v4_request = self._parse_authorization()
         self.bucket_in_host = self._parse_host()
         self.container_name, self.object_name = self._parse_uri()
         self._validate_headers()
-        self.token = base64.urlsafe_b64encode(self._canonical_string())
+        self.token = base64.urlsafe_b64encode(self._string_to_sign())
         self.account = None
         self.user_id = None
         self.slo_enabled = slo_enabled
@@ -146,35 +158,83 @@ class Request(swob.Request):
             raise InvalidBucketName(bucket)
         return (bucket, obj)
 
-    def _parse_authorization(self):
+    def _get_access(self):
+        """Extract the access key identifier.
+
+        For version 0/1/2/3 this is passed as the AccessKeyId parameter, for
+        version 4 it is either an X-Amz-Credential parameter or a Credential=
+        field in the 'Authorization' header string.
+        Returns tuple with access_key and boolen that equals to True if
+        this is version 4 request
+        """
         if 'AWSAccessKeyId' in self.params:
-            try:
-                self.headers['Date'] = self.params['Expires']
-                self.headers['Authorization'] = \
-                    'AWS %(AWSAccessKeyId)s:%(Signature)s' % self.params
-            except KeyError:
+            access = self.params['AWSAccessKeyId']
+            if not access:
                 raise AccessDenied()
+            return access, False
+
+        if 'X-Amz-Credential' in self.params:
+            cred_param = self.params['X-Amz-Credential']
+            if cred_param:
+                access = cred_param.split("/")[0]
+                if access is not None:
+                    return access, True
+            raise AccessDenied()
 
         if 'Authorization' not in self.headers:
             raise NotS3Request()
 
-        try:
-            keyword, info = self.headers['Authorization'].split(' ', 1)
-        except Exception:
+        auth_str = self.headers['Authorization']
+        if auth_str.startswith('AWS4-HMAC-SHA256 '):
+            cred_str = auth_str.partition("Credential=")[2].split(',')[0]
+            return cred_str.split("/")[0], True
+        if auth_str.startswith('AWS '):
+            cred_str = self.headers['Authorization'].split(' ', 1)[1]
+            return cred_str.rsplit(':', 1)[0], False
+
+        raise AccessDenied()
+
+    def _get_signature(self):
+        """Extract the signature from the request.
+
+        This can be a get/post variable or for version 4 also in a header
+        called 'Authorization'.
+        - params['Signature'] == version 0,1,2,3
+        - params['X-Amz-Signature'] == version 4
+        - header 'Authorization' == version 4
+        """
+        sig = (self.params.get('Signature')
+               or self.params.get('X-Amz-Signature'))
+        if sig is not None:
+            return sig
+
+        if 'Authorization' not in self.headers:
             raise AccessDenied()
 
-        if keyword != 'AWS':
-            raise NotS3Request()
+        auth_str = self.headers['Authorization']
+        if auth_str.startswith('AWS4-HMAC-SHA256 '):
+            return auth_str.partition("Signature=")[2].split(',')[0]
+        if auth_str.startswith('AWS '):
+            cred_str = self.headers['Authorization'].split(' ', 1)[1]
+            return cred_str.rsplit(':', 1)[1]
 
-        try:
-            access_key = info.rsplit(':', 1)[0]
-        except Exception:
-            err_msg = 'AWS authorization header is invalid.  ' \
-                'Expected AwsAccessKeyId:signature'
-            raise InvalidArgument('Authorization',
-                                  self.headers['Authorization'], err_msg)
+        raise AccessDenied()
 
-        return access_key
+    def _parse_authorization(self):
+        access, is_v4_request = self._get_access()
+        signature = self._get_signature()
+        self.headers['Authorization'] = 'AWS %s:%s' % (access, signature)
+
+        if ('X-Amz-Signature' not in self.params
+                and 'Authorization' not in self.headers):
+            # Not part of authentication args
+            self.params.pop('Signature', None)
+
+        expires = self.params.get('Expires')
+        if expires:
+            self.headers['Date'] = expires
+
+        return access, is_v4_request
 
     def _validate_headers(self):
         if 'CONTENT_LENGTH' in self.environ:
@@ -343,10 +403,16 @@ class Request(swob.Request):
             raw_path_info = '/' + self.bucket_in_host + raw_path_info
         return raw_path_info
 
-    def _canonical_string(self):
+    def _string_to_sign(self):
         """
-        Canonicalize a request to a token that can be signed.
+        Create 'StringToSign' value in Amazon terminology.
         """
+        if self.is_v4_request:
+            return self._string_to_sign_v4()
+
+        return self._string_to_sign_v1()
+
+    def _string_to_sign_v1(self):
         amz_headers = {}
 
         buf = "%s\n%s\n%s\n" % (self.method,
@@ -378,6 +444,118 @@ class Request(swob.Request):
                 return '%s%s?%s' % (buf, path, '&'.join(params))
 
         return buf + path
+
+    def _string_to_sign_v4(self):
+        timestamp = self.headers['X-Amz-Date']
+        scope = (timestamp.split('T')[0] +
+                 '/' + CONF.location + '/s3/aws4_request')
+
+        # prepare 'canonical_request'
+        cr = [self.method.upper()]
+        cr.append(self._canonical_uri())
+        cr.append(self._canonical_query_string())
+        headers_to_sign = self._headers_to_sign()
+        cr.append(self._canonical_headers(headers_to_sign) + '\n')
+        cr.append(self._signed_headers(headers_to_sign))
+        if 'X-Amz-Content-SHA256' in self.headers:
+            body_checksum = self.headers['X-Amz-Content-SHA256']
+        else:
+            body_checksum = self._payload()
+        cr.append(body_checksum)
+        canonical_request = '\n'.join(cr)
+
+        return ('AWS4-HMAC-SHA256' + '\n'
+                + timestamp + '\n'
+                + scope + '\n'
+                + sha256(canonical_request.encode('utf-8')).hexdigest())
+
+    def _canonical_query_string(self):
+        # The query string can come from two parts.  One is the
+        # params attribute of the request.  The other is from the request
+        # url (in which case we have to re-split the url into its components
+        # and parse out the query string component).
+        if self.params:
+            return self._canonical_query_string_params(self.params)
+        else:
+            return self._canonical_query_string_url(urlsplit(self.url))
+
+    def _canonical_query_string_params(self, params):
+        l = []
+        for param in sorted(params):
+            value = str(params[param])
+            l.append('%s=%s' % (quote(param, safe='-_.~'),
+                                quote(value, safe='-_.~')))
+        cqs = '&'.join(l)
+        return cqs
+
+    def _canonical_query_string_url(self, parts):
+        canonical_query_string = ''
+        if parts.query:
+            # [(key, value), (key2, value2)]
+            key_val_pairs = []
+            for pair in parts.query.split('&'):
+                key, _, value = pair.partition('=')
+                key_val_pairs.append((key, value))
+            sorted_key_vals = []
+            # Sort by the key names, and in the case of
+            # repeated keys, then sort by the value.
+            for key, value in sorted(key_val_pairs):
+                sorted_key_vals.append('%s=%s' % (key, value))
+            canonical_query_string = '&'.join(sorted_key_vals)
+        return canonical_query_string
+
+    def _headers_to_sign(self):
+        """
+        Select the headers from the request that need to be included
+        in the StringToSign.
+        """
+        added_headers = ['accept-encoding', 'authorization',
+                         'content-length', 'content-type']
+        header_map = dict()
+        for name, value in self.headers.items():
+            lname = name.lower()
+            if lname not in added_headers:
+                header_map.setdefault(lname, []).append(value)
+        if 'host' not in header_map:
+            header_map['host'] = [urlsplit(self.url).netloc]
+        return header_map
+
+    def _canonical_headers(self, headers_to_sign):
+        """
+        Return the headers that need to be included in the StringToSign
+        in their canonical form by converting all header keys to lower
+        case, sorting them in alphabetical order and then joining
+        them into a string, separated by newlines.
+        """
+        headers = []
+        sorted_header_names = sorted(set(headers_to_sign))
+        for key in sorted_header_names:
+            value = ','.join(str(v).strip() for v in
+                             sorted(headers_to_sign.get(key)))
+            headers.append('%s:%s' % (key, value))
+        return '\n'.join(headers)
+
+    def _signed_headers(self, headers_to_sign):
+        l = ['%s' % n.lower().strip() for n in set(headers_to_sign)]
+        l = sorted(l)
+        return ';'.join(l)
+
+    def _payload(self):
+        if self.body and hasattr(self.body, 'seek'):
+            position = self.body.tell()
+            read_chunksize = functools.partial(self.body.read, PAYLOAD_BUFFER)
+            checksum = sha256()
+            for chunk in iter(read_chunksize, b''):
+                checksum.update(chunk)
+            hex_checksum = checksum.hexdigest()
+            self.body.seek(position)
+            return hex_checksum
+        elif self.body:
+            # The request serialization has ensured that
+            # request.body is a bytes() type.
+            return sha256(self.body).hexdigest()
+        else:
+            return EMPTY_SHA256_HASH
 
     @property
     def controller_name(self):
