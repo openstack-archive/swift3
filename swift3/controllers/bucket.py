@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+
 from swift.common.http import HTTP_OK
 from swift.common.utils import json
 
@@ -133,8 +135,9 @@ class BucketController(Controller):
             except (XMLSyntaxError, DocumentInvalid):
                 raise MalformedXML()
             except Exception as e:
+                exc_type, exc_value, exc_traceback = sys.exc_info()
                 LOGGER.error(e)
-                raise
+                raise exc_type, exc_value, exc_traceback
 
             if location != CONF.location:
                 # Swift3 cannot support multiple reagions now.
