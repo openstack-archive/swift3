@@ -174,7 +174,8 @@ class ErrorResponse(ResponseBase, swob.HTTPException):
 
         swob.HTTPException.__init__(self, status=self._status,
                                     app_iter=self._body_iter(),
-                                    content_type='text/xml', *args, **kwargs)
+                                    content_type='application/xml', *args,
+                                    **kwargs)
         self.headers = HeaderKeyDict(self.headers)
 
     def _body_iter(self):

@@ -108,10 +108,12 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             auth_error_conn.make_request('PUT', self.bucket, 'object')
         self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEquals(headers['content-type'], 'application/xml')
 
         status, headers, body = \
             self.conn.make_request('PUT', 'bucket2', 'object')
         self.assertEquals(get_error_code(body), 'NoSuchBucket')
+        self.assertEquals(headers['content-type'], 'application/xml')
 
     def test_put_object_copy_error(self):
         obj = 'object'
@@ -125,12 +127,14 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             auth_error_conn.make_request('PUT', dst_bucket, dst_obj, headers)
         self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEquals(headers['content-type'], 'application/xml')
 
         # /src/nothing -> /dst/dst
         headers = {'X-Amz-Copy-Source': '/%s/%s' % (self.bucket, 'nothing')}
         status, headers, body = \
             self.conn.make_request('PUT', dst_bucket, dst_obj, headers)
         self.assertEquals(get_error_code(body), 'NoSuchKey')
+        self.assertEquals(headers['content-type'], 'application/xml')
 
         # /nothing/src -> /dst/dst
         headers = {'X-Amz-Copy-Source': '/%s/%s' % ('nothing', obj)}
@@ -144,6 +148,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('PUT', 'nothing', dst_obj, headers)
         self.assertEquals(get_error_code(body), 'NoSuchBucket')
+        self.assertEquals(headers['content-type'], 'application/xml')
 
     def test_get_object_error(self):
         obj = 'object'
@@ -153,15 +158,18 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             auth_error_conn.make_request('GET', self.bucket, obj)
         self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEquals(headers['content-type'], 'application/xml')
 
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, 'invalid')
         self.assertEquals(get_error_code(body), 'NoSuchKey')
+        self.assertEquals(headers['content-type'], 'application/xml')
 
         status, headers, body = self.conn.make_request('GET', 'invalid', obj)
         # TODO; requires consideration
         # self.assertEquals(get_error_code(body), 'NoSuchBucket')
         self.assertEquals(get_error_code(body), 'NoSuchKey')
+        self.assertEquals(headers['content-type'], 'application/xml')
 
     def test_head_object_error(self):
         obj = 'object'
@@ -172,16 +180,19 @@ class TestSwift3Object(Swift3FunctionalTestCase):
             auth_error_conn.make_request('HEAD', self.bucket, obj)
         self.assertEquals(status, 403)
         self.assertEquals(body, '')  # sanifty
+        self.assertEquals(headers['content-type'], 'application/xml')
 
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, 'invalid')
         self.assertEquals(status, 404)
         self.assertEquals(body, '')  # sanifty
+        self.assertEquals(headers['content-type'], 'application/xml')
 
         status, headers, body = \
             self.conn.make_request('HEAD', 'invalid', obj)
         self.assertEquals(status, 404)
         self.assertEquals(body, '')  # sanifty
+        self.assertEquals(headers['content-type'], 'application/xml')
 
     def test_delete_object_error(self):
         obj = 'object'
@@ -191,14 +202,17 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             auth_error_conn.make_request('DELETE', self.bucket, obj)
         self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEquals(headers['content-type'], 'application/xml')
 
         status, headers, body = \
             self.conn.make_request('DELETE', self.bucket, 'invalid')
         self.assertEquals(get_error_code(body), 'NoSuchKey')
+        self.assertEquals(headers['content-type'], 'application/xml')
 
         status, headers, body = \
             self.conn.make_request('DELETE', 'invalid', obj)
         self.assertEquals(get_error_code(body), 'NoSuchBucket')
+        self.assertEquals(headers['content-type'], 'application/xml')
 
     def test_put_object_content_encoding(self):
         obj = 'object'

@@ -194,6 +194,8 @@ class TestRequest(Swift3TestCase):
             s3req.get_validated_param('max-keys', 1)
         self.assertTrue(
             'not an integer or within integer range' in result.exception.body)
+        self.assertEquals(
+            result.exception.headers['content-type'], 'application/xml')
 
         # a param is negative integer
         s3req = create_s3request_with_param('max-keys', '-1')
@@ -201,6 +203,8 @@ class TestRequest(Swift3TestCase):
             s3req.get_validated_param('max-keys', 1)
         self.assertTrue(
             'must be an integer between 0 and' in result.exception.body)
+        self.assertEquals(
+            result.exception.headers['content-type'], 'application/xml')
 
         # a param is not integer
         s3req = create_s3request_with_param('max-keys', 'invalid')
@@ -208,6 +212,8 @@ class TestRequest(Swift3TestCase):
             s3req.get_validated_param('max-keys', 1)
         self.assertTrue(
             'not an integer or within integer range' in result.exception.body)
+        self.assertEquals(
+            result.exception.headers['content-type'], 'application/xml')
 
     def test_authenticate_delete_Authorization_from_s3req_headers(self):
         req = Request.blank('/bucket/obj',

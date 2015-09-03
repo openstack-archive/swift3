@@ -60,6 +60,7 @@ class TestSwift3Service(Swift3FunctionalTestCase):
         auth_error_conn = Connection(aws_secret_key='invalid')
         status, headers, body = auth_error_conn.make_request('GET')
         self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEquals(headers['content-type'], 'application/xml')
 
 if __name__ == '__main__':
     unittest.main()
