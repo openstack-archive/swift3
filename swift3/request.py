@@ -322,7 +322,8 @@ class Request(swob.Request):
 
     def check_copy_source(self, app):
         """
-        check_copy_source checks the copy source existence
+        check_copy_source checks the copy source existence and if copying an
+        object to itself, for illegal request parameters
         """
         if 'X-Amz-Copy-Source' in self.headers:
             src_path = unquote(self.headers['X-Amz-Copy-Source'])
@@ -336,6 +337,24 @@ class Request(swob.Request):
                                          headers=headers)
             if src_resp.status_int == 304:  # pylint: disable-msg=E1101
                 raise PreconditionFailed()
+
+            if self.controller == ObjectController:
+                self.headers['X-Amz-Copy-Source'] = \
+                    '/' + self.headers['X-Amz-Copy-Source'].lstrip('/')
+                source_container, source_obj = \
+                    split_path(self.headers['X-Amz-Copy-Source'], 1, 2, True)
+
+                if (self.container_name == source_container and
+                        self.object_name == source_obj):
+                    if self.headers.get('x-amz-metadata-directive',
+                                        'COPY') == 'COPY':
+                        raise InvalidRequest("This copy request is illegal "
+                                             "because it is trying to copy an "
+                                             "object to itself without "
+                                             "changing the object's metadata, "
+                                             "storage class, website redirect "
+                                             "location or encryption "
+                                             "attributes.")
 
     def _canonical_uri(self):
         raw_path_info = self.environ.get('RAW_PATH_INFO', self.path)
