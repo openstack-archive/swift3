@@ -444,6 +444,28 @@ class TestSwift3Obj(Swift3TestCase):
         req.content_type = 'text/plain'
         return self.call_swift3(req)
 
+    def _test_object_PUT_copy_self(self, head_resp, put_header={}):
+        account = 'test:tester'
+        grants = [Grant(User(account), 'FULL_CONTROL')]
+        head_headers = \
+            encode_acl('object',
+                       ACL(Owner(account, account), grants))
+        head_headers.update({'last-modified': self.last_modified})
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
+                            head_resp, head_headers, None)
+
+        put_headers = {'Authorization': 'AWS test:tester:hmac',
+                       'X-Amz-Copy-Source': '/bucket/object'}
+        put_headers.update(put_header)
+
+        req = Request.blank('/bucket/object',
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers=put_headers)
+
+        req.date = datetime.now()
+        req.content_type = 'text/plain'
+        return self.call_swift3(req)
+
     @s3acl
     def test_object_PUT_copy(self):
         last_modified = '2014-04-01T12:00:00'
@@ -458,6 +480,50 @@ class TestSwift3Obj(Swift3TestCase):
 
         _, _, headers = self.swift.calls_with_headers[-1]
         self.assertEquals(headers['X-Copy-From'], '/some/source')
+        self.assertEquals(headers['Content-Length'], '0')
+
+    @s3acl
+    def test_object_PUT_copy_self(self):
+        status, headers, body = \
+            self._test_object_PUT_copy_self(swob.HTTPOk)
+        self.assertEquals(status.split()[0], '400')
+        elem = fromstring(body, 'Error')
+        err_msg = ("This copy request is illegal because it is trying to copy "
+                   "an object to itself without changing the object's "
+                   "metadata, storage class, website redirect location or "
+                   "encryption attributes.")
+        self.assertEquals(elem.find('Code').text, 'InvalidRequest')
+        self.assertEquals(elem.find('Message').text, err_msg)
+
+    @s3acl
+    def test_object_PUT_copy_self_metadata_copy(self):
+        header = {'x-amz-metadata-directive': 'COPY'}
+        status, headers, body = \
+            self._test_object_PUT_copy_self(swob.HTTPOk, header)
+        self.assertEquals(status.split()[0], '400')
+        elem = fromstring(body, 'Error')
+        err_msg = ("This copy request is illegal because it is trying to copy "
+                   "an object to itself without changing the object's "
+                   "metadata, storage class, website redirect location or "
+                   "encryption attributes.")
+        self.assertEquals(elem.find('Code').text, 'InvalidRequest')
+        self.assertEquals(elem.find('Message').text, err_msg)
+
+    @s3acl
+    def test_object_PUT_copy_self_metadata_replace(self):
+        last_modified = '2014-04-01T12:00:00'
+        header = {'x-amz-metadata-directive': 'REPLACE'}
+        status, headers, body = \
+            self._test_object_PUT_copy_self(swob.HTTPOk, header)
+        self.assertEquals(status.split()[0], '200')
+        self.assertEquals(headers['Content-Type'], 'application/xml')
+        self.assertTrue(headers.get('etag') is None)
+        elem = fromstring(body, 'CopyObjectResult')
+        self.assertEquals(elem.find('LastModified').text, last_modified)
+        self.assertEquals(elem.find('ETag').text, '"%s"' % self.etag)
+
+        _, _, headers = self.swift.calls_with_headers[-1]
+        self.assertEquals(headers['X-Copy-From'], '/bucket/object')
         self.assertEquals(headers['Content-Length'], '0')
 
     @s3acl
