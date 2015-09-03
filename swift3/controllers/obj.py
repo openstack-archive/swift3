@@ -19,7 +19,8 @@ from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT
 from swift.common.swob import Range, content_range_header_value
 
 from swift3.controllers.base import Controller
-from swift3.response import S3NotImplemented, InvalidRange, NoSuchKey
+from swift3.response import (S3NotImplemented, InvalidRange, NoSuchKey,
+                             InvalidRequest)
 
 
 class ObjectController(Controller):
@@ -96,6 +97,20 @@ class ObjectController(Controller):
         Handle PUT Object and PUT Object (Copy) request
         """
         last_modified = req.check_copy_source(self.app)
+
+        if 'X-Amz-Copy-Source' in req.headers:
+            object_path = req.container_name + '/' + req.object_name
+
+            if req.headers['X-Amz-Copy-Source'].lstrip('/') == object_path:
+                if ('x-amz-metadata-directive' not in req.headers or
+                        req.headers['x-amz-metadata-directive'] == 'COPY'):
+                    raise InvalidRequest("This copy request is illegal "
+                                         "because it is trying to copy an "
+                                         "object to itself without changing "
+                                         "the object's metadata, storage "
+                                         "class, website redirect location or "
+                                         "encryption attributes.")
+
         resp = req.get_response(self.app)
 
         if 'X-Amz-Copy-Source' in req.headers:
