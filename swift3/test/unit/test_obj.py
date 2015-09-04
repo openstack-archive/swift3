@@ -62,7 +62,8 @@ class TestSwift3Obj(Swift3TestCase):
                                  'Content-Length': len(self.object_body),
                                  'x-object-meta-test': 'swift',
                                  'etag': self.etag,
-                                 'last-modified': self.last_modified}
+                                 'last-modified': self.last_modified,
+                                 'cache-control': 'private'}
 
         self.swift.register('GET', '/v1/AUTH_test/bucket/object',
                             swob.HTTPOk, self.response_headers,
@@ -82,7 +83,7 @@ class TestSwift3Obj(Swift3TestCase):
 
         for key, val in self.response_headers.iteritems():
             if key in ('content-length', 'content-type', 'content-encoding',
-                       'last-modified'):
+                       'last-modified', 'cache-control'):
                 self.assertTrue(key in headers)
                 self.assertEquals(headers[key], val)
 
