@@ -60,9 +60,14 @@ class TestSwift3Obj(Swift3TestCase):
 
         self.response_headers = {'Content-Type': 'text/html',
                                  'Content-Length': len(self.object_body),
+                                 'Content-Disposition': 'inline',
+                                 'Content-Language': 'en',
                                  'x-object-meta-test': 'swift',
                                  'etag': self.etag,
-                                 'last-modified': self.last_modified}
+                                 'last-modified': self.last_modified,
+                                 'expires': 'Mon, 21 Sep 2015 12:00:00 GMT',
+                                 'x-robots-tag': 'nofollow',
+                                 'cache-control': 'private'}
 
         self.swift.register('GET', '/v1/AUTH_test/bucket/object',
                             swob.HTTPOk, self.response_headers,
@@ -80,15 +85,26 @@ class TestSwift3Obj(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
+        unexpected_headers = []
         for key, val in self.response_headers.iteritems():
-            if key in ('content-length', 'content-type', 'content-encoding',
-                       'last-modified'):
-                self.assertTrue(key in headers)
-                self.assertEquals(headers[key], val)
+            if key in ('Content-Length', 'Content-Type', 'content-encoding',
+                       'last-modified', 'cache-control', 'Content-Disposition',
+                       'Content-Language', 'expires', 'X-Robots-Tag'):
+                self.assertIn(key, headers)
+                self.assertEquals(headers[key], str(val))
+
+            elif key == 'etag':
+                self.assertEquals(headers[key], '"%s"' % val)
 
             elif key.startswith('x-object-meta-'):
-                self.assertTrue('x-amz-meta-' + key[14:] in headers)
+                self.assertIn('x-amz-meta-' + key[14:], headers)
                 self.assertEquals(headers['x-amz-meta-' + key[14:]], val)
+
+            else:
+                unexpected_headers.append((key, val))
+
+        if unexpected_headers:
+                self.fail('unexpected headers: %r' % unexpected_headers)
 
         self.assertEquals(headers['etag'],
                           '"%s"' % self.response_headers['etag'])
