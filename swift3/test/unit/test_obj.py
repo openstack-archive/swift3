@@ -60,9 +60,12 @@ class TestSwift3Obj(Swift3TestCase):
 
         self.response_headers = {'Content-Type': 'text/html',
                                  'Content-Length': len(self.object_body),
+                                 'Content-Disposition': 'inline',
+                                 'Content-Language': 'en',
                                  'x-object-meta-test': 'swift',
                                  'etag': self.etag,
-                                 'last-modified': self.last_modified}
+                                 'last-modified': self.last_modified,
+                                 'cache-control': 'private'}
 
         self.swift.register('GET', '/v1/AUTH_test/bucket/object',
                             swob.HTTPOk, self.response_headers,
@@ -82,13 +85,16 @@ class TestSwift3Obj(Swift3TestCase):
 
         for key, val in self.response_headers.iteritems():
             if key in ('content-length', 'content-type', 'content-encoding',
-                       'last-modified'):
-                self.assertTrue(key in headers)
+                       'last-modified', 'cache-control', 'content-disposition',
+                       'content-language'):
+                self.assertIn(key, headers)
                 self.assertEquals(headers[key], val)
 
             elif key.startswith('x-object-meta-'):
-                self.assertTrue('x-amz-meta-' + key[14:] in headers)
+                self.assertIn('x-amz-meta-' + key[14:], headers)
                 self.assertEquals(headers['x-amz-meta-' + key[14:]], val)
+            else:
+                self.fail('unexpected header: "%s: %s"' % (key, val))
 
         self.assertEquals(headers['etag'],
                           '"%s"' % self.response_headers['etag'])
