@@ -102,6 +102,9 @@ class ObjectController(Controller):
             resp.append_copy_resp_body(req.controller_name,
                                        last_modified)
 
+        resp.headers = {key: value for (key, value) in resp.headers.items()
+                        if not key.startswith('x-amz-meta-')}
+
         resp.status = HTTP_OK
         return resp
 
