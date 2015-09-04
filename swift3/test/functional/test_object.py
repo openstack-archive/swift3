@@ -293,6 +293,54 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.assertCommonResponseHeaders(headers)
         self._assertObjectEtag(self.bucket, obj, etag)
 
+    def test_put_object_content_headers(self):
+        obj = 'object'
+        etag = md5().hexdigest()
+        headers = {'Content-Type': 'foo/bar',
+                   'Content-Encoding': 'baz',
+                   'Content-Disposition': 'attachment',
+                   'Content-Language': 'en'}
+        status, headers, body = \
+            self.conn.make_request('PUT', self.bucket, obj, headers)
+        self.assertEquals(status, 200)
+        status, headers, body = \
+            self.conn.make_request('HEAD', self.bucket, obj)
+        self.assertEqual(headers.get('content-type'), 'foo/bar')
+        self.assertEqual(headers.get('content-encoding'), 'baz')
+        self.assertEqual(headers.get('content-disposition'), 'attachment')
+        self.assertEqual(headers.get('content-language'), 'en')
+        self.assertCommonResponseHeaders(headers)
+        self._assertObjectEtag(self.bucket, obj, etag)
+
+    def test_put_object_cache_control(self):
+        obj = 'object'
+        etag = md5().hexdigest()
+        headers = {'Cache-Control': 'private, some-extension'}
+        status, headers, body = \
+            self.conn.make_request('PUT', self.bucket, obj, headers)
+        self.assertEquals(status, 200)
+        status, headers, body = \
+            self.conn.make_request('HEAD', self.bucket, obj)
+        self.assertEqual(headers.get('cache-control'),
+                         'private, some-extension')
+        self.assertCommonResponseHeaders(headers)
+        self._assertObjectEtag(self.bucket, obj, etag)
+
+    def test_put_object_expires(self):
+        obj = 'object'
+        etag = md5().hexdigest()
+        # We don't do any validation that the Expires header is a valid date
+        headers = {'Expires': 'a valid HTTP-date timestamp'}
+        status, headers, body = \
+            self.conn.make_request('PUT', self.bucket, obj, headers)
+        self.assertEquals(status, 200)
+        status, headers, body = \
+            self.conn.make_request('HEAD', self.bucket, obj)
+        self.assertEqual(headers.get('expires'),
+                         'a valid HTTP-date timestamp')
+        self.assertCommonResponseHeaders(headers)
+        self._assertObjectEtag(self.bucket, obj, etag)
+
     def test_put_object_storage_class(self):
         obj = 'object'
         content = 'abcdefghij'
