@@ -102,7 +102,9 @@ class Response(ResponseBase, swob.Response):
                 headers['x-amz-meta-' + _key[14:]] = val
             elif _key in ('content-length', 'content-type',
                           'content-range', 'content-encoding',
-                          'etag', 'last-modified'):
+                          'content-disposition', 'content-language',
+                          'etag', 'last-modified', 'x-robots-tag',
+                          'cache-control', 'expires'):
                 headers[key] = val
             elif _key == 'x-static-large-object':
                 # for delete slo
