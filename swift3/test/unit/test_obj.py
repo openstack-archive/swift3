@@ -418,7 +418,8 @@ class TestSwift3Obj(Swift3TestCase):
         _, _, headers = self.swift.calls_with_headers[-1]
         # Check that swift3 converts a Content-MD5 header into an etag.
         self.assertEquals(headers['ETag'], self.etag)
-        self.assertEquals(headers['X-Object-Meta-Something'], 'oh hai')
+        # Check that metadata is omited if no directive is specified
+        self.assertTrue(headers.get('X-Object-Meta-Something') is None)
         self.assertEquals(headers['X-Copy-From'], '/some/source')
         self.assertEquals(headers['Content-Length'], '0')
 
@@ -452,12 +453,92 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(headers['Content-Type'], 'application/xml')
         self.assertTrue(headers.get('etag') is None)
+
         elem = fromstring(body, 'CopyObjectResult')
         self.assertEquals(elem.find('LastModified').text, last_modified)
         self.assertEquals(elem.find('ETag').text, '"%s"' % self.etag)
 
         _, _, headers = self.swift.calls_with_headers[-1]
         self.assertEquals(headers['X-Copy-From'], '/some/source')
+        self.assertTrue(headers.get('X-Fresh-Metadata') is None)
+        self.assertEquals(headers['Content-Length'], '0')
+
+    @s3acl
+    def test_object_PUT_copy_metadata_replace(self):
+        last_modified = '2014-04-01T12:00:00.000Z'
+        status, headers, body = \
+            self._test_object_PUT_copy(swob.HTTPOk,
+                                       {'X-Amz-Metadata-Directive': 'REPLACE',
+                                        'X-Amz-Meta-Something': 'oh hai',
+                                        'Cache-Control': 'hello',
+                                        'content-disposition': 'how are you',
+                                        'content-encoding': 'good and you',
+                                        'content-language': 'great',
+                                        'content-type': 'so',
+                                        'expires': 'yeah',
+                                        'x-robots-tag': 'bye'})
+
+        self.assertEquals(status.split()[0], '200')
+        self.assertEquals(headers['Content-Type'], 'application/xml')
+        self.assertIsNone(headers.get('etag'))
+
+        elem = fromstring(body, 'CopyObjectResult')
+        self.assertEquals(elem.find('LastModified').text, last_modified)
+        self.assertEquals(elem.find('ETag').text, '"%s"' % self.etag)
+
+        _, _, headers = self.swift.calls_with_headers[-1]
+        self.assertEquals(headers['X-Copy-From'], '/some/source')
+        # Check that metadata is included if replace directive is specified
+        # and that Fresh Metadata is set
+        self.assertTrue(headers.get('X-Fresh-Metadata') == 'True')
+        self.assertEquals(headers['X-Object-Meta-Something'], 'oh hai')
+        # Check other metadata is set
+        self.assertEquals(headers['Cache-Control'], 'hello')
+        self.assertEquals(headers['Content-Disposition'], 'how are you')
+        self.assertEquals(headers['Content-Encoding'], 'good and you')
+        self.assertEquals(headers['Content-Language'], 'great')
+        # Content-Type can't be set during an S3 copy operation
+        self.assertIsNone(headers.get('Content-Type'))
+        self.assertEquals(headers['Expires'], 'yeah')
+        self.assertEquals(headers['X-Robots-Tag'], 'bye')
+
+        self.assertEquals(headers['Content-Length'], '0')
+
+    @s3acl
+    def test_object_PUT_copy_metadata_copy(self):
+        last_modified = '2014-04-01T12:00:00.000Z'
+        status, headers, body = \
+            self._test_object_PUT_copy(swob.HTTPOk,
+                                       {'X-Amz-Metadata-Directive': 'COPY',
+                                        'X-Amz-Meta-Something': 'oh hai',
+                                        'Cache-Control': 'hello',
+                                        'content-disposition': 'how are you',
+                                        'content-encoding': 'good and you',
+                                        'content-language': 'great',
+                                        'content-type': 'so',
+                                        'expires': 'yeah',
+                                        'x-robots-tag': 'bye'})
+        self.assertEquals(status.split()[0], '200')
+        self.assertEquals(headers['Content-Type'], 'application/xml')
+        self.assertIsNone(headers.get('etag'))
+
+        elem = fromstring(body, 'CopyObjectResult')
+        self.assertEquals(elem.find('LastModified').text, last_modified)
+        self.assertEquals(elem.find('ETag').text, '"%s"' % self.etag)
+
+        _, _, headers = self.swift.calls_with_headers[-1]
+        self.assertEquals(headers['X-Copy-From'], '/some/source')
+        # Check that metadata is omited if COPY directive is specified
+        self.assertIsNone(headers.get('X-Fresh-Metadata'))
+        self.assertIsNone(headers.get('X-Object-Meta-Something'))
+        self.assertIsNone(headers.get('Cache-Control'))
+        self.assertIsNone(headers.get('Content-Disposition'))
+        self.assertIsNone(headers.get('Content-Encoding'))
+        self.assertIsNone(headers.get('Content-Language'))
+        self.assertIsNone(headers.get('Content-Type'))
+        self.assertIsNone(headers.get('Expires'))
+        self.assertIsNone(headers.get('X-Robots-Tag'))
+
         self.assertEquals(headers['Content-Length'], '0')
 
     @s3acl
