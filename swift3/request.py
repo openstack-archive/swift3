@@ -448,7 +448,7 @@ class Request(swob.Request):
 
         env = self.environ.copy()
 
-        for key in env:
+        for key in list(env.keys()):
             if key.startswith('HTTP_X_AMZ_META_'):
                 env['HTTP_X_OBJECT_META_' + key[16:]] = env[key]
                 del env[key]
@@ -457,6 +457,13 @@ class Request(swob.Request):
             env['HTTP_X_COPY_FROM'] = env['HTTP_X_AMZ_COPY_SOURCE']
             del env['HTTP_X_AMZ_COPY_SOURCE']
             env['CONTENT_LENGTH'] = '0'
+
+            if env.pop('HTTP_X_AMZ_METADATA_DIRECTIVE', None) == 'REPLACE':
+                env['HTTP_X_FRESH_METADATA'] = 'True'
+            else:
+                for key in list(env.keys()):
+                    if key.startswith('HTTP_X_OBJECT_META_'):
+                        del env[key]
 
         if CONF.force_swift_request_proxy_log:
             env['swift.proxy_access_log_made'] = False
