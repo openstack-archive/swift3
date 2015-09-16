@@ -135,9 +135,9 @@ class Response(ResponseBase, swob.Response):
     def append_copy_resp_body(self, controller_name, last_modified):
         elem = Element('Copy%sResult' % controller_name)
         SubElement(elem, 'LastModified').text = last_modified
-        SubElement(elem, 'ETag').text = '"%s"' % self.etag
+        SubElement(elem, 'ETag').text = '&quot;%s&quot;' % self.etag
         self.headers['Content-Type'] = 'application/xml'
-        self.body = tostring(elem)
+        self.body = tostring(elem).replace('&amp;', '&')
         self.etag = None
 
 
