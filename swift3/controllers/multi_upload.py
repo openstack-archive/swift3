@@ -120,12 +120,14 @@ class PartController(Controller):
         req.object_name = '%s/%s/%d' % (req.object_name, upload_id,
                                         part_number)
 
-        last_modified = req.check_copy_source(self.app)
+        req.check_copy_source(self.app)
         resp = req.get_response(self.app)
 
         if 'X-Amz-Copy-Source' in req.headers:
+            # resp.last_modified is a datetime.datetime object
             resp.append_copy_resp_body(req.controller_name,
-                                       last_modified)
+                                       resp.last_modified.isoformat()[:-6] +
+                                       '.000Z')
 
         resp.status = 200
         return resp

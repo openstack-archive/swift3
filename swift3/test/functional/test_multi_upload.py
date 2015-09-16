@@ -182,7 +182,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
 
         last_modified = elem.find('LastModified').text
         self.assertTrue(last_modified is not None)
-        last_modified_from_xml = mktime(last_modified)
+        last_modified_from_xml = mktime(last_modified[:-5])
         self.assertEquals(last_modified_date_from_header,
                           last_modified_from_xml)
 

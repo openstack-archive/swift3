@@ -317,9 +317,6 @@ class Request(swob.Request):
     def check_copy_source(self, app):
         """
         check_copy_source checks the copy source existence
-
-        :return : last modified str if copy-source header exist
-                  otherwise None
         """
         if 'X-Amz-Copy-Source' in self.headers:
             src_path = self.headers['X-Amz-Copy-Source']
@@ -333,9 +330,6 @@ class Request(swob.Request):
                                          headers=headers)
             if src_resp.status_int == 304:  # pylint: disable-msg=E1101
                 raise PreconditionFailed()
-            return src_resp.last_modified.isoformat()[:-6]
-
-        return None
 
     def _canonical_uri(self):
         raw_path_info = self.environ.get('RAW_PATH_INFO', self.path)
