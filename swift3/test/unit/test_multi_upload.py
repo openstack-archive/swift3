@@ -1076,7 +1076,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
     @s3acl
     def test_upload_part_copy(self):
-        last_modified = '2014-04-01T12:00:00'
+        last_modified = '2014-04-01T12:00:00.000Z'
         status, headers, body = \
             self._test_copy_for_s3acl('test:tester')
         self.assertEquals(status.split()[0], '200')

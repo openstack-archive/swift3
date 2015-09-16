@@ -72,7 +72,6 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
         elem = fromstring(body, 'CopyObjectResult')
         self.assertTrue(elem.find('LastModified').text is not None)
-        # TODO: assert LastModified value
         self.assertTrue(elem.find('ETag').text is not None)
         self.assertEquals(etag, elem.find('ETag').text.strip('"'))
         self._assertObjectEtag(dst_bucket, dst_obj, etag)
