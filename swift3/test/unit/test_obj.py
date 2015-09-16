@@ -465,7 +465,7 @@ class TestSwift3Obj(Swift3TestCase):
 
     @s3acl
     def test_object_PUT_copy(self):
-        last_modified = '2014-04-01T12:00:00'
+        last_modified = '2014-04-01T12:00:00.000Z'
         status, headers, body = \
             self._test_object_PUT_copy(swob.HTTPOk)
         self.assertEquals(status.split()[0], '200')
