@@ -166,7 +166,6 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         self.conn.make_request('PUT', src_bucket, src_obj, body=src_content)
         _, headers, _ = self.conn.make_request('HEAD', src_bucket, src_obj)
         self.assertCommonResponseHeaders(headers)
-        last_modified_date_from_header = mktime(headers['last-modified'])
 
         status, headers, body, resp_etag = \
             self._upload_part_copy(src_bucket, src_obj, bucket,
@@ -182,11 +181,19 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
 
         last_modified = elem.find('LastModified').text
         self.assertTrue(last_modified is not None)
-        last_modified_from_xml = mktime(last_modified)
-        self.assertEquals(last_modified_date_from_header,
-                          last_modified_from_xml)
 
         self.assertEquals(resp_etag, etag)
+
+        # Check last-modified timestamp
+        key, upload_id = uploads[1]
+        query = 'uploadId=%s' % upload_id
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, key, query=query)
+
+        elem = fromstring(body, 'ListPartsResult')
+        last_modified_get = elem.find('Part').find('LastModified').text
+        self.assertEquals(last_modified_get,
+                          last_modified)
 
         # List Parts
         key, upload_id = uploads[0]

@@ -1070,13 +1070,14 @@ class TestSwift3MultiUpload(Swift3TestCase):
         put_headers.update(put_header)
         req = Request.blank(
             '/bucket/object?partNumber=1&uploadId=X',
-            environ={'REQUEST_METHOD': 'PUT'},
+            environ={'REQUEST_METHOD': 'PUT',
+                     'HTTP_X_TIMESTAMP': '1396353600.000000'},
             headers=put_headers)
         return self.call_swift3(req)
 
     @s3acl
     def test_upload_part_copy(self):
-        last_modified = '2014-04-01T12:00:00'
+        last_modified = '2014-04-01T12:00:00.000Z'
         status, headers, body = \
             self._test_copy_for_s3acl('test:tester')
         self.assertEquals(status.split()[0], '200')

@@ -72,10 +72,19 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
         elem = fromstring(body, 'CopyObjectResult')
         self.assertTrue(elem.find('LastModified').text is not None)
-        # TODO: assert LastModified value
+        last_modified_xml = elem.find('LastModified').text
         self.assertTrue(elem.find('ETag').text is not None)
         self.assertEquals(etag, elem.find('ETag').text.strip('"'))
         self._assertObjectEtag(dst_bucket, dst_obj, etag)
+
+        # Check timestamp on Copy:
+        status, headers, body = \
+            self.conn.make_request('GET', dst_bucket)
+        self.assertEquals(status, 200)
+        elem = fromstring(body, 'ListBucketResult')
+
+        self.assertEquals(elem.find('Contents').find("LastModified").text,
+                          last_modified_xml)
 
         # GET Object
         status, headers, body = \
