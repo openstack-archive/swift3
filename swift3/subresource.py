@@ -464,9 +464,10 @@ class ACL(object):
             return
 
         try:
-            # owners have full control permission
+            # owners have READ_ACP and WRITE_ACP
             self.check_owner(user_id)
-            return
+            if permission == "READ_ACP" or permission == "WRITE_ACP":
+                return
         except AccessDenied:
             pass
 
