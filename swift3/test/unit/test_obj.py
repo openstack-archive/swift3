@@ -70,7 +70,8 @@ class TestSwift3Obj(Swift3TestCase):
         self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
                             swob.HTTPCreated,
                             {'etag': self.etag,
-                             'last-modified': self.last_modified},
+                             'last-modified': self.last_modified,
+                             'x-object-meta-something': 'oh hai'},
                             None)
 
     def _test_object_GETorHEAD(self, method):
@@ -411,9 +412,11 @@ class TestSwift3Obj(Swift3TestCase):
         req.date = datetime.now()
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        # Check that swift3 dones not return an etag header,
-        # sepcified copy source.
+        # Check that swift3 does not return an etag header,
+        # specified copy source.
         self.assertTrue(headers.get('etag') is None)
+        # Check that swift3 does not return custom metadata in response
+        self.assertTrue(headers.get('x-amz-meta-something') is None)
 
         _, _, headers = self.swift.calls_with_headers[-1]
         # Check that swift3 converts a Content-MD5 header into an etag.
@@ -452,6 +455,7 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(headers['Content-Type'], 'application/xml')
         self.assertTrue(headers.get('etag') is None)
+        self.assertTrue(headers.get('x-amz-meta-something') is None)
         elem = fromstring(body, 'CopyObjectResult')
         self.assertEquals(elem.find('LastModified').text, last_modified)
         self.assertEquals(elem.find('ETag').text, '"%s"' % self.etag)
