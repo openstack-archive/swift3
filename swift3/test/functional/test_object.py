@@ -278,20 +278,46 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.assertCommonResponseHeaders(headers)
         self._assertObjectEtag(self.bucket, obj, etag)
 
-    def test_put_object_metadata(self):
+    def _test_put_object_headers(self, req_headers):
         obj = 'object'
         content = 'abcdefghij'
         etag = md5(content).hexdigest()
-        headers = {'X-Amz-Meta-Bar': 'foo', 'X-Amz-Meta-Bar2': 'foo2'}
         status, headers, body = \
-            self.conn.make_request('PUT', self.bucket, obj, headers, content)
+            self.conn.make_request('PUT', self.bucket, obj,
+                                   req_headers, content)
         self.assertEquals(status, 200)
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, obj)
-        self.assertEquals(headers['x-amz-meta-bar'], 'foo')
-        self.assertEquals(headers['x-amz-meta-bar2'], 'foo2')
+        for header, value in req_headers.items():
+            self.assertIn(header.lower(), headers)
+            self.assertEquals(headers[header.lower()], value)
         self.assertCommonResponseHeaders(headers)
         self._assertObjectEtag(self.bucket, obj, etag)
+
+    def test_put_object_metadata(self):
+        self._test_put_object_headers({
+            'X-Amz-Meta-Bar': 'foo',
+            'X-Amz-Meta-Bar2': 'foo2'})
+
+    def test_put_object_content_headers(self):
+        self._test_put_object_headers({
+            'Content-Type': 'foo/bar',
+            'Content-Encoding': 'baz',
+            'Content-Disposition': 'attachment',
+            'Content-Language': 'en'})
+
+    def test_put_object_cache_control(self):
+        self._test_put_object_headers({
+            'Cache-Control': 'private, some-extension'})
+
+    def test_put_object_expires(self):
+        self._test_put_object_headers({
+            # We don't validate that the Expires header is a valid date
+            'Expires': 'a valid HTTP-date timestamp'})
+
+    def test_put_object_robots_tag(self):
+        self._test_put_object_headers({
+            'X-Robots-Tag': 'googlebot: noarchive'})
 
     def test_put_object_storage_class(self):
         obj = 'object'
