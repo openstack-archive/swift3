@@ -47,6 +47,9 @@ def mktime(timestamp_str):
                           (b) %Y-%m-%dT%H:%M:%S (e.g. copy result)
     :return : a float instance in epoch time
     """
+    if timestamp_str.endswith('.000Z'):
+        timestamp_str = timestamp_str[:-5]
+
     try:
         epoch_time = time.mktime(parsedate(timestamp_str))
     except TypeError:
