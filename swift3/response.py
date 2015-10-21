@@ -18,6 +18,7 @@ from UserDict import DictMixin
 from functools import partial
 
 from swift.common import swob
+from swift.common.utils import config_true_value
 
 from swift3.utils import snake_to_camel, sysmeta_prefix
 from swift3.etree import Element, SubElement, tostring
@@ -108,7 +109,7 @@ class Response(ResponseBase, swob.Response):
                 headers[key] = val
             elif _key == 'x-static-large-object':
                 # for delete slo
-                self.is_slo = val
+                self.is_slo = config_true_value(val)
 
         self.headers = headers
         # Used for pure swift header handling at the request layer
