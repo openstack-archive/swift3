@@ -93,7 +93,7 @@ class TestRequest(Swift3TestCase):
     @patch('swift3.request.S3AclRequest.authenticate', lambda x, y: None)
     def _test_get_response(self, method, container='bucket', obj=None,
                            permission=None, skip_check=False,
-                           req_klass=S3_Request):
+                           req_klass=S3_Request, fake_swift_resp=None):
         path = '/' + container + ('/' + obj if obj else '')
         req = Request.blank(path,
                             environ={'REQUEST_METHOD': method},
@@ -105,7 +105,8 @@ class TestRequest(Swift3TestCase):
         with nested(patch('swift3.request.Request._get_response'),
                     patch('swift3.subresource.ACL.check_permission')) \
                 as (mock_get_resp, m_check_permission):
-            mock_get_resp.return_value = FakeResponse(CONF.s3_acl)
+            mock_get_resp.return_value = fake_swift_resp \
+                or FakeResponse(CONF.s3_acl)
             return mock_get_resp, m_check_permission,\
                 s3_req.get_response(self.swift3)
 
