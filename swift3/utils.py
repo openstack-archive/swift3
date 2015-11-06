@@ -135,3 +135,9 @@ def validate_bucket_name(name):
             return False
         else:
             return True
+
+
+class S3Timestamp(utils.Timestamp):
+    @property
+    def s3xmlformat(self):
+        return self.isoformat[:-7] + '.000Z'
