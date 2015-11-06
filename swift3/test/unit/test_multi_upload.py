@@ -1114,10 +1114,11 @@ class TestSwift3MultiUpload(Swift3TestCase):
         put_headers.update(put_header)
         req = Request.blank(
             '/bucket/object?partNumber=1&uploadId=X',
-            environ={'REQUEST_METHOD': 'PUT',
-                     'HTTP_X_TIMESTAMP': '1396353600.000000'},
+            environ={'REQUEST_METHOD': 'PUT'},
             headers=put_headers)
-        return self.call_swift3(req)
+        with patch('swift3.controllers.multi_upload.time.time') as mock_time:
+            mock_time.return_value = 1396353600.592270
+            return self.call_swift3(req)
 
     @s3acl
     def test_upload_part_copy(self):

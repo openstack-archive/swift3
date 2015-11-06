@@ -45,7 +45,7 @@ upload information:
 import os
 import re
 import sys
-import datetime
+import time
 
 from swift.common.utils import json
 from swift.common.db import utf8encode
@@ -57,7 +57,7 @@ from swift3.response import InvalidArgument, ErrorResponse, MalformedXML, \
     InvalidRequest, HTTPOk, HTTPNoContent, NoSuchKey, NoSuchUpload, \
     NoSuchBucket
 from swift3.exception import BadSwiftRequest
-from swift3.utils import LOGGER, unique_id, MULTIUPLOAD_SUFFIX
+from swift3.utils import LOGGER, unique_id, MULTIUPLOAD_SUFFIX, S3Timestamp
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
 from swift3.cfg import CONF
@@ -121,19 +121,14 @@ class PartController(Controller):
         req.object_name = '%s/%s/%d' % (req.object_name, upload_id,
                                         part_number)
 
+        req_timestamp = S3Timestamp(time.time())
+        req.headers['X-Timestamp'] = req_timestamp.internal
         req.check_copy_source(self.app)
         resp = req.get_response(self.app)
 
         if 'X-Amz-Copy-Source' in req.headers:
-            obj_timestamp = (datetime.datetime.fromtimestamp(
-                float(resp.environ['HTTP_X_TIMESTAMP']))
-                .isoformat())
-            if len(obj_timestamp) is 19:
-                obj_timestamp += '.000Z'
-            else:
-                obj_timestamp = obj_timestamp[:-3] + 'Z'
             resp.append_copy_resp_body(req.controller_name,
-                                       obj_timestamp)
+                                       req_timestamp.s3xmlformat)
 
         resp.status = 200
         return resp
