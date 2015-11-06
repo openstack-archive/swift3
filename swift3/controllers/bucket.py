@@ -104,8 +104,9 @@ class BucketController(Controller):
             if 'subdir' not in o:
                 contents = SubElement(elem, 'Contents')
                 SubElement(contents, 'Key').text = o['name']
+                # TODO: use S3DateTime
                 SubElement(contents, 'LastModified').text = \
-                    o['last_modified'][:-3] + 'Z'
+                    o['last_modified'][:-6] + '000Z'
                 SubElement(contents, 'ETag').text = '"%s"' % o['hash']
                 SubElement(contents, 'Size').text = str(o['bytes'])
                 owner = SubElement(contents, 'Owner')

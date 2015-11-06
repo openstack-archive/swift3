@@ -100,7 +100,6 @@ class TestSwift3Obj(Swift3TestCase):
             elif key.startswith('x-object-meta-'):
                 self.assertIn('x-amz-meta-' + key[14:], headers)
                 self.assertEquals(headers['x-amz-meta-' + key[14:]], val)
-
             else:
                 unexpected_headers.append((key, val))
 
@@ -456,17 +455,18 @@ class TestSwift3Obj(Swift3TestCase):
         put_headers.update(put_header)
 
         req = Request.blank('/bucket/object',
-                            environ={'REQUEST_METHOD': 'PUT',
-                                     'HTTP_X_TIMESTAMP': '1396353600.000000'},
+                            environ={'REQUEST_METHOD': 'PUT'},
                             headers=put_headers)
 
         req.date = datetime.now()
         req.content_type = 'text/plain'
-        return self.call_swift3(req)
+        with patch('swift3.controllers.obj.time.time') as mock_time:
+            mock_time.return_value = 1396353600.000000
+            return self.call_swift3(req)
 
     @s3acl
     def test_object_PUT_copy(self):
-        last_modified = '2014-04-01T12:00:00.000Z'
+        last_modified = '2014-04-01T05:00:00.000Z'
         status, headers, body = \
             self._test_object_PUT_copy(swob.HTTPOk)
         self.assertEquals(status.split()[0], '200')
@@ -782,8 +782,7 @@ class TestSwift3Obj(Swift3TestCase):
 
         req = Request.blank(
             '/bucket/object',
-            environ={'REQUEST_METHOD': 'PUT',
-                     'HTTP_X_TIMESTAMP': '1396353600.000000'},
+            environ={'REQUEST_METHOD': 'PUT'},
             headers={'Authorization': 'AWS %s:hmac' % account,
                      'X-Amz-Copy-Source': src_path})
 

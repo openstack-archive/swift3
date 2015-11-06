@@ -14,13 +14,76 @@
 # limitations under the License.
 
 import re
+import time
 from UserDict import DictMixin
 from functools import partial
+from email.utils import parsedate
+from datetime import datetime
 
+from swift.common.utils import Timestamp
 from swift.common import swob
 
 from swift3.utils import snake_to_camel, sysmeta_prefix
 from swift3.etree import Element, SubElement, tostring
+
+
+def _header_datetime_or_timestamp_property(header):
+    """
+    The only difference from swift.common.swob._datetime_property is using
+    S3DateTime class that inherit datetime.datetime to make custum date format.
+    Note that this property uses pure swift backend headers (i.e. 'sw_headers')
+    :param header: name of the header, e.g. "Content-Length"
+    """
+    def getter(self):
+        value = self.headers.get(header, None)
+        if value is not None:
+            try:
+                timestamp = Timestamp(self.headers[header])
+            except ValueError:
+                # datetime case
+                parsed_date = parsedate(self.headers[header])
+                if parsed_date:
+                    parts = parsed_date[:7]
+                    return S3DateTime(*(parts + (swob.UTC,)))
+            else:
+                # timestamp case
+                return S3DateTime.fromtimestamp(float(timestamp))
+        return None
+
+    def setter(self, value):
+        if isinstance(value, (float, int, long)):
+            self.headers[header] = time.strftime(
+                "%a, %d %b %Y %H:%M:%S GMT", time.gmtime(value))
+        elif isinstance(value, datetime):
+            self.headers[header] = value.strftime(
+                "%a, %d %b %Y %H:%M:%S GMT")
+        else:
+            self.headers[header] = value
+
+    return property(getter, setter,
+                    doc=("Retrieve and set the %s header as a datetime, "
+                         "set it with a datetime, int, or str") % header)
+
+
+class S3DateTime(datetime):
+    """
+    Child class of datetime.datetime to support some formats for s3
+    """
+    def __init__(self, year, month, day, hour=0, minute=0, second=0,
+                 microsecond=0, tzinfo=None):
+        # S3DateTime doesn't need microsecond info
+        super(S3DateTime, self).__init__(
+            year, month, day, hour, minute, second, 0, tzinfo)
+
+    @classmethod
+    def fromtimestamp(klass, timestamp):
+        # drop micro second
+        timestamp = float(int(timestamp))
+        return super(S3DateTime, klass).fromtimestamp(timestamp)
+
+    @property
+    def s3xmlformat(self):
+        return self.isoformat() + '.000Z'
 
 
 class HeaderKey(str):
@@ -74,6 +137,9 @@ class Response(ResponseBase, swob.Response):
     headers instead of Swift's HeaderKeyDict.  This also translates Swift
     specific headers to S3 headers.
     """
+
+    last_modified = _header_datetime_or_timestamp_property('last-modified')
+
     def __init__(self, *args, **kwargs):
         swob.Response.__init__(self, *args, **kwargs)
 

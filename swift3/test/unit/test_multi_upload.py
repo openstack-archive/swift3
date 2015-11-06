@@ -41,23 +41,24 @@ xml = '<CompleteMultipartUpload>' \
     '</Part>' \
     '</CompleteMultipartUpload>'
 
+# TODO: add microseconds tests
 objects_template = \
-    (('object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 100),
-     ('object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 200))
+    (('object/X/1', '2014-05-07T19:47:51.000000', 'HASH', 100),
+     ('object/X/2', '2014-05-07T19:47:52.000000', 'HASH', 200))
 
 multiparts_template = \
-    (('object/X', '2014-05-07T19:47:50.592270', 'HASH', 1),
-     ('object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 11),
-     ('object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 21),
-     ('object/Y', '2014-05-07T19:47:53.592270', 'HASH', 2),
-     ('object/Y/1', '2014-05-07T19:47:54.592270', 'HASH', 12),
-     ('object/Y/2', '2014-05-07T19:47:55.592270', 'HASH', 22),
-     ('object/Z', '2014-05-07T19:47:56.592270', 'HASH', 3),
-     ('object/Z/1', '2014-05-07T19:47:57.592270', 'HASH', 13),
-     ('object/Z/2', '2014-05-07T19:47:58.592270', 'HASH', 23),
-     ('subdir/object/Z', '2014-05-07T19:47:58.592270', 'HASH', 4),
-     ('subdir/object/Z/1', '2014-05-07T19:47:58.592270', 'HASH', 41),
-     ('subdir/object/Z/2', '2014-05-07T19:47:58.592270', 'HASH', 41))
+    (('object/X', '2014-05-07T19:47:50.000000', 'HASH', 1),
+     ('object/X/1', '2014-05-07T19:47:51.000000', 'HASH', 11),
+     ('object/X/2', '2014-05-07T19:47:52.000000', 'HASH', 21),
+     ('object/Y', '2014-05-07T19:47:53.000000', 'HASH', 2),
+     ('object/Y/1', '2014-05-07T19:47:54.000000', 'HASH', 12),
+     ('object/Y/2', '2014-05-07T19:47:55.000000', 'HASH', 22),
+     ('object/Z', '2014-05-07T19:47:56.000000', 'HASH', 3),
+     ('object/Z/1', '2014-05-07T19:47:57.000000', 'HASH', 13),
+     ('object/Z/2', '2014-05-07T19:47:58.000000', 'HASH', 23),
+     ('subdir/object/Z', '2014-05-07T19:47:58.000000', 'HASH', 4),
+     ('subdir/object/Z/1', '2014-05-07T19:47:58.000000', 'HASH', 41),
+     ('subdir/object/Z/2', '2014-05-07T19:47:58.000000', 'HASH', 41))
 
 
 class TestSwift3MultiUpload(Swift3TestCase):
@@ -68,7 +69,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         segment_bucket = '/v1/AUTH_test/bucket+segments'
         self.etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
         self.last_modified = 'Fri, 01 Apr 2014 12:00:00 GMT'
-        put_headers = {'etag': self.etag, 'last-modified': self.last_modified}
+        put_headers = {'etag': self.etag, 'last-modified': self.last_modified,
+                       'x-timestamp': '1396353600.000000'}
 
         objects = map(lambda item: {'name': item[0], 'last_modified': item[1],
                                     'hash': item[2], 'bytes': item[3]},
@@ -302,9 +304,9 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_bucket_multipart_uploads_GET_with_id_and_key_marker(self):
         query = 'upload-id-marker=Y&key-marker=object'
         multiparts = \
-            (('object/Y', '2014-05-07T19:47:53.592270', 'HASH', 2),
-             ('object/Y/1', '2014-05-07T19:47:54.592270', 'HASH', 12),
-             ('object/Y/2', '2014-05-07T19:47:55.592270', 'HASH', 22))
+            (('object/Y', '2014-05-07T19:47:53.000000', 'HASH', 2),
+             ('object/Y/1', '2014-05-07T19:47:54.000000', 'HASH', 12),
+             ('object/Y/2', '2014-05-07T19:47:55.000000', 'HASH', 22))
 
         status, headers, body = \
             self._test_bucket_multipart_uploads_GET(query, multiparts)
@@ -333,12 +335,12 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_bucket_multipart_uploads_GET_with_key_marker(self):
         query = 'key-marker=object'
         multiparts = \
-            (('object/X', '2014-05-07T19:47:50.592270', 'HASH', 1),
-             ('object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 11),
-             ('object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 21),
-             ('object/Y', '2014-05-07T19:47:53.592270', 'HASH', 2),
-             ('object/Y/1', '2014-05-07T19:47:54.592270', 'HASH', 12),
-             ('object/Y/2', '2014-05-07T19:47:55.592270', 'HASH', 22))
+            (('object/X', '2014-05-07T19:47:50.000000', 'HASH', 1),
+             ('object/X/1', '2014-05-07T19:47:51.000000', 'HASH', 11),
+             ('object/X/2', '2014-05-07T19:47:52.000000', 'HASH', 21),
+             ('object/Y', '2014-05-07T19:47:53.000000', 'HASH', 2),
+             ('object/Y/1', '2014-05-07T19:47:54.000000', 'HASH', 12),
+             ('object/Y/2', '2014-05-07T19:47:55.000000', 'HASH', 22))
         status, headers, body = \
             self._test_bucket_multipart_uploads_GET(query, multiparts)
         elem = fromstring(body, 'ListMultipartUploadsResult')
@@ -367,9 +369,9 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_bucket_multipart_uploads_GET_with_prefix(self):
         query = 'prefix=X'
         multiparts = \
-            (('object/X', '2014-05-07T19:47:50.592270', 'HASH', 1),
-             ('object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 11),
-             ('object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 21))
+            (('object/X', '2014-05-07T19:47:50.000000', 'HASH', 1),
+             ('object/X/1', '2014-05-07T19:47:51.000000', 'HASH', 11),
+             ('object/X/2', '2014-05-07T19:47:52.000000', 'HASH', 21))
         status, headers, body = \
             self._test_bucket_multipart_uploads_GET(query, multiparts)
         elem = fromstring(body, 'ListMultipartUploadsResult')
@@ -395,24 +397,24 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_bucket_multipart_uploads_GET_with_delimiter(self):
         query = 'delimiter=/'
         multiparts = \
-            (('object/X', '2014-05-07T19:47:50.592270', 'HASH', 1),
-             ('object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 11),
-             ('object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 21),
-             ('object/Y', '2014-05-07T19:47:50.592270', 'HASH', 2),
-             ('object/Y/1', '2014-05-07T19:47:51.592270', 'HASH', 21),
-             ('object/Y/2', '2014-05-07T19:47:52.592270', 'HASH', 22),
-             ('object/Z', '2014-05-07T19:47:50.592270', 'HASH', 3),
-             ('object/Z/1', '2014-05-07T19:47:51.592270', 'HASH', 31),
-             ('object/Z/2', '2014-05-07T19:47:52.592270', 'HASH', 32),
-             ('subdir/object/X', '2014-05-07T19:47:50.592270', 'HASH', 4),
-             ('subdir/object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 41),
-             ('subdir/object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 42),
-             ('subdir/object/Y', '2014-05-07T19:47:50.592270', 'HASH', 5),
-             ('subdir/object/Y/1', '2014-05-07T19:47:51.592270', 'HASH', 51),
-             ('subdir/object/Y/2', '2014-05-07T19:47:52.592270', 'HASH', 52),
-             ('subdir2/object/Z', '2014-05-07T19:47:50.592270', 'HASH', 6),
-             ('subdir2/object/Z/1', '2014-05-07T19:47:51.592270', 'HASH', 61),
-             ('subdir2/object/Z/2', '2014-05-07T19:47:52.592270', 'HASH', 62))
+            (('object/X', '2014-05-07T19:47:50.000000', 'HASH', 1),
+             ('object/X/1', '2014-05-07T19:47:51.000000', 'HASH', 11),
+             ('object/X/2', '2014-05-07T19:47:52.000000', 'HASH', 21),
+             ('object/Y', '2014-05-07T19:47:50.000000', 'HASH', 2),
+             ('object/Y/1', '2014-05-07T19:47:51.000000', 'HASH', 21),
+             ('object/Y/2', '2014-05-07T19:47:52.000000', 'HASH', 22),
+             ('object/Z', '2014-05-07T19:47:50.000000', 'HASH', 3),
+             ('object/Z/1', '2014-05-07T19:47:51.000000', 'HASH', 31),
+             ('object/Z/2', '2014-05-07T19:47:52.000000', 'HASH', 32),
+             ('subdir/object/X', '2014-05-07T19:47:50.000000', 'HASH', 4),
+             ('subdir/object/X/1', '2014-05-07T19:47:51.000000', 'HASH', 41),
+             ('subdir/object/X/2', '2014-05-07T19:47:52.000000', 'HASH', 42),
+             ('subdir/object/Y', '2014-05-07T19:47:50.000000', 'HASH', 5),
+             ('subdir/object/Y/1', '2014-05-07T19:47:51.000000', 'HASH', 51),
+             ('subdir/object/Y/2', '2014-05-07T19:47:52.000000', 'HASH', 52),
+             ('subdir2/object/Z', '2014-05-07T19:47:50.000000', 'HASH', 6),
+             ('subdir2/object/Z/1', '2014-05-07T19:47:51.000000', 'HASH', 61),
+             ('subdir2/object/Z/2', '2014-05-07T19:47:52.000000', 'HASH', 62))
 
         status, headers, body = \
             self._test_bucket_multipart_uploads_GET(query, multiparts)
@@ -446,24 +448,24 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_bucket_multipart_uploads_GET_with_multi_chars_delimiter(self):
         query = 'delimiter=subdir'
         multiparts = \
-            (('object/X', '2014-05-07T19:47:50.592270', 'HASH', 1),
-             ('object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 11),
-             ('object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 21),
-             ('dir/subdir/object/X', '2014-05-07T19:47:50.592270',
+            (('object/X', '2014-05-07T19:47:50.000000', 'HASH', 1),
+             ('object/X/1', '2014-05-07T19:47:51.000000', 'HASH', 11),
+             ('object/X/2', '2014-05-07T19:47:52.000000', 'HASH', 21),
+             ('dir/subdir/object/X', '2014-05-07T19:47:50.000000',
               'HASH', 3),
-             ('dir/subdir/object/X/1', '2014-05-07T19:47:51.592270',
+             ('dir/subdir/object/X/1', '2014-05-07T19:47:51.000000',
               'HASH', 31),
-             ('dir/subdir/object/X/2', '2014-05-07T19:47:52.592270',
+             ('dir/subdir/object/X/2', '2014-05-07T19:47:52.000000',
               'HASH', 32),
-             ('subdir/object/X', '2014-05-07T19:47:50.592270', 'HASH', 4),
-             ('subdir/object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 41),
-             ('subdir/object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 42),
-             ('subdir/object/Y', '2014-05-07T19:47:50.592270', 'HASH', 5),
-             ('subdir/object/Y/1', '2014-05-07T19:47:51.592270', 'HASH', 51),
-             ('subdir/object/Y/2', '2014-05-07T19:47:52.592270', 'HASH', 52),
-             ('subdir2/object/Z', '2014-05-07T19:47:50.592270', 'HASH', 6),
-             ('subdir2/object/Z/1', '2014-05-07T19:47:51.592270', 'HASH', 61),
-             ('subdir2/object/Z/2', '2014-05-07T19:47:52.592270', 'HASH', 62))
+             ('subdir/object/X', '2014-05-07T19:47:50.000000', 'HASH', 4),
+             ('subdir/object/X/1', '2014-05-07T19:47:51.000000', 'HASH', 41),
+             ('subdir/object/X/2', '2014-05-07T19:47:52.000000', 'HASH', 42),
+             ('subdir/object/Y', '2014-05-07T19:47:50.000000', 'HASH', 5),
+             ('subdir/object/Y/1', '2014-05-07T19:47:51.000000', 'HASH', 51),
+             ('subdir/object/Y/2', '2014-05-07T19:47:52.000000', 'HASH', 52),
+             ('subdir2/object/Z', '2014-05-07T19:47:50.000000', 'HASH', 6),
+             ('subdir2/object/Z/1', '2014-05-07T19:47:51.000000', 'HASH', 61),
+             ('subdir2/object/Z/2', '2014-05-07T19:47:52.000000', 'HASH', 62))
 
         status, headers, body = \
             self._test_bucket_multipart_uploads_GET(query, multiparts)
@@ -496,15 +498,15 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_bucket_multipart_uploads_GET_with_prefix_and_delimiter(self):
         query = 'prefix=dir/&delimiter=/'
         multiparts = \
-            (('dir/subdir/object/X', '2014-05-07T19:47:50.592270',
+            (('dir/subdir/object/X', '2014-05-07T19:47:50.000000',
               'HASH', 4),
-             ('dir/subdir/object/X/1', '2014-05-07T19:47:51.592270',
+             ('dir/subdir/object/X/1', '2014-05-07T19:47:51.000000',
               'HASH', 41),
-             ('dir/subdir/object/X/2', '2014-05-07T19:47:52.592270',
+             ('dir/subdir/object/X/2', '2014-05-07T19:47:52.000000',
               'HASH', 42),
-             ('dir/object/X', '2014-05-07T19:47:50.592270', 'HASH', 5),
-             ('dir/object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 51),
-             ('dir/object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 52))
+             ('dir/object/X', '2014-05-07T19:47:50.000000', 'HASH', 5),
+             ('dir/object/X/1', '2014-05-07T19:47:51.000000', 'HASH', 51),
+             ('dir/object/X/2', '2014-05-07T19:47:52.000000', 'HASH', 52))
 
         status, headers, body = \
             self._test_bucket_multipart_uploads_GET(query, multiparts)
@@ -1070,14 +1072,15 @@ class TestSwift3MultiUpload(Swift3TestCase):
         put_headers.update(put_header)
         req = Request.blank(
             '/bucket/object?partNumber=1&uploadId=X',
-            environ={'REQUEST_METHOD': 'PUT',
-                     'HTTP_X_TIMESTAMP': '1396353600.000000'},
+            environ={'REQUEST_METHOD': 'PUT'},
             headers=put_headers)
-        return self.call_swift3(req)
+        with patch('swift3.controllers.multi_upload.time.time') as mock_time:
+            mock_time.return_value = 1396353600.000000
+            return self.call_swift3(req)
 
     @s3acl
     def test_upload_part_copy(self):
-        last_modified = '2014-04-01T12:00:00.000Z'
+        last_modified = '2014-04-01T05:00:00.000Z'
         status, headers, body = \
             self._test_copy_for_s3acl('test:tester')
         self.assertEquals(status.split()[0], '200')
