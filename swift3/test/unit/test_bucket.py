@@ -117,7 +117,7 @@ class TestSwift3Bucket(Swift3TestCase):
         names = []
         for o in objects:
             names.append(o.find('./Key').text)
-            self.assertEqual('2011-01-05T02:19:14.275Z',
+            self.assertEqual('2011-01-05T02:19:14.000Z',
                              o.find('./LastModified').text)
             self.assertEqual('"0"', o.find('./ETag').text)
 

@@ -14,13 +14,15 @@
 # limitations under the License.
 
 import sys
-import datetime
+import time
 
 from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT, HTTP_NO_CONTENT
 from swift.common.swob import Range, content_range_header_value
+from swift.common.utils import Timestamp
 
 from swift3.controllers.base import Controller
-from swift3.response import S3NotImplemented, InvalidRange, NoSuchKey
+from swift3.response import S3NotImplemented, InvalidRange, NoSuchKey, \
+    S3DateTime
 
 
 class ObjectController(Controller):
@@ -96,19 +98,16 @@ class ObjectController(Controller):
         """
         Handle PUT Object and PUT Object (Copy) request
         """
+        # set X-Timestamp by swift3 to use at copy resp body
+        req_timestamp = Timestamp(time.time()).internal
+        req.headers['X-Timestamp'] = req_timestamp
         req.check_copy_source(self.app)
         resp = req.get_response(self.app)
 
         if 'X-Amz-Copy-Source' in req.headers:
-            obj_timestamp = (datetime.datetime.fromtimestamp(
-                float(resp.environ['HTTP_X_TIMESTAMP']))
-                .isoformat())
-            if len(obj_timestamp) is 19:
-                obj_timestamp += '.000Z'
-            else:
-                obj_timestamp = obj_timestamp[:-3] + 'Z'
+            req_s3datetime = S3DateTime.fromtimestamp(float(req_timestamp))
             resp.append_copy_resp_body(req.controller_name,
-                                       obj_timestamp)
+                                       req_s3datetime.s3xmlformat)
 
             # delete object metadata from response
             for key in list(resp.headers.keys()):

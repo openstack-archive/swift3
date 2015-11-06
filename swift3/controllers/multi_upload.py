@@ -45,9 +45,9 @@ upload information:
 import os
 import re
 import sys
-import datetime
+import time
 
-from swift.common.utils import json
+from swift.common.utils import json, Timestamp
 from swift.common.db import utf8encode
 
 from swift3.controllers.base import Controller, bucket_operation, \
@@ -55,7 +55,7 @@ from swift3.controllers.base import Controller, bucket_operation, \
 from swift3.response import InvalidArgument, ErrorResponse, MalformedXML, \
     InvalidPart, BucketAlreadyExists, EntityTooSmall, InvalidPartOrder, \
     InvalidRequest, HTTPOk, HTTPNoContent, NoSuchKey, NoSuchUpload, \
-    NoSuchBucket
+    NoSuchBucket, S3DateTime
 from swift3.exception import BadSwiftRequest
 from swift3.utils import LOGGER, unique_id, MULTIUPLOAD_SUFFIX
 from swift3.etree import Element, SubElement, fromstring, tostring, \
@@ -121,19 +121,15 @@ class PartController(Controller):
         req.object_name = '%s/%s/%d' % (req.object_name, upload_id,
                                         part_number)
 
+        req_timestamp = Timestamp(time.time()).internal
+        req.headers['X-Timestamp'] = req_timestamp
         req.check_copy_source(self.app)
         resp = req.get_response(self.app)
 
         if 'X-Amz-Copy-Source' in req.headers:
-            obj_timestamp = (datetime.datetime.fromtimestamp(
-                float(resp.environ['HTTP_X_TIMESTAMP']))
-                .isoformat())
-            if len(obj_timestamp) is 19:
-                obj_timestamp += '.000Z'
-            else:
-                obj_timestamp = obj_timestamp[:-3] + 'Z'
+            req_s3datetime = S3DateTime.fromtimestamp(float(req_timestamp))
             resp.append_copy_resp_body(req.controller_name,
-                                       obj_timestamp)
+                                       req_s3datetime.s3xmlformat)
 
         resp.status = 200
         return resp
@@ -285,8 +281,9 @@ class UploadsController(Controller):
             SubElement(owner_elem, 'ID').text = req.user_id
             SubElement(owner_elem, 'DisplayName').text = req.user_id
             SubElement(upload_elem, 'StorageClass').text = 'STANDARD'
+            # TODO: use S3DateTime
             SubElement(upload_elem, 'Initiated').text = \
-                u['last_modified'][:-3] + 'Z'
+                u['last_modified'][:-6] + '000Z'
 
         for p in prefixes:
             elem = SubElement(result_elem, 'CommonPrefixes')
@@ -421,8 +418,9 @@ class UploadController(Controller):
         for i in objList:
             part_elem = SubElement(result_elem, 'Part')
             SubElement(part_elem, 'PartNumber').text = i['name'].split('/')[-1]
+            # TODO: use S3DateTime
             SubElement(part_elem, 'LastModified').text = \
-                i['last_modified'][:-3] + 'Z'
+                i['last_modified'][:-6] + '000Z'
             SubElement(part_elem, 'ETag').text = '"%s"' % i['hash']
             SubElement(part_elem, 'Size').text = str(i['bytes'])
 
