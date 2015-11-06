@@ -456,7 +456,8 @@ class TestSwift3Obj(Swift3TestCase):
         put_headers.update(put_header)
 
         req = Request.blank('/bucket/object',
-                            environ={'REQUEST_METHOD': 'PUT'},
+                            environ={'REQUEST_METHOD': 'PUT',
+                                     'HTTP_X_TIMESTAMP': '1396353600.000000'},
                             headers=put_headers)
 
         req.date = datetime.now()
@@ -465,7 +466,7 @@ class TestSwift3Obj(Swift3TestCase):
 
     @s3acl
     def test_object_PUT_copy(self):
-        last_modified = '2014-04-01T12:00:00'
+        last_modified = '2014-04-01T12:00:00.000Z'
         status, headers, body = \
             self._test_object_PUT_copy(swob.HTTPOk)
         self.assertEquals(status.split()[0], '200')
@@ -781,7 +782,8 @@ class TestSwift3Obj(Swift3TestCase):
 
         req = Request.blank(
             '/bucket/object',
-            environ={'REQUEST_METHOD': 'PUT'},
+            environ={'REQUEST_METHOD': 'PUT',
+                     'HTTP_X_TIMESTAMP': '1396353600.000000'},
             headers={'Authorization': 'AWS %s:hmac' % account,
                      'X-Amz-Copy-Source': src_path})
 

@@ -45,6 +45,7 @@ upload information:
 import os
 import re
 import sys
+import datetime
 
 from swift.common.utils import json
 from swift.common.db import utf8encode
@@ -120,12 +121,19 @@ class PartController(Controller):
         req.object_name = '%s/%s/%d' % (req.object_name, upload_id,
                                         part_number)
 
-        last_modified = req.check_copy_source(self.app)
+        req.check_copy_source(self.app)
         resp = req.get_response(self.app)
 
         if 'X-Amz-Copy-Source' in req.headers:
+            obj_timestamp = (datetime.datetime.fromtimestamp(
+                float(resp.environ['HTTP_X_TIMESTAMP']))
+                .isoformat())
+            if len(obj_timestamp) is 19:
+                obj_timestamp += '.000Z'
+            else:
+                obj_timestamp = obj_timestamp[:-3] + 'Z'
             resp.append_copy_resp_body(req.controller_name,
-                                       last_modified)
+                                       obj_timestamp)
 
         resp.status = 200
         return resp
