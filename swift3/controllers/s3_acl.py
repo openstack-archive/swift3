@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from urllib import quote
+from urllib import quote, unquote
 
 from swift3.controllers.base import Controller
 from swift3.response import HTTPOk
@@ -55,7 +55,7 @@ class S3AclController(Controller):
             # object-sysmeta' can be updated by 'Copy' method,
             # but can not be by 'POST' method.
             # So headers['X-Copy-From'] for copy request is added here.
-            headers['X-Copy-From'] = quote(src_path)
+            headers['X-Copy-From'] = quote(unquote(src_path))
             headers['Content-Length'] = 0
             req.get_response(self.app, 'PUT', headers=headers)
         else:
