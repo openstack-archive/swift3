@@ -127,6 +127,7 @@ class ObjectController(Controller):
         """
         try:
             query = req.gen_multipart_manifest_delete_query(self.app)
+            req.headers['Content-Type'] = None  # Ignore client content-type
             resp = req.get_response(self.app, query=query)
             if query and resp.status_int == HTTP_OK:
                 for chunk in resp.app_iter:
