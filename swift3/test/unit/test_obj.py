@@ -663,7 +663,8 @@ class TestSwift3Obj(Swift3TestCase):
                             swob.HTTPOk, {}, '<SLO delete results>')
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': 'DELETE'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Content-Type': 'foo/bar'})
         status, headers, body = self.call_swift3(req)
         self.assertEqual(status.split()[0], '204')
         self.assertEqual(body, '')
@@ -673,13 +674,14 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertIn(('DELETE', '/v1/AUTH_test/bucket/object'
                                  '?multipart-manifest=delete'),
                       self.swift.calls)
-        _, path = self.swift.calls[-1]
+        _, path, headers = self.swift.calls_with_headers[-1]
         path, query_string = path.split('?', 1)
         query = {}
         for q in query_string.split('&'):
             key, arg = q.split('=')
             query[key] = arg
         self.assertEquals(query['multipart-manifest'], 'delete')
+        self.assertNotIn('Content-Type', headers)
 
     def _test_object_for_s3acl(self, method, account):
         req = Request.blank('/bucket/object',
