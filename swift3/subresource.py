@@ -355,7 +355,7 @@ class Grant(object):
         if permission.upper() not in PERMISSIONS:
             raise S3NotImplemented()
         if not isinstance(grantee, Grantee):
-            raise
+            raise ValueError()
         self.grantee = grantee
         self.permission = permission
 
