@@ -126,7 +126,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_bucket_upload_part(self):
         req = Request.blank('/bucket?partNumber=1&uploadId=x',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidRequest')
 
@@ -134,7 +135,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_object_multipart_uploads_list(self):
         req = Request.blank('/bucket/object?uploads',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidRequest')
 
@@ -142,7 +144,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_bucket_multipart_uploads_initiate(self):
         req = Request.blank('/bucket?uploads',
                             environ={'REQUEST_METHOD': 'POST'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidRequest')
 
@@ -150,7 +153,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_bucket_list_parts(self):
         req = Request.blank('/bucket?uploadId=x',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidRequest')
 
@@ -158,7 +162,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_bucket_multipart_uploads_abort(self):
         req = Request.blank('/bucket?uploadId=x',
                             environ={'REQUEST_METHOD': 'DELETE'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidRequest')
 
@@ -166,7 +171,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_bucket_multipart_uploads_complete(self):
         req = Request.blank('/bucket?uploadId=x',
                             environ={'REQUEST_METHOD': 'POST'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidRequest')
 
@@ -184,7 +190,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         query = '?uploads&' + query if query else '?uploads'
         req = Request.blank('/bucket/%s' % query,
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         return self.call_swift3(req)
 
     @s3acl
@@ -218,7 +225,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
         req = Request.blank('/bucket?uploads',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
 
         status, haeaders, body = self.call_swift3(req)
 
@@ -239,7 +247,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
                             swob.HTTPNotFound, {}, '')
         req = Request.blank('/bucket?uploads',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, haeaders, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '404')
         self.assertEquals(self._get_error_code(body), 'NoSuchBucket')
@@ -540,6 +549,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
                             environ={'REQUEST_METHOD': 'POST'},
                             headers={'Authorization':
                                      'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-meta-foo': 'bar'})
         status, headers, body = self.call_swift3(req)
         fromstring(body, 'InitiateMultipartUploadResult')
@@ -555,6 +565,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
                             environ={'REQUEST_METHOD': 'POST'},
                             headers={'Authorization':
                                      'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-acl': 'public-read',
                                      'x-amz-meta-foo': 'bar'})
         status, headers, body = self.call_swift3(req)
@@ -578,7 +589,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         req = Request.blank('/bucket/object?uploads',
                             environ={'REQUEST_METHOD': 'POST'},
                             headers={'Authorization':
-                                     'AWS test:tester:hmac'})
+                                     'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '404')
         self.assertEquals(self._get_error_code(body), 'NoSuchBucket')
@@ -588,7 +600,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         malformed_xml = 'malformed_XML'
         req = Request.blank('/bucket/object?uploadId=X',
                             environ={'REQUEST_METHOD': 'POST'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body=malformed_xml)
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'MalformedXML')
@@ -596,7 +609,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         # without target bucket
         req = Request.blank('/nobucket/object?uploadId=X',
                             environ={'REQUEST_METHOD': 'POST'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),},
                             body=xml)
         with patch('swift3.request.get_container_info',
                    lambda x, y: {'status': 404}):
@@ -608,7 +622,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_object_multipart_upload_complete(self):
         req = Request.blank('/bucket/object?uploadId=X',
                             environ={'REQUEST_METHOD': 'POST'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),},
                             body=xml)
         status, headers, body = self.call_swift3(req)
         fromstring(body, 'CompleteMultipartUploadResult')
@@ -631,7 +646,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
                             swob.HTTPOk, headers, None)
         req = Request.blank('/bucket/object?uploadId=X',
                             environ={'REQUEST_METHOD': 'POST'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body=xml)
         status, headers, body = self.call_swift3(req)
         fromstring(body, 'CompleteMultipartUploadResult')
@@ -648,14 +664,16 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_object_multipart_upload_abort_error(self):
         req = Request.blank('/bucket/object?uploadId=invalid',
                             environ={'REQUEST_METHOD': 'DELETE'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'NoSuchUpload')
 
         # without target bucket
         req = Request.blank('/nobucket/object?uploadId=X',
                             environ={'REQUEST_METHOD': 'DELETE'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         with patch('swift3.request.get_container_info',
                    lambda x, y: {'status': 404}):
             self.swift.register('HEAD', '/v1/AUTH_test/nobucket',
@@ -667,7 +685,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_object_multipart_upload_abort(self):
         req = Request.blank('/bucket/object?uploadId=X',
                             environ={'REQUEST_METHOD': 'DELETE'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '204')
 
@@ -677,7 +696,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         # without upload id
         req = Request.blank('/bucket/object?partNumber=1',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body='part object')
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
@@ -685,7 +705,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         # invalid part number
         req = Request.blank('/bucket/object?partNumber=invalid&uploadId=X',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body='part object')
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
@@ -693,7 +714,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         # part number must be > 0
         req = Request.blank('/bucket/object?partNumber=0&uploadId=X',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body='part object')
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
@@ -701,7 +723,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         # part number must be < 1000
         req = Request.blank('/bucket/object?partNumber=1001&uploadId=X',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body='part object')
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
@@ -709,7 +732,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         # without target bucket
         req = Request.blank('/nobucket/object?partNumber=1&uploadId=X',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body='part object')
         with patch('swift3.request.get_container_info',
                    lambda x, y: {'status': 404}):
@@ -722,7 +746,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_object_upload_part(self):
         req = Request.blank('/bucket/object?partNumber=1&uploadId=X',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body='part object')
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
@@ -731,14 +756,16 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_object_list_parts_error(self):
         req = Request.blank('/bucket/object?uploadId=invalid',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'NoSuchUpload')
 
         # without target bucket
         req = Request.blank('/nobucket/object?uploadId=X',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         with patch('swift3.request.get_container_info',
                    lambda x, y: {'status': 404}):
             self.swift.register('HEAD', '/v1/AUTH_test/nobucket',
@@ -750,7 +777,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_object_list_parts(self):
         req = Request.blank('/bucket/object?uploadId=X',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListPartsResult')
         self.assertEquals(elem.find('Bucket').text, 'bucket')
@@ -782,7 +810,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
                             swob.HTTPOk, {}, None)
         req = Request.blank('/bucket/object@@?uploadId=X&encoding-type=url',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListPartsResult')
         self.assertEquals(elem.find('Key').text, quote('object@@'))
@@ -794,7 +823,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
                             swob.HTTPOk, {}, None)
         req = Request.blank('/bucket/object@@?uploadId=X',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListPartsResult')
         self.assertEquals(elem.find('Key').text, 'object@@')
@@ -803,14 +833,16 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_object_list_parts_encoding_type_error(self):
         req = Request.blank('/bucket/object?uploadId=X&encoding-type=xml',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
 
     def test_object_list_parts_max_parts(self):
         req = Request.blank('/bucket/object?uploadId=X&max-parts=1',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListPartsResult')
         self.assertEquals(elem.find('IsTruncated').text, 'true')
@@ -820,14 +852,16 @@ class TestSwift3MultiUpload(Swift3TestCase):
     def test_object_list_parts_str_max_parts(self):
         req = Request.blank('/bucket/object?uploadId=X&max-parts=invalid',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
 
     def test_object_list_parts_negative_max_parts(self):
         req = Request.blank('/bucket/object?uploadId=X&max-parts=-1',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
 
@@ -835,7 +869,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         req = Request.blank('/bucket/object?uploadId=X&max-parts=%d' %
                             (CONF.max_parts_listing + 1),
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListPartsResult')
         self.assertEquals(elem.find('Bucket').text, 'bucket')
@@ -864,7 +899,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         req = Request.blank('/bucket/object?uploadId=X&max-parts=%d' %
                             (MAX_32BIT_INT + 1),
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
 
@@ -872,7 +908,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         req = Request.blank('/bucket/object?uploadId=X&'
                             'part-number-marker=1',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListPartsResult')
         self.assertEquals(len(elem.findall('Part')), 1)
@@ -884,7 +921,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         req = Request.blank('/bucket/object?uploadId=X&part-number-marker='
                             'invalid',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
 
@@ -892,7 +930,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         req = Request.blank('/bucket/object?uploadId=X&part-number-marker='
                             '-1',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
 
@@ -901,7 +940,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         req = Request.blank('/bucket/object?uploadId=X&'
                             'part-number-marker=%s' % part_number_marker,
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListPartsResult')
         self.assertEquals(len(elem.findall('Part')), 0)
@@ -913,14 +953,16 @@ class TestSwift3MultiUpload(Swift3TestCase):
         req = Request.blank('/bucket/object?uploadId=X&part-number-marker='
                             '%s' % ((MAX_32BIT_INT + 1)),
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
 
     def test_object_list_parts_same_max_marts_as_objects_num(self):
         req = Request.blank('/bucket/object?uploadId=X&max-parts=2',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListPartsResult')
         self.assertEquals(len(elem.findall('Part')), 2)
@@ -930,7 +972,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         path = '/bucket%s' % ('/object' + query if hasObj else query)
         req = Request.blank(path,
                             environ={'REQUEST_METHOD': method},
-                            headers={'Authorization': 'AWS %s:hmac' % account},
+                            headers={'Authorization': 'AWS %s:hmac' % account,
+                                     'Date': self.get_date_header()},
                             body=body)
         return self.call_swift3(req)
 
@@ -1066,6 +1109,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
                             head_resp, src_o_headers, None)
 
         put_headers = {'Authorization': 'AWS %s:hmac' % account,
+                       'Date': self.get_date_header(),
                        'X-Amz-Copy-Source': src_path}
         put_headers.update(put_header)
         req = Request.blank(

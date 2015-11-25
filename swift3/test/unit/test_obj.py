@@ -82,7 +82,8 @@ class TestSwift3Obj(Swift3TestCase):
     def _test_object_GETorHEAD(self, method):
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': method},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
@@ -120,7 +121,8 @@ class TestSwift3Obj(Swift3TestCase):
         # So, check the response code for error test of HEAD.
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': 'HEAD'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
                             swob.HTTPUnauthorized, {}, None)
         status, headers, body = self.call_swift3(req)
@@ -159,7 +161,8 @@ class TestSwift3Obj(Swift3TestCase):
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': 'HEAD'},
                             headers={'Authorization': 'AWS test:tester:hmac',
-                                     'Range': range_value})
+                                     'Range': range_value,
+                                     'Date': self.get_date_header()})
         return self.call_swift3(req)
 
     @s3acl
@@ -292,7 +295,8 @@ class TestSwift3Obj(Swift3TestCase):
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac',
-                                     'Range': 'bytes=0-3'})
+                                     'Range': 'bytes=0-3',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '206')
 
@@ -321,7 +325,8 @@ class TestSwift3Obj(Swift3TestCase):
                                         'no-cache',
                                         'attachment',
                                         'gzip')},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
@@ -398,7 +403,8 @@ class TestSwift3Obj(Swift3TestCase):
             environ={'REQUEST_METHOD': 'PUT'},
             headers={'Authorization': 'AWS test:tester:hmac',
                      'x-amz-storage-class': 'STANDARD',
-                     'Content-MD5': content_md5},
+                     'Content-MD5': content_md5,
+                     'Date': self.get_date_header()},
             body=self.object_body)
         req.date = datetime.now()
         req.content_type = 'text/plain'
@@ -424,7 +430,8 @@ class TestSwift3Obj(Swift3TestCase):
                      'X-Amz-Storage-Class': 'STANDARD',
                      'X-Amz-Meta-Something': 'oh hai',
                      'X-Amz-Copy-Source': '/some/source',
-                     'Content-MD5': content_md5})
+                     'Content-MD5': content_md5,
+                     'Date': self.get_date_header()})
         req.date = datetime.now()
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
@@ -452,7 +459,8 @@ class TestSwift3Obj(Swift3TestCase):
                             head_resp, head_headers, None)
 
         put_headers = {'Authorization': 'AWS test:tester:hmac',
-                       'X-Amz-Copy-Source': '/some/source'}
+                       'X-Amz-Copy-Source': '/some/source',
+                       'Date': self.get_date_header()}
         put_headers.update(put_header)
 
         req = Request.blank('/bucket/object',
@@ -486,7 +494,8 @@ class TestSwift3Obj(Swift3TestCase):
         etag = '7dfa07a8e59ddbcd1dc84d4c4f82aea1'
         last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
 
-        header = {'X-Amz-Copy-Source-If-Match': etag}
+        header = {'X-Amz-Copy-Source-If-Match': etag,
+                  'Date': self.get_date_header()}
         status, header, body = \
             self._test_object_PUT_copy(swob.HTTPPreconditionFailed,
                                        header)
@@ -516,7 +525,8 @@ class TestSwift3Obj(Swift3TestCase):
         last_modified_since = 'Fri, 01 Apr 2014 11:00:00 GMT'
 
         header = {'X-Amz-Copy-Source-If-Match': etag,
-                  'X-Amz-Copy-Source-If-Modified-Since': last_modified_since}
+                  'X-Amz-Copy-Source-If-Modified-Since': last_modified_since,
+                  'Date': self.get_date_header()}
         status, header, body = \
             self._test_object_PUT_copy(swob.HTTPOk, header)
         self.assertEquals(status.split()[0], '200')
@@ -534,7 +544,8 @@ class TestSwift3Obj(Swift3TestCase):
         last_modified_since = 'Fri, 01 Apr 2014 11:00:00 GMT'
 
         header = {'X-Amz-Copy-Source-If-Match': etag,
-                  'X-Amz-Copy-Source-If-Modified-Since': last_modified_since}
+                  'X-Amz-Copy-Source-If-Modified-Since': last_modified_since,
+                  'Date': self.get_date_header()}
         status, header, body = \
             self._test_object_PUT_copy(swob.HTTPOk, header)
 
@@ -557,7 +568,8 @@ class TestSwift3Obj(Swift3TestCase):
         last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
 
         header = {'X-Amz-Copy-Source-If-None-Match': etag,
-                  'X-Amz-Copy-Source-If-Unmodified-Since': last_modified_since}
+                  'X-Amz-Copy-Source-If-Unmodified-Since': last_modified_since,
+                  'Date': self.get_date_header()}
         status, header, body = \
             self._test_object_PUT_copy(swob.HTTPOk, header)
 
@@ -576,7 +588,8 @@ class TestSwift3Obj(Swift3TestCase):
         last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
 
         header = {'X-Amz-Copy-Source-If-None-Match': etag,
-                  'X-Amz-Copy-Source-If-Unmodified-Since': last_modified_since}
+                  'X-Amz-Copy-Source-If-Unmodified-Since': last_modified_since,
+                  'Date': self.get_date_header()}
         status, header, body = \
             self._test_object_PUT_copy(swob.HTTPOk, header)
         self.assertEquals(status.split()[0], '200')
@@ -627,7 +640,8 @@ class TestSwift3Obj(Swift3TestCase):
     def test_object_DELETE_no_multipart(self):
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': 'DELETE'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '204')
 
@@ -642,7 +656,8 @@ class TestSwift3Obj(Swift3TestCase):
     def test_object_DELETE_multipart(self):
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': 'DELETE'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '204')
 
@@ -663,7 +678,8 @@ class TestSwift3Obj(Swift3TestCase):
                             swob.HTTPOk, {}, '<SLO delete results>')
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': 'DELETE'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEqual(status.split()[0], '204')
         self.assertEqual(body, '')
@@ -684,7 +700,8 @@ class TestSwift3Obj(Swift3TestCase):
     def _test_object_for_s3acl(self, method, account):
         req = Request.blank('/bucket/object',
                             environ={'REQUEST_METHOD': method},
-                            headers={'Authorization': 'AWS %s:hmac' % account})
+                            headers={'Authorization': 'AWS %s:hmac' % account,
+                                     'Date': self.get_date_header()})
         return self.call_swift3(req)
 
     def _test_set_container_permission(self, account, permission):
@@ -785,7 +802,8 @@ class TestSwift3Obj(Swift3TestCase):
             environ={'REQUEST_METHOD': 'PUT',
                      'HTTP_X_TIMESTAMP': '1396353600.000000'},
             headers={'Authorization': 'AWS %s:hmac' % account,
-                     'X-Amz-Copy-Source': src_path})
+                     'X-Amz-Copy-Source': src_path,
+                     'Date': self.get_date_header()})
 
         return self.call_swift3(req)
 
