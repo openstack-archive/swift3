@@ -62,7 +62,8 @@ class TestSwift3Service(Swift3TestCase):
     def test_service_GET(self):
         req = Request.blank('/',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
@@ -85,7 +86,8 @@ class TestSwift3Service(Swift3TestCase):
     def test_service_GET_subresource(self):
         req = Request.blank('/?acl',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
@@ -114,7 +116,8 @@ class TestSwift3Service(Swift3TestCase):
 
         req = Request.blank('/',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
 
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
@@ -142,7 +145,8 @@ class TestSwift3Service(Swift3TestCase):
 
         req = Request.blank('/',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         return self.call_swift3(req)
 
     @s3acl(s3acl_only=True)

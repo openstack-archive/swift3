@@ -42,6 +42,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
         req = Request.blank('/bucket/object?delete',
                             environ={'REQUEST_METHOD': 'POST'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'Content-MD5': content_md5},
                             body=body)
 
@@ -65,6 +66,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
         req = Request.blank('/bucket?delete',
                             environ={'REQUEST_METHOD': 'POST'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'Content-MD5': content_md5},
                             body=body)
         req.date = datetime.now()
@@ -93,6 +95,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
         req = Request.blank('/bucket?delete',
                             environ={'REQUEST_METHOD': 'POST'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'Content-MD5': content_md5},
                             body=body)
         status, headers, body = self.call_swift3(req)
@@ -119,6 +122,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
         req = Request.blank('/bucket?delete',
                             environ={'REQUEST_METHOD': 'POST'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'Content-MD5': content_md5},
                             body=body)
         status, headers, body = self.call_swift3(req)
@@ -135,6 +139,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
         req = Request.blank('/bucket?delete',
                             environ={'REQUEST_METHOD': 'POST'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'Content-MD5': 'XXXX'},
                             body=body)
         status, headers, body = self.call_swift3(req)
@@ -150,7 +155,8 @@ class TestSwift3MultiDelete(Swift3TestCase):
 
         req = Request.blank('/bucket?delete',
                             environ={'REQUEST_METHOD': 'POST'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body=body)
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidRequest')
@@ -167,6 +173,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
         req = Request.blank('/bucket?delete',
                             environ={'REQUEST_METHOD': 'POST'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'Content-MD5': content_md5},
                             body=body)
         status, headers, body = self.call_swift3(req)
@@ -191,6 +198,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
         req = Request.blank('/bucket?delete',
                             environ={'REQUEST_METHOD': 'POST'},
                             headers={'Authorization': 'AWS %s:hmac' % account,
+                                     'Date': self.get_date_header(),
                                      'Content-MD5': content_md5},
                             body=body)
         req.date = datetime.now()

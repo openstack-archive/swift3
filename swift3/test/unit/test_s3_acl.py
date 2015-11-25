@@ -168,7 +168,8 @@ class TestSwift3S3Acl(Swift3TestCase):
     def test_bucket_acl_PUT_with_other_owner(self):
         req = Request.blank('/bucket?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body=tostring(
                                 ACLPrivate(
                                     Owner(id='test:other',
@@ -179,7 +180,8 @@ class TestSwift3S3Acl(Swift3TestCase):
     def test_object_acl_PUT_xml_error(self):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body="invalid xml")
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'MalformedACLError')
@@ -188,6 +190,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-acl': 'private'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
@@ -196,6 +199,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-acl': 'public-read'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
@@ -204,6 +208,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-acl': 'public-read-write'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
@@ -212,6 +217,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-acl': 'authenticated-read'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
@@ -220,6 +226,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-acl': 'bucket-owner-read'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
@@ -228,6 +235,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-acl': 'bucket-owner-full-control'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
@@ -236,6 +244,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-acl': 'invalid'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
@@ -244,6 +253,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-grant-' + permission:
                                      'id=test:tester'})
         return self.call_swift3(req)
@@ -276,6 +286,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-grant-full-control':
                                      'id=test:tester'},
                             body=tostring(
@@ -289,6 +300,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-grant-full-control':
                                      'id=test:tester',
                                      'x-amz-acl': 'public-read'})
@@ -299,6 +311,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-grant-read': 'emailAddress=a@b.c'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'NotImplemented')
@@ -310,7 +323,8 @@ class TestSwift3S3Acl(Swift3TestCase):
         xml = _make_xml(grantee=grantee)
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body=xml)
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'NotImplemented')
@@ -321,7 +335,8 @@ class TestSwift3S3Acl(Swift3TestCase):
         xml = _make_xml(grantee=grantee)
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body=xml)
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'MalformedACLError')
@@ -330,6 +345,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-grant-read':
                                      'uri="http://acs.amazonaws.com/groups/'
                                      'global/AuthenticatedUsers"'})
@@ -340,6 +356,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-grant-read':
                                      'uri="http://acs.amazonaws.com/groups/'
                                      'global/AllUsers"'})
@@ -350,6 +367,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-grant-read':
                                      'uri="http://localhost/"'})
         status, headers, body = self.call_swift3(req)
@@ -363,7 +381,8 @@ class TestSwift3S3Acl(Swift3TestCase):
 
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body=xml)
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
@@ -372,6 +391,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'x-amz-grant-read': 'key=value'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
@@ -379,7 +399,8 @@ class TestSwift3S3Acl(Swift3TestCase):
     def _test_bucket_acl_GET(self, account):
         req = Request.blank('/bucket?acl',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS %s:hmac' % account})
+                            headers={'Authorization': 'AWS %s:hmac' % account,
+                                     'Date': self.get_date_header()})
         return self.call_swift3(req)
 
     def test_bucket_acl_GET_without_permission(self):
@@ -402,7 +423,8 @@ class TestSwift3S3Acl(Swift3TestCase):
         acl = ACL(self.default_owner, [Grant(User(account), permission)])
         req = Request.blank('/bucket?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS %s:hmac' % account},
+                            headers={'Authorization': 'AWS %s:hmac' % account,
+                                     'Date': self.get_date_header()},
                             body=tostring(acl.elem()))
 
         return self.call_swift3(req)
@@ -426,7 +448,8 @@ class TestSwift3S3Acl(Swift3TestCase):
     def _test_object_acl_GET(self, account):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS %s:hmac' % account})
+                            headers={'Authorization': 'AWS %s:hmac' % account,
+                                     'Date': self.get_date_header()})
         return self.call_swift3(req)
 
     def test_object_acl_GET_without_permission(self):
@@ -449,7 +472,8 @@ class TestSwift3S3Acl(Swift3TestCase):
         acl = ACL(self.default_owner, [Grant(User(account), permission)])
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS %s:hmac' % account},
+                            headers={'Authorization': 'AWS %s:hmac' % account,
+                                     'Date': self.get_date_header()},
                             body=tostring(acl.elem()))
 
         return self.call_swift3(req)

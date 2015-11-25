@@ -35,7 +35,8 @@ class TestSwift3Location(Swift3TestCase):
     def test_object_location(self):
         req = Request.blank('/bucket?location',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
         elem = fromstring(body, 'LocationConstraint')
@@ -46,7 +47,8 @@ class TestSwift3Location(Swift3TestCase):
         CONF.location = 'us-west-1'
         req = Request.blank('/bucket?location',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
         elem = fromstring(body, 'LocationConstraint')
