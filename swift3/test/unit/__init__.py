@@ -14,6 +14,9 @@
 # limitations under the License.
 
 import unittest
+from datetime import datetime
+import email
+import time
 
 from swift.common import swob
 
@@ -90,11 +93,15 @@ class Swift3TestCase(unittest.TestCase):
             uri += path
 
         self.swift.register(method, uri, response_class, headers, None)
-        headers.update({'Authorization': 'AWS test:tester:hmac'})
+        headers.update({'Authorization': 'AWS test:tester:hmac',
+                        'Date': self.get_date_header()})
         req = swob.Request.blank(path, environ={'REQUEST_METHOD': method},
                                  headers=headers)
         status, headers, body = self.call_swift3(req)
         return self._get_error_code(body)
+
+    def get_date_header(self):
+        return email.utils.formatdate(time.mktime(datetime.now().timetuple()))
 
     def call_app(self, req, app=None, expect_exception=False):
         if app is None:

@@ -29,7 +29,8 @@ class TestSwift3Logging(Swift3TestCase):
     def test_bucket_logging_GET(self):
         req = Request.blank('/bucket?logging',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         xml = fromstring(body, 'BucketLoggingStatus')
         self.assertEquals(xml.keys(), [])
@@ -38,14 +39,16 @@ class TestSwift3Logging(Swift3TestCase):
     def test_object_logging_GET_error(self):
         req = Request.blank('/bucket/object?logging',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'NoLoggingStatusForKey')
 
     def test_bucket_logging_PUT(self):
         req = Request.blank('/bucket?logging',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         # FIXME: Support PUT logging
         # self.assertEquals(status, 201)
@@ -54,7 +57,8 @@ class TestSwift3Logging(Swift3TestCase):
     def test_object_logging_PUT_error(self):
         req = Request.blank('/bucket/object?logging',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'NoLoggingStatusForKey')
 

@@ -44,7 +44,8 @@ class TestSwift3Acl(Swift3TestCase):
     def test_bucket_acl_GET(self):
         req = Request.blank('/bucket?acl',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self._check_acl('test:tester', body)
 
@@ -63,7 +64,8 @@ class TestSwift3Acl(Swift3TestCase):
         xml = tostring(elem)
         req = Request.blank('/bucket?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body=xml)
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
@@ -72,6 +74,7 @@ class TestSwift3Acl(Swift3TestCase):
                             environ={'REQUEST_METHOD': 'PUT',
                                      'wsgi.input': StringIO(xml)},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'Transfer-Encoding': 'chunked'})
         self.assertIsNone(req.content_length)
         self.assertIsNone(req.message_length())
@@ -82,6 +85,7 @@ class TestSwift3Acl(Swift3TestCase):
         req = Request.blank('/bucket?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'X-AMZ-ACL': 'public-read'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
@@ -91,6 +95,7 @@ class TestSwift3Acl(Swift3TestCase):
         req = Request.blank('/bucket?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'X-AMZ-ACL': 'public-read'})
         with mock.patch('swift3.request.handle_acl_header') as mock_handler:
             status, headers, body = self.call_swift3(req)
@@ -113,6 +118,7 @@ class TestSwift3Acl(Swift3TestCase):
         req = Request.blank('/bucket?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'X-AMZ-ACL': 'public-read'},
                             body=xml)
         status, headers, body = self.call_swift3(req)
@@ -122,14 +128,16 @@ class TestSwift3Acl(Swift3TestCase):
     def test_object_acl_GET(self):
         req = Request.blank('/bucket/object?acl',
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self._check_acl('test:tester', body)
 
     def test_invalid_xml(self):
         req = Request.blank('/bucket?acl',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body='invalid')
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'MalformedACLError')
