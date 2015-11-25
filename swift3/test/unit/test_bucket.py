@@ -63,14 +63,16 @@ class TestSwift3Bucket(Swift3TestCase):
     def test_bucket_HEAD(self):
         req = Request.blank('/junk',
                             environ={'REQUEST_METHOD': 'HEAD'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
     def test_bucket_HEAD_error(self):
         req = Request.blank('/nojunk',
                             environ={'REQUEST_METHOD': 'HEAD'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '404')
         self.assertEquals(body, '')  # sanifty
@@ -78,14 +80,16 @@ class TestSwift3Bucket(Swift3TestCase):
     def test_bucket_HEAD_slash(self):
         req = Request.blank('/junk/',
                             environ={'REQUEST_METHOD': 'HEAD'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
     def test_bucket_HEAD_slash_error(self):
         req = Request.blank('/nojunk/',
                             environ={'REQUEST_METHOD': 'HEAD'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '404')
 
@@ -104,7 +108,8 @@ class TestSwift3Bucket(Swift3TestCase):
         bucket_name = 'junk'
         req = Request.blank('/%s' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
 
@@ -129,7 +134,8 @@ class TestSwift3Bucket(Swift3TestCase):
         bucket_name = 'junk-subdir'
         req = Request.blank('/%s' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
         elem = fromstring(body, 'ListBucketResult')
@@ -147,14 +153,16 @@ class TestSwift3Bucket(Swift3TestCase):
 
         req = Request.blank('/%s?max-keys=5' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
         self.assertEquals(elem.find('./IsTruncated').text, 'false')
 
         req = Request.blank('/%s?max-keys=4' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
         self.assertEquals(elem.find('./IsTruncated').text, 'true')
@@ -164,7 +172,8 @@ class TestSwift3Bucket(Swift3TestCase):
 
         req = Request.blank('/%s?max-keys=5' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
         self.assertEquals(elem.find('./MaxKeys').text, '5')
@@ -175,7 +184,8 @@ class TestSwift3Bucket(Swift3TestCase):
 
         req = Request.blank('/%s?max-keys=5000' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
         self.assertEquals(elem.find('./MaxKeys').text, '5000')
@@ -189,7 +199,8 @@ class TestSwift3Bucket(Swift3TestCase):
 
         req = Request.blank('/%s?max-keys=invalid' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
 
@@ -198,7 +209,8 @@ class TestSwift3Bucket(Swift3TestCase):
 
         req = Request.blank('/%s?max-keys=-1' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
 
@@ -208,7 +220,8 @@ class TestSwift3Bucket(Swift3TestCase):
         req = Request.blank('/%s?max-keys=%s' %
                             (bucket_name, MAX_32BIT_INT + 1),
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
 
@@ -216,7 +229,8 @@ class TestSwift3Bucket(Swift3TestCase):
         bucket_name = 'junk'
         req = Request.blank('/%s?delimiter=a&marker=b&prefix=c' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
         self.assertEquals(elem.find('./Prefix').text, 'c')
@@ -235,7 +249,8 @@ class TestSwift3Bucket(Swift3TestCase):
             '/%s?delimiter=\xef\xbc\xa1&marker=\xef\xbc\xa2&'
             'prefix=\xef\xbc\xa3' % bucket_name,
             environ={'REQUEST_METHOD': 'GET'},
-            headers={'Authorization': 'AWS test:tester:hmac'})
+            headers={'Authorization': 'AWS test:tester:hmac',
+                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
         self.assertEquals(elem.find('./Prefix').text, '\xef\xbc\xa3')
@@ -252,7 +267,8 @@ class TestSwift3Bucket(Swift3TestCase):
         bucket_name = 'junk'
         req = Request.blank('/%s?delimiter=a&max-keys=2' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
         elem = fromstring(body, 'ListBucketResult')
@@ -264,7 +280,8 @@ class TestSwift3Bucket(Swift3TestCase):
         bucket_name = 'junk-subdir'
         req = Request.blank('/%s?delimiter=a&max-keys=1' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
         elem = fromstring(body, 'ListBucketResult')
@@ -313,7 +330,8 @@ class TestSwift3Bucket(Swift3TestCase):
     def test_bucket_PUT(self):
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(headers['Location'], '/bucket')
@@ -323,6 +341,7 @@ class TestSwift3Bucket(Swift3TestCase):
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'Transfer-Encoding': 'chunked'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
@@ -336,7 +355,8 @@ class TestSwift3Bucket(Swift3TestCase):
 
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body=xml)
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
@@ -345,6 +365,7 @@ class TestSwift3Bucket(Swift3TestCase):
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'X-Amz-Acl': 'public-read'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
@@ -361,6 +382,7 @@ class TestSwift3Bucket(Swift3TestCase):
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
                                      'X-Amz-Acl': 'public-read'})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
@@ -378,7 +400,8 @@ class TestSwift3Bucket(Swift3TestCase):
 
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body=xml)
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body),
@@ -388,7 +411,8 @@ class TestSwift3Bucket(Swift3TestCase):
     def test_bucket_PUT_with_location_invalid_xml(self):
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'PUT'},
-                            headers={'Authorization': 'AWS test:tester:hmac'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
                             body='invalid_xml')
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'MalformedXML')
@@ -412,14 +436,16 @@ class TestSwift3Bucket(Swift3TestCase):
     def test_bucket_DELETE(self):
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'DELETE'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '204')
 
     def _test_bucket_for_s3acl(self, method, account):
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': method},
-                            headers={'Authorization': 'AWS %s:hmac' % account})
+                            headers={'Authorization': 'AWS %s:hmac' % account,
+                                     'Date': self.get_date_header()})
 
         return self.call_swift3(req)
 
@@ -450,7 +476,8 @@ class TestSwift3Bucket(Swift3TestCase):
     def _test_bucket_GET_canned_acl(self, bucket):
         req = Request.blank('/%s' % bucket,
                             environ={'REQUEST_METHOD': 'GET'},
-                            headers={'Authorization': 'AWS test:tester:hmac'})
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
 
         return self.call_swift3(req)
 

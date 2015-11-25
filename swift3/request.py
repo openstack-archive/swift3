@@ -186,9 +186,11 @@ class Request(swob.Request):
                 raise InvalidArgument('Content-Length',
                                       self.environ['CONTENT_LENGTH'])
 
-        if 'Date' in self.headers:
+        date_header = self.headers.get('x-amz-date',
+                                       self.headers.get('Date', None))
+        if date_header:
             now = datetime.datetime.utcnow()
-            date = email.utils.parsedate(self.headers['Date'])
+            date = email.utils.parsedate(date_header)
             if 'Expires' in self.params:
                 try:
                     d = email.utils.formatdate(float(self.params['Expires']))
@@ -213,7 +215,11 @@ class Request(swob.Request):
                 if abs(d1 - now) > delta:
                     raise RequestTimeTooSkewed()
             else:
-                raise AccessDenied()
+                raise AccessDenied('AWS authentication requires a valid Date '
+                                   'or x-amz-date header')
+        else:
+            raise AccessDenied('AWS authentication requires a valid Date '
+                               'or x-amz-date header')
 
         if 'Content-MD5' in self.headers:
             value = self.headers['Content-MD5']
