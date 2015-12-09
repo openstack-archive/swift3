@@ -326,36 +326,41 @@ class Request(swob.Request):
         """
         check_copy_source checks the copy source existence and if copying an
         object to itself, for illegal request parameters
+
+        :returns: the source HEAD response
         """
-        if 'X-Amz-Copy-Source' in self.headers:
-            src_path = unquote(self.headers['X-Amz-Copy-Source'])
-            src_path = src_path if src_path.startswith('/') else \
-                ('/' + src_path)
-            src_bucket, src_obj = split_path(src_path, 0, 2, True)
-            headers = swob.HeaderKeyDict()
-            headers.update(self._copy_source_headers())
+        if 'X-Amz-Copy-Source' not in self.headers:
+            return None
 
-            src_resp = self.get_response(app, 'HEAD', src_bucket, src_obj,
-                                         headers=headers)
-            if src_resp.status_int == 304:  # pylint: disable-msg=E1101
-                raise PreconditionFailed()
+        src_path = unquote(self.headers['X-Amz-Copy-Source'])
+        src_path = src_path if src_path.startswith('/') else \
+            ('/' + src_path)
+        src_bucket, src_obj = split_path(src_path, 0, 2, True)
+        headers = swob.HeaderKeyDict()
+        headers.update(self._copy_source_headers())
 
-            self.headers['X-Amz-Copy-Source'] = \
-                '/' + self.headers['X-Amz-Copy-Source'].lstrip('/')
-            source_container, source_obj = \
-                split_path(self.headers['X-Amz-Copy-Source'], 1, 2, True)
+        src_resp = self.get_response(app, 'HEAD', src_bucket, src_obj,
+                                     headers=headers)
+        if src_resp.status_int == 304:  # pylint: disable-msg=E1101
+            raise PreconditionFailed()
 
-            if (self.container_name == source_container and
-                    self.object_name == source_obj):
-                if self.headers.get('x-amz-metadata-directive',
-                                    'COPY') == 'COPY':
-                    raise InvalidRequest("This copy request is illegal "
-                                         "because it is trying to copy an "
-                                         "object to itself without "
-                                         "changing the object's metadata, "
-                                         "storage class, website redirect "
-                                         "location or encryption "
-                                         "attributes.")
+        self.headers['X-Amz-Copy-Source'] = \
+            '/' + self.headers['X-Amz-Copy-Source'].lstrip('/')
+        source_container, source_obj = \
+            split_path(self.headers['X-Amz-Copy-Source'], 1, 2, True)
+
+        if (self.container_name == source_container and
+                self.object_name == source_obj and
+                self.headers.get('x-amz-metadata-directive',
+                                 'COPY') == 'COPY'):
+            raise InvalidRequest("This copy request is illegal "
+                                 "because it is trying to copy an "
+                                 "object to itself without "
+                                 "changing the object's metadata, "
+                                 "storage class, website redirect "
+                                 "location or encryption "
+                                 "attributes.")
+        return src_resp
 
     def _canonical_uri(self):
         raw_path_info = self.environ.get('RAW_PATH_INFO', self.path)
