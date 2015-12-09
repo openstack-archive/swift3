@@ -324,18 +324,21 @@ class Request(swob.Request):
         """
         check_copy_source checks the copy source existence
         """
-        if 'X-Amz-Copy-Source' in self.headers:
-            src_path = unquote(self.headers['X-Amz-Copy-Source'])
-            src_path = src_path if src_path.startswith('/') else \
-                ('/' + src_path)
-            src_bucket, src_obj = split_path(src_path, 0, 2, True)
-            headers = swob.HeaderKeyDict()
-            headers.update(self._copy_source_headers())
+        if 'X-Amz-Copy-Source' not in self.headers:
+            return None
 
-            src_resp = self.get_response(app, 'HEAD', src_bucket, src_obj,
-                                         headers=headers)
-            if src_resp.status_int == 304:  # pylint: disable-msg=E1101
-                raise PreconditionFailed()
+        src_path = unquote(self.headers['X-Amz-Copy-Source'])
+        src_path = src_path if src_path.startswith('/') else \
+            ('/' + src_path)
+        src_bucket, src_obj = split_path(src_path, 0, 2, True)
+        headers = swob.HeaderKeyDict()
+        headers.update(self._copy_source_headers())
+
+        src_resp = self.get_response(app, 'HEAD', src_bucket, src_obj,
+                                     headers=headers)
+        if src_resp.status_int == 304:  # pylint: disable-msg=E1101
+            raise PreconditionFailed()
+        return src_resp
 
     def _canonical_uri(self):
         raw_path_info = self.environ.get('RAW_PATH_INFO', self.path)
