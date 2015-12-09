@@ -20,7 +20,8 @@ from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT, HTTP_NO_CONTENT
 from swift.common.swob import Range, content_range_header_value
 
 from swift3.controllers.base import Controller
-from swift3.response import S3NotImplemented, InvalidRange, NoSuchKey
+from swift3.response import S3NotImplemented, InvalidRange, NoSuchKey, \
+    InvalidArgument
 
 
 class ObjectController(Controller):
@@ -96,6 +97,11 @@ class ObjectController(Controller):
         """
         Handle PUT Object and PUT Object (Copy) request
         """
+        if all(h in req.headers
+               for h in ('X-Amz-Copy-Source', 'X-Amz-Copy-Source-Range')):
+            raise InvalidArgument('x-amz-copy-source-range',
+                                  req.headers['X-Amz-Copy-Source-Range'],
+                                  'Illegal copy header')
         req.check_copy_source(self.app)
         resp = req.get_response(self.app)
 
