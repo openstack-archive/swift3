@@ -16,7 +16,7 @@
 import lxml.etree
 from urllib import quote
 from copy import deepcopy
-from pkg_resources import resource_stream  # pylint: disable-msg=E0611
+from pkg_resources import resource_stream
 import sys
 
 from swift3.exception import S3Exception
