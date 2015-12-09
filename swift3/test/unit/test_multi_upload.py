@@ -1098,14 +1098,15 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEquals(status.split()[0], '200')
 
     def _test_copy_for_s3acl(self, account, src_permission=None,
-                             src_path='/src_bucket/src_obj',
+                             src_path='/src_bucket/src_obj', src_headers=None,
                              head_resp=swob.HTTPOk, put_header={}):
         owner = 'test:tester'
         grants = [Grant(User(account), src_permission)] \
             if src_permission else [Grant(User(owner), 'FULL_CONTROL')]
         src_o_headers = encode_acl('object', ACL(Owner(owner, owner), grants))
         src_o_headers.update({'last-modified': self.last_modified})
-        self.swift.register('HEAD', '/v1/AUTH_test/src_bucket/src_obj',
+        src_o_headers.update(src_headers or {})
+        self.swift.register('HEAD', '/v1/AUTH_test/%s' % src_path.lstrip('/'),
                             head_resp, src_o_headers, None)
 
         put_headers = {'Authorization': 'AWS %s:hmac' % account,
@@ -1320,6 +1321,57 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertTrue(headers.get('If-None-Match') is None)
         self.assertTrue(headers.get('If-Unmodified-Since') is None)
         _, _, headers = self.swift.calls_with_headers[0]
+
+    def test_upload_part_copy_range_unsatisfiable(self):
+        account = 'test:tester'
+
+        header = {'X-Amz-Copy-Source-Range': 'bytes=1000-'}
+        status, header, body = self._test_copy_for_s3acl(
+            account, src_headers={'Content-Length': '10'}, put_header=header)
+
+        self.assertEquals(status.split()[0], '400')
+        self.assertIn('Range specified is not valid for '
+                      'source object of size: 10', body)
+
+        self.assertEquals([
+            ('HEAD', '/v1/AUTH_test/bucket'),
+            ('HEAD', '/v1/AUTH_test/bucket+segments/object/X'),
+            ('HEAD', '/v1/AUTH_test/src_bucket/src_obj'),
+        ], self.swift.calls)
+
+    def test_upload_part_copy_range_invalid(self):
+        account = 'test:tester'
+
+        header = {'X-Amz-Copy-Source-Range': '0-9'}
+        status, header, body = \
+            self._test_copy_for_s3acl(account, put_header=header)
+
+        self.assertEquals(status.split()[0], '400', body)
+
+        header = {'X-Amz-Copy-Source-Range': 'asdf'}
+        status, header, body = \
+            self._test_copy_for_s3acl(account, put_header=header)
+
+        self.assertEquals(status.split()[0], '400', body)
+
+    def test_upload_part_copy_range(self):
+        account = 'test:tester'
+
+        header = {'X-Amz-Copy-Source-Range': 'bytes=0-9'}
+        status, header, body = self._test_copy_for_s3acl(
+            account, src_headers={'Content-Length': '20'}, put_header=header)
+
+        self.assertEquals(status.split()[0], '200', body)
+
+        self.assertEquals([
+            ('HEAD', '/v1/AUTH_test/bucket'),
+            ('HEAD', '/v1/AUTH_test/bucket+segments/object/X'),
+            ('HEAD', '/v1/AUTH_test/src_bucket/src_obj'),
+            ('PUT', '/v1/AUTH_test/bucket+segments/object/X/1'),
+        ], self.swift.calls)
+        put_headers = self.swift.calls_with_headers[-1][2]
+        self.assertEquals('bytes=0-9', put_headers['Range'])
+        self.assertEquals('/src_bucket/src_obj', put_headers['X-Copy-From'])
 
 if __name__ == '__main__':
     unittest.main()
