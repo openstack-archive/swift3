@@ -390,6 +390,11 @@ class TestSwift3Obj(Swift3TestCase):
                                        {'X-Amz-Copy-Source': '/bucket/'})
         self.assertEquals(code, 'InvalidArgument')
         code = self._test_method_error('PUT', '/bucket/object',
+                                       swob.HTTPCreated,
+                                       {'X-Amz-Copy-Source': '/src_bucket/src_object',
+                                        'X-Amz-Copy-Source-Range': 'bytes=0-9999999'})
+        self.assertEquals(code, 'InvalidArgument')
+        code = self._test_method_error('PUT', '/bucket/object',
                                        swob.HTTPRequestTimeout)
         self.assertEquals(code, 'RequestTimeout')
 
