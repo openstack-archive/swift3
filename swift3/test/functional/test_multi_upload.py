@@ -57,13 +57,16 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         return status, headers, body
 
     def _upload_part_copy(self, src_bucket, src_obj, dst_bucket, dst_key,
-                          upload_id, part_num=1):
+                          upload_id, part_num=1, src_range=None):
 
         src_path = '%s/%s' % (src_bucket, src_obj)
         query = 'partNumber=%s&uploadId=%s' % (part_num, upload_id)
+        req_headers = {'X-Amz-Copy-Source': src_path}
+        if src_range:
+            req_headers['X-Amz-Copy-Source-Range'] = src_range
         status, headers, body = \
             self.conn.make_request('PUT', dst_bucket, dst_key,
-                                   headers={'X-Amz-Copy-Source': src_path},
+                                   headers=req_headers,
                                    query=query)
         elem = fromstring(body, 'CopyPartResult')
         etag = elem.find('ETag').text.strip('"')
@@ -184,6 +187,37 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
 
         self.assertEquals(resp_etag, etag)
 
+        # Upload Part Copy Range
+        key, upload_id = uploads[1]
+        src_bucket = 'bucket2'
+        src_obj = 'obj4'
+        src_content = 'y' * (MIN_SEGMENT_SIZE / 2) + 'z' * MIN_SEGMENT_SIZE
+        src_range = 'bytes=0-%d' % (MIN_SEGMENT_SIZE - 1)
+        etag = md5(src_content[:MIN_SEGMENT_SIZE]).hexdigest()
+
+        # prepare src obj
+        self.conn.make_request('PUT', src_bucket)
+        self.conn.make_request('PUT', src_bucket, src_obj, body=src_content)
+        _, headers, _ = self.conn.make_request('HEAD', src_bucket, src_obj)
+        self.assertCommonResponseHeaders(headers)
+
+        status, headers, body, resp_etag = \
+            self._upload_part_copy(src_bucket, src_obj, bucket,
+                                   key, upload_id, 2, src_range)
+        self.assertEquals(status, 200)
+        self.assertCommonResponseHeaders(headers)
+        self.assertTrue('content-type' in headers)
+        self.assertEquals(headers['content-type'], 'application/xml')
+        self.assertTrue('content-length' in headers)
+        self.assertEquals(headers['content-length'], str(len(body)))
+        self.assertTrue('etag' not in headers)
+        elem = fromstring(body, 'CopyPartResult')
+
+        last_modified = elem.find('LastModified').text
+        self.assertTrue(last_modified is not None)
+
+        self.assertEquals(resp_etag, etag)
+
         # Check last-modified timestamp
         key, upload_id = uploads[1]
         query = 'uploadId=%s' % upload_id
@@ -212,11 +246,11 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         self.assertEquals(elem.find('Bucket').text, bucket)
         self.assertEquals(elem.find('Key').text, key)
         self.assertEquals(elem.find('UploadId').text, upload_id)
-        self.assertEquals(u.find('Initiator/ID').text, self.conn.user_id)
-        self.assertEquals(u.find('Initiator/DisplayName').text,
+        self.assertEquals(elem.find('Initiator/ID').text, self.conn.user_id)
+        self.assertEquals(elem.find('Initiator/DisplayName').text,
                           self.conn.user_id)
-        self.assertEquals(u.find('Owner/ID').text, self.conn.user_id)
-        self.assertEquals(u.find('Owner/DisplayName').text, self.conn.user_id)
+        self.assertEquals(elem.find('Owner/ID').text, self.conn.user_id)
+        self.assertEquals(elem.find('Owner/DisplayName').text, self.conn.user_id)
         self.assertEquals(elem.find('StorageClass').text, 'STANDARD')
         self.assertEquals(elem.find('PartNumberMarker').text, '0')
         self.assertEquals(elem.find('NextPartNumberMarker').text, '1')
