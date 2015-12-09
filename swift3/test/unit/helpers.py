@@ -114,9 +114,13 @@ class FakeSwift(object):
             if "CONTENT_TYPE" in env:
                 self.uploaded[path][0]['Content-Type'] = env["CONTENT_TYPE"]
 
-        # range requests ought to work, hence conditional_response=True
+        # range requests ought to work, but copies are special
+        support_range_and_conditional = not (
+            method == 'PUT' and
+            'X-Copy-From' in req.headers and
+            'Range' in req.headers)
         resp = resp_class(req=req, headers=headers, body=body,
-                          conditional_response=True)
+                          conditional_response=support_range_and_conditional)
         return resp(env, start_response)
 
     @property

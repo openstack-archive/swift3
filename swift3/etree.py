@@ -16,7 +16,7 @@
 import lxml.etree
 from urllib import quote
 from copy import deepcopy
-from pkg_resources import resource_stream  # pylint: disable-msg=E0611
+from pkg_resources import resource_stream
 import sys
 
 from swift3.exception import S3Exception
@@ -68,6 +68,7 @@ def fromstring(text, root_tag=None):
         # validate XML
         try:
             path = 'schema/%s.rng' % camel_to_snake(root_tag)
+            # pylint:disable=assignment-from-no-return
             rng = resource_stream(__name__, path)
             lxml.etree.RelaxNG(file=rng).assertValid(elem)
         except IOError as e:
