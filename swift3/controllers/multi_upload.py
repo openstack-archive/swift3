@@ -47,6 +47,7 @@ import re
 import sys
 import datetime
 
+from swift.common.swob import Range
 from swift.common.utils import json
 from swift.common.db import utf8encode
 
@@ -121,7 +122,32 @@ class PartController(Controller):
         req.object_name = '%s/%s/%d' % (req.object_name, upload_id,
                                         part_number)
 
-        req.check_copy_source(self.app)
+        source_size = req.check_copy_source(self.app)
+        if 'X-Amz-Copy-Source' in req.headers and \
+                'X-Amz-Copy-Source-Range' in req.headers:
+            rng = req.headers['X-Amz-Copy-Source-Range']
+
+            header_valid = True
+            try:
+                rng = Range(rng)
+                if len(rng.ranges) != 1:
+                    header_valid = False
+            except ValueError:
+                header_valid = False
+            if not header_valid:
+                err_msg = ('The x-amz-copy-source-range value must be of the '
+                           'form bytes=first-last where first and last are '
+                           'the zero-based offsets of the first and last '
+                           'bytes to copy')
+                raise InvalidArgument('x-amz-source-range', rng, err_msg)
+
+            if not rng.ranges_for_length(source_size):
+                err_msg = ('Range specified is not valid for source object '
+                           'of size: %s' % source_size)
+                raise InvalidArgument('x-amz-source-range', rng, err_msg)
+
+            req.headers['Range'] = req.headers['X-Amz-Copy-Source-Range']
+            del req.headers['X-Amz-Copy-Source-Range']
         resp = req.get_response(self.app)
 
         if 'X-Amz-Copy-Source' in req.headers:
