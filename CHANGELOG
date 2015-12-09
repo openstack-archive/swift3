@@ -1,3 +1,34 @@
+Swift3 (1.9)
+
+    * Date Header fixes (closes CVE-2015-8466)
+
+        - Older versions of swift3 allow requests without any date headers,
+          making them vulnerable to replay attacks. Now swift3 forces incomming
+          requests to have either valid Date header or valid x-amz-date header.
+
+    * Response fixes
+
+        - Now swift3 returns correct (same syntax with actual S3) response
+          in following case:
+
+        -- content-type in ErrorResponse
+        -- Etag in BucketListing
+
+    * Allow to delete segments, when the DELETE request is for slo
+
+        - If the incomming DELETE request is to slo object, swift3 now attempt
+          to query multipart-manifest=delete to delete whole segments in the
+          manifest. This will achieve to clean up part objects for multipart
+          upload.
+
+    * Accept chunked transfer-encodings
+
+    * Update supported version of Keystone
+
+    * Move to new newnamespace (from stackforge to openstack)
+
+    * Other minor bug fixes and small improvements
+
 Swift3 (1.8)
 
     * multi object deletion support
