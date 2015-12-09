@@ -497,7 +497,7 @@ class TestSwift3S3Acl(Swift3TestCase):
     def test_s3acl_decorator(self):
         @s3acl
         def non_class_s3acl_error():
-            raise
+            raise TypeError()
 
         class FakeClass(object):
             def __init__(self):
@@ -505,7 +505,7 @@ class TestSwift3S3Acl(Swift3TestCase):
 
             @s3acl
             def s3acl_error(self):
-                raise
+                raise TypeError()
 
             @s3acl
             def s3acl_assert_fail(self):
@@ -514,12 +514,12 @@ class TestSwift3S3Acl(Swift3TestCase):
             @s3acl(s3acl_only=True)
             def s3acl_s3only_error(self):
                 if CONF.s3_acl:
-                    raise
+                    raise TypeError()
 
             @s3acl(s3acl_only=True)
             def s3acl_s3only_no_error(self):
                 if not CONF.s3_acl:
-                    raise
+                    raise TypeError()
 
         fake_class = FakeClass()
 
