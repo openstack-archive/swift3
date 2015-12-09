@@ -330,6 +330,7 @@ class Request(swob.Request):
                                          headers=headers)
             if src_resp.status_int == 304:  # pylint: disable-msg=E1101
                 raise PreconditionFailed()
+            return int(src_resp.headers['Content-Length'])
 
     def _canonical_uri(self):
         raw_path_info = self.environ.get('RAW_PATH_INFO', self.path)
