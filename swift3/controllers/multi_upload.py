@@ -125,7 +125,7 @@ class PartController(Controller):
         resp = req.get_response(self.app)
 
         if 'X-Amz-Copy-Source' in req.headers:
-            obj_timestamp = (datetime.datetime.fromtimestamp(
+            obj_timestamp = (datetime.datetime.utcfromtimestamp(
                 float(resp.environ['HTTP_X_TIMESTAMP']))
                 .isoformat())
             if len(obj_timestamp) is 19:
