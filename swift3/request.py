@@ -15,7 +15,7 @@
 
 import re
 import md5
-from urllib import quote
+from urllib import quote, unquote
 import base64
 import email.utils
 import datetime
@@ -325,7 +325,7 @@ class Request(swob.Request):
         check_copy_source checks the copy source existence
         """
         if 'X-Amz-Copy-Source' in self.headers:
-            src_path = self.headers['X-Amz-Copy-Source']
+            src_path = unquote(self.headers['X-Amz-Copy-Source'])
             src_path = src_path if src_path.startswith('/') else \
                 ('/' + src_path)
             src_bucket, src_obj = split_path(src_path, 0, 2, True)
