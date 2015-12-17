@@ -45,7 +45,6 @@ upload information:
 import os
 import re
 import sys
-import time
 
 from swift.common.utils import json
 from swift.common.db import utf8encode
@@ -121,7 +120,7 @@ class PartController(Controller):
         req.object_name = '%s/%s/%d' % (req.object_name, upload_id,
                                         part_number)
 
-        req_timestamp = S3Timestamp(time.time())
+        req_timestamp = S3Timestamp.now()
         req.headers['X-Timestamp'] = req_timestamp.internal
         req.check_copy_source(self.app)
         resp = req.get_response(self.app)

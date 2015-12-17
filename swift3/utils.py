@@ -16,6 +16,7 @@
 import re
 import uuid
 import base64
+import time
 
 
 from swift.common.utils import get_logger
@@ -141,3 +142,7 @@ class S3Timestamp(utils.Timestamp):
     @property
     def s3xmlformat(self):
         return self.isoformat[:-7] + '.000Z'
+
+    @classmethod
+    def now(cls):
+        return cls(time.time())

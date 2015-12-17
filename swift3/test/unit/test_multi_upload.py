@@ -1116,8 +1116,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
             '/bucket/object?partNumber=1&uploadId=X',
             environ={'REQUEST_METHOD': 'PUT'},
             headers=put_headers)
-        with patch('swift3.controllers.multi_upload.time.time') as mock_time:
-            mock_time.return_value = 1396353600.592270
+        with patch('swift3.utils.time.time', return_value=1396353600.592270):
             return self.call_swift3(req)
 
     @s3acl
