@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import sys
-import time
 
 from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT, HTTP_NO_CONTENT
 from swift.common.swob import Range, content_range_header_value
@@ -98,7 +97,7 @@ class ObjectController(Controller):
         Handle PUT Object and PUT Object (Copy) request
         """
         # set X-Timestamp by swift3 to use at copy resp body
-        req_timestamp = S3Timestamp(time.time())
+        req_timestamp = S3Timestamp()
         req.headers['X-Timestamp'] = req_timestamp.internal
         req.check_copy_source(self.app)
         resp = req.get_response(self.app)

@@ -16,6 +16,7 @@
 import re
 import uuid
 import base64
+import time
 
 
 from swift.common.utils import get_logger
@@ -138,6 +139,10 @@ def validate_bucket_name(name):
 
 
 class S3Timestamp(utils.Timestamp):
+    def __init__(self, timestamp=None):
+        super(S3Timestamp, self).__init__(
+            time.time() if timestamp is None else timestamp)
+
     @property
     def s3xmlformat(self):
         return self.isoformat[:-7] + '.000Z'
