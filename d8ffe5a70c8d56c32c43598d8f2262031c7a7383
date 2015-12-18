@@ -1,0 +1,10 @@
+Code-Review+1: Andrey Pavlov <andrey.mp@gmail.com>
+Code-Review+1: Tim Burke <tim@swiftstack.com>
+Code-Review+2: Kota Tsuyuzaki <tsuyuzaki.kota@lab.ntt.co.jp>
+Workflow+1: Kota Tsuyuzaki <tsuyuzaki.kota@lab.ntt.co.jp>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 18 Dec 2015 00:49:09 +0000
+Reviewed-on: https://review.openstack.org/242578
+Project: openstack/swift3
+Branch: refs/heads/master
