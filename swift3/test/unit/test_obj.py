@@ -469,8 +469,7 @@ class TestSwift3Obj(Swift3TestCase):
 
         req.date = datetime.now()
         req.content_type = 'text/plain'
-        with patch('swift3.controllers.obj.time.time') as mock_time:
-            mock_time.return_value = 1396353600.000000
+        with patch('swift3.utils.time.time', return_value=1396353600.000000):
             return self.call_swift3(req)
 
     @s3acl
