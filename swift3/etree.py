@@ -68,8 +68,8 @@ def fromstring(text, root_tag=None):
         # validate XML
         try:
             path = 'schema/%s.rng' % camel_to_snake(root_tag)
-            rng = resource_stream(__name__, path)
-            lxml.etree.RelaxNG(file=rng).assertValid(elem)
+            with resource_stream(__name__, path) as rng:
+                lxml.etree.RelaxNG(file=rng).assertValid(elem)
         except IOError as e:
             # Probably, the schema file doesn't exist.
             exc_type, exc_value, exc_traceback = sys.exc_info()
