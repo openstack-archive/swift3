@@ -193,9 +193,10 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         elem = fromstring(body, 'ListPartsResult')
 
         # FIXME: COPY result drops mili/microseconds but GET doesn't
-        last_modified_get = elem.find('Part').find('LastModified').text
+        last_modified_get = elem.find('Part').find('LastModified').text.
         self.assertEquals(
-            last_modified_get[:-6], last_modified[:-6])
+            last_modified_get.rsplit('.', 1)[0],
+            last_modified.rsplit('.', 1)[0])
 
         # List Parts
         key, upload_id = uploads[0]
