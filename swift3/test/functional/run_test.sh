@@ -58,15 +58,15 @@ swift-ring-builder object.builder create 0 3 0
 swift-ring-builder container.builder create 0 3 0
 swift-ring-builder account.builder create 0 3 0
 
-swift-ring-builder object.builder add z0-127.0.0.1:6000/sda 1
-swift-ring-builder object.builder add z1-127.0.0.1:6000/sdb 1
-swift-ring-builder object.builder add z2-127.0.0.1:6000/sdc 1
-swift-ring-builder container.builder add z0-127.0.0.1:6001/sda 1
-swift-ring-builder container.builder add z1-127.0.0.1:6001/sdb 1
-swift-ring-builder container.builder add z2-127.0.0.1:6001/sdc 1
-swift-ring-builder account.builder add z0-127.0.0.1:6002/sda 1
-swift-ring-builder account.builder add z1-127.0.0.1:6002/sdb 1
-swift-ring-builder account.builder add z2-127.0.0.1:6002/sdc 1
+swift-ring-builder object.builder add r1z0-127.0.0.1:6000/sda 1
+swift-ring-builder object.builder add r1z1-127.0.0.1:6000/sdb 1
+swift-ring-builder object.builder add r1z2-127.0.0.1:6000/sdc 1
+swift-ring-builder container.builder add r1z0-127.0.0.1:6001/sda 1
+swift-ring-builder container.builder add r1z1-127.0.0.1:6001/sdb 1
+swift-ring-builder container.builder add r1z2-127.0.0.1:6001/sdc 1
+swift-ring-builder account.builder add r1z0-127.0.0.1:6002/sda 1
+swift-ring-builder account.builder add r1z1-127.0.0.1:6002/sdb 1
+swift-ring-builder account.builder add r1z2-127.0.0.1:6002/sdc 1
 
 swift-ring-builder object.builder rebalance
 swift-ring-builder container.builder rebalance
