@@ -73,11 +73,10 @@ _create_swift_accounts()
 
 _setup_keystone()
 {
+    rm -f ${TEST_DIR}/keystone.db 2>&1
+
     keystone-all --config-file conf/keystone.conf --debug > ${TEST_DIR}/log/keystone.log 2>&1 &
     export keystone_pid=$!
-
-    mysql -uroot -ppassword -e "DROP DATABASE IF EXISTS keystone;"
-    mysql -uroot -ppassword -e "CREATE DATABASE keystone CHARACTER SET utf8;"
 
     keystone-manage --config-file conf/keystone.conf --debug db_sync
     keystone-manage --config-file conf/keystone.conf --debug pki_setup
