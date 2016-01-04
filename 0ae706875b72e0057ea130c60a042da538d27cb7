@@ -1,0 +1,9 @@
+Code-Review+1: Clint Adams <clint@gcfm.net>
+Code-Review+2: Kota Tsuyuzaki <tsuyuzaki.kota@lab.ntt.co.jp>
+Workflow+1: Kota Tsuyuzaki <tsuyuzaki.kota@lab.ntt.co.jp>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 04 Jan 2016 05:21:21 +0000
+Reviewed-on: https://review.openstack.org/260467
+Project: openstack/swift3
+Branch: refs/heads/master
