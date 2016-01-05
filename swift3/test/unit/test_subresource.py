@@ -236,14 +236,14 @@ class TestSwift3Subresource(unittest.TestCase):
         acl = decode_acl('container', headers)
 
         self.assertEqual(type(acl), ACL)
-        self.assertEqual(None, acl.owner.id)
+        self.assertIsNone(acl.owner.id)
         self.assertEqual(len(acl.grants), 0)
 
     def test_decode_acl_empty_list(self):
         headers = {sysmeta_header('container', 'acl'): '[]'}
         acl = decode_acl('container', headers)
         self.assertEqual(type(acl), ACL)
-        self.assertEqual(None, acl.owner.id)
+        self.assertIsNone(acl.owner.id)
         self.assertEqual(len(acl.grants), 0)
 
     def test_decode_acl_with_invalid_json(self):
