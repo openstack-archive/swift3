@@ -1,0 +1,9 @@
+Code-Review+1: venkatamahesh <venkatamaheshkotha@gmail.com>
+Code-Review+2: Kota Tsuyuzaki <tsuyuzaki.kota@lab.ntt.co.jp>
+Workflow+1: Kota Tsuyuzaki <tsuyuzaki.kota@lab.ntt.co.jp>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 08 Jan 2016 05:41:42 +0000
+Reviewed-on: https://review.openstack.org/261701
+Project: openstack/swift3
+Branch: refs/heads/master
