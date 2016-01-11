@@ -18,7 +18,9 @@ import md5
 from urllib import quote, unquote
 import base64
 import email.utils
+from email.header import Header
 import datetime
+import string
 
 from swift.common.utils import split_path
 from swift.common import swob
@@ -450,6 +452,8 @@ class Request(swob.Request):
 
         for key in env:
             if key.startswith('HTTP_X_AMZ_META_'):
+                if not(set(env[key]).issubset(string.printable)):
+                    env[key] = Header(env[key], 'UTF-8').encode()
                 env['HTTP_X_OBJECT_META_' + key[16:]] = env[key]
                 del env[key]
 
