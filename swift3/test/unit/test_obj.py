@@ -429,6 +429,8 @@ class TestSwift3Obj(Swift3TestCase):
             headers={'Authorization': 'AWS test:tester:hmac',
                      'X-Amz-Storage-Class': 'STANDARD',
                      'X-Amz-Meta-Something': 'oh hai',
+                     'X-Amz-Meta-Unreadable-Prefix': '\x04w',
+                     'X-Amz-Meta-Unreadable-Suffix': 'h\x04',
                      'X-Amz-Copy-Source': '/some/source',
                      'Content-MD5': content_md5,
                      'Date': self.get_date_header()})
@@ -445,6 +447,10 @@ class TestSwift3Obj(Swift3TestCase):
         # Check that swift3 converts a Content-MD5 header into an etag.
         self.assertEquals(headers['ETag'], self.etag)
         self.assertEquals(headers['X-Object-Meta-Something'], 'oh hai')
+        self.assertEquals(headers['X-Object-Meta-Unreadable-Prefix'],
+                          '=?UTF-8?Q?=04w?=')
+        self.assertEquals(headers['X-Object-Meta-Unreadable-Suffix'],
+                          '=?UTF-8?Q?h=04?=')
         self.assertEquals(headers['X-Copy-From'], '/some/source')
         self.assertEquals(headers['Content-Length'], '0')
 
