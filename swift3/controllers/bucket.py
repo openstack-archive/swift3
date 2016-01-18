@@ -102,6 +102,14 @@ class BucketController(Controller):
 
         for o in objects:
             if 'subdir' not in o:
+                if CONF.s3_acl:
+                    acl_resp = req.get_acl_response(self.app, 'HEAD',
+                                                    obj=o['name'])
+                    name = acl_resp.object_acl.owner.name
+                    id = acl_resp.object_acl.owner.id
+                else:
+                    name = req.user_id
+                    id = req.user_id
                 contents = SubElement(elem, 'Contents')
                 SubElement(contents, 'Key').text = o['name']
                 SubElement(contents, 'LastModified').text = \
@@ -109,8 +117,8 @@ class BucketController(Controller):
                 SubElement(contents, 'ETag').text = '"%s"' % o['hash']
                 SubElement(contents, 'Size').text = str(o['bytes'])
                 owner = SubElement(contents, 'Owner')
-                SubElement(owner, 'ID').text = req.user_id
-                SubElement(owner, 'DisplayName').text = req.user_id
+                SubElement(owner, 'ID').text = id
+                SubElement(owner, 'DisplayName').text = name
                 SubElement(contents, 'StorageClass').text = 'STANDARD'
 
         for o in objects:
