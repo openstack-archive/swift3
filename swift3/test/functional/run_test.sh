@@ -47,7 +47,7 @@ done
 
 # setup keystone
 if [ "$AUTH" == 'keystone' ]; then
-    . ./setup_keystone
+    /bin/bash -x ./setup_keystone
 fi
 
 
