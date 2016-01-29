@@ -1,3 +1,29 @@
+Swift3 (1.10)
+
+    * Supported Python minimum version bumped to 2.7
+
+    * S3Timestamp to ensure the transaction timestamp in Swift3
+
+        - Sometimes Swift3 needs X-Timestamp value to show the request
+          result to the client as the response body (e.g. copy result).
+          However, older versions of swift3 don't have the way to decide
+          the request timestamp. This stuff allows Swift3 to make its own
+          timestamp when a request coming and supports a format which fits
+          to S3 xml format.
+
+    * Fix URL-encoded x-amz-copy-source
+
+        - Fix a bug encoding again URL-encoded x-amz-copy-source.
+
+    * Ignore Content-Type for Delete object request
+
+        - A standard S3 client may set a header "Content-Type" into a DELETE
+          request and it causes unexpected error in the backend pure Swift.
+          To solve this, now swift3 drops the Content-Type header from the
+          request only when it's a DELETE object request.
+
+    * Other minor bug fixes and small improvements
+
 Swift3 (1.9)
 
     * Date Header fixes (closes CVE-2015-8466)
