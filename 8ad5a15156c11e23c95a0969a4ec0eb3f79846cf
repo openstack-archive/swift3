@@ -1,0 +1,9 @@
+Code-Review+1: Sivasathurappan Radhakrishnan <siva.radhakrishnan@intel.com>
+Code-Review+2: Kota Tsuyuzaki <tsuyuzaki.kota@lab.ntt.co.jp>
+Workflow+1: Kota Tsuyuzaki <tsuyuzaki.kota@lab.ntt.co.jp>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 29 Jan 2016 07:19:30 +0000
+Reviewed-on: https://review.openstack.org/262096
+Project: openstack/swift3
+Branch: refs/heads/master
