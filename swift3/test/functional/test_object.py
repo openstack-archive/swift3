@@ -96,8 +96,8 @@ class TestSwift3Object(Swift3FunctionalTestCase):
 
         # FIXME: COPY result drops mili/microseconds but GET doesn't
         self.assertEquals(
-            elem.find('Contents').find("LastModified").text[:-6],
-            last_modified_xml[:-6])
+            elem.find('Contents').find("LastModified").text.rsplit('.', 1)[0],
+            last_modified_xml.rsplit('.', 1)[0])
 
         # GET Object
         status, headers, body = \
