@@ -74,7 +74,6 @@ class TestSwift3Bucket(Swift3TestCase):
 
     def setUp(self):
         super(TestSwift3Bucket, self).setUp()
-
         self.setup_objects()
 
     def test_bucket_HEAD(self):
@@ -434,29 +433,61 @@ class TestSwift3Bucket(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'MalformedXML')
 
+    def _test_method_error_delete(self, path, sw_resp):
+        self.swift.register('HEAD', '/v1/AUTH_test' + path, sw_resp, {}, None)
+        return self._test_method_error('DELETE', path, sw_resp)
+
     @s3acl
     def test_bucket_DELETE_error(self):
-        code = self._test_method_error('DELETE', '/bucket',
-                                       swob.HTTPUnauthorized)
+        code = self._test_method_error_delete('/bucket', swob.HTTPUnauthorized)
         self.assertEquals(code, 'SignatureDoesNotMatch')
-        code = self._test_method_error('DELETE', '/bucket', swob.HTTPForbidden)
+        code = self._test_method_error_delete('/bucket', swob.HTTPForbidden)
         self.assertEquals(code, 'AccessDenied')
-        code = self._test_method_error('DELETE', '/bucket', swob.HTTPNotFound)
+        code = self._test_method_error_delete('/bucket', swob.HTTPNotFound)
         self.assertEquals(code, 'NoSuchBucket')
+        code = self._test_method_error_delete('/bucket', swob.HTTPServerError)
+        self.assertEquals(code, 'InternalError')
+
+        # bucket not empty is now validated at swift3
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket', swob.HTTPNoContent,
+                            {'X-Container-Object-Count': '1'}, None)
         code = self._test_method_error('DELETE', '/bucket', swob.HTTPConflict)
         self.assertEquals(code, 'BucketNotEmpty')
-        code = self._test_method_error('DELETE', '/bucket',
-                                       swob.HTTPServerError)
-        self.assertEquals(code, 'InternalError')
 
     @s3acl
     def test_bucket_DELETE(self):
+        # overwrite default HEAD to return x-container-object-count
+        self.swift.register(
+            'HEAD', '/v1/AUTH_test/bucket', swob.HTTPNoContent,
+            {'X-Container-Object-Count': 0}, None)
+
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'DELETE'},
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '204')
+
+    @s3acl
+    def test_bucket_DELETE_error_while_segment_bucket_delete(self):
+        # An error occured while deleting segment objects
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket+segments/lily',
+                            swob.HTTPServiceUnavailable, {}, json.dumps([]))
+        # overwrite default HEAD to return x-container-object-count
+        self.swift.register(
+            'HEAD', '/v1/AUTH_test/bucket', swob.HTTPNoContent,
+            {'X-Container-Object-Count': 0}, None)
+
+        req = Request.blank('/bucket',
+                            environ={'REQUEST_METHOD': 'DELETE'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '503')
+        called = [(method, path) for method, path, _ in
+                  self.swift.calls_with_headers]
+        # Don't delete original bucket when error occured in segment container
+        self.assertNotIn(('DELETE', '/v1/AUTH_test/bucket'), called)
 
     def _test_bucket_for_s3acl(self, method, account):
         req = Request.blank('/bucket',
@@ -514,18 +545,27 @@ class TestSwift3Bucket(Swift3TestCase):
         status, headers, body = self._test_bucket_for_s3acl('DELETE',
                                                             'test:other')
         self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        # Don't delete anything in backend Swift
+        called = [method for method, _, _ in self.swift.calls_with_headers]
+        self.assertNotIn('DELETE', called)
 
     @s3acl(s3acl_only=True)
     def test_bucket_DELETE_with_write_permission(self):
         status, headers, body = self._test_bucket_for_s3acl('DELETE',
                                                             'test:write')
         self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        # Don't delete anything in backend Swift
+        called = [method for method, _, _ in self.swift.calls_with_headers]
+        self.assertNotIn('DELETE', called)
 
     @s3acl(s3acl_only=True)
     def test_bucket_DELETE_with_fullcontrol_permission(self):
         status, headers, body = \
             self._test_bucket_for_s3acl('DELETE', 'test:full_control')
         self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        # Don't delete anything in backend Swift
+        called = [method for method, _, _ in self.swift.calls_with_headers]
+        self.assertNotIn('DELETE', called)
 
 if __name__ == '__main__':
     unittest.main()
