@@ -458,6 +458,22 @@ class TestSwift3Bucket(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '204')
 
+    @s3acl
+    def test_bucket_DELETE_error_while_segment_bucket_delete(self):
+        # An error occured while deleting segment objects
+        self.swift.register('DELETE', '/v1/AUTH_test/bucket+segments/lily',
+                            swob.HTTPServiceUnavailable, {}, json.dumps([]))
+        req = Request.blank('/bucket',
+                            environ={'REQUEST_METHOD': 'DELETE'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '503')
+        called = [(method, path) for method, path, _ in
+                  self.swift.calls_with_headers]
+        # Don't delete original bucket when error occured in segment container
+        self.assertNotIn(('DELETE', '/v1/AUTH_test/bucket'), called)
+
     def _test_bucket_for_s3acl(self, method, account):
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': method},
@@ -514,18 +530,27 @@ class TestSwift3Bucket(Swift3TestCase):
         status, headers, body = self._test_bucket_for_s3acl('DELETE',
                                                             'test:other')
         self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        # Don't delete anything in backend Swift
+        called = [method for method, _, _ in self.swift.calls_with_headers]
+        self.assertNotIn('DELETE', called)
 
     @s3acl(s3acl_only=True)
     def test_bucket_DELETE_with_write_permission(self):
         status, headers, body = self._test_bucket_for_s3acl('DELETE',
                                                             'test:write')
         self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        # Don't delete anything in backend Swift
+        called = [method for method, _, _ in self.swift.calls_with_headers]
+        self.assertNotIn('DELETE', called)
 
     @s3acl(s3acl_only=True)
     def test_bucket_DELETE_with_fullcontrol_permission(self):
         status, headers, body = \
             self._test_bucket_for_s3acl('DELETE', 'test:full_control')
         self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        # Don't delete anything in backend Swift
+        called = [method for method, _, _ in self.swift.calls_with_headers]
+        self.assertNotIn('DELETE', called)
 
 if __name__ == '__main__':
     unittest.main()
