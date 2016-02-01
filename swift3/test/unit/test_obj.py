@@ -449,7 +449,7 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEquals(headers['Content-Length'], '0')
 
     def _test_object_PUT_copy(self, head_resp, put_header={},
-                              leading_slash=True):
+                              src_path='/some/source'):
         account = 'test:tester'
         grants = [Grant(User(account), 'FULL_CONTROL')]
         head_headers = \
@@ -458,26 +458,7 @@ class TestSwift3Obj(Swift3TestCase):
         head_headers.update({'last-modified': self.last_modified})
         self.swift.register('HEAD', '/v1/AUTH_test/some/source',
                             head_resp, head_headers, None)
-
-        if leading_slash:
-            source = '/some/source'
-        else:
-            # Some clients (like Boto) don't include the leading slash;
-            # AWS seems to tolerate this so we should, too
-            source = 'some/source'
-        put_headers = {'Authorization': 'AWS test:tester:hmac',
-                       'X-Amz-Copy-Source': source,
-                       'Date': self.get_date_header()}
-        put_headers.update(put_header)
-
-        req = Request.blank('/bucket/object',
-                            environ={'REQUEST_METHOD': 'PUT',
-                                     'HTTP_X_TIMESTAMP': '1396353600.000000'},
-                            headers=put_headers)
-
-        req.date = datetime.now()
-        req.content_type = 'text/plain'
-        return self.call_swift3(req)
+        return self._call_object_copy(src_path, put_header)
 
     def _test_object_PUT_copy_self(self, head_resp, put_header={}):
         account = 'test:tester'
@@ -488,9 +469,11 @@ class TestSwift3Obj(Swift3TestCase):
         head_headers.update({'last-modified': self.last_modified})
         self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
                             head_resp, head_headers, None)
+        return self._call_object_copy('/bucket/object', put_header)
 
+    def _call_object_copy(self, src_path, put_header):
         put_headers = {'Authorization': 'AWS test:tester:hmac',
-                       'X-Amz-Copy-Source': '/bucket/object',
+                       'X-Amz-Copy-Source': src_path,
                        'Date': self.get_date_header()}
         put_headers.update(put_header)
 
@@ -506,9 +489,7 @@ class TestSwift3Obj(Swift3TestCase):
     @s3acl
     def test_object_PUT_copy(self):
         last_modified = '2014-04-01T12:00:00.000Z'
-        with patch('swift3.utils.time.time', return_value=1396353600.592270):
-            status, headers, body = \
-                self._test_object_PUT_copy(swob.HTTPOk)
+        status, headers, body = self._test_object_PUT_copy(swob.HTTPOk)
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(headers['Content-Type'], 'application/xml')
         self.assertTrue(headers.get('etag') is None)
@@ -524,9 +505,10 @@ class TestSwift3Obj(Swift3TestCase):
     @s3acl
     def test_object_PUT_copy_no_slash(self):
         last_modified = '2014-04-01T12:00:00.000Z'
-        with patch('swift3.utils.time.time', return_value=1396353600.592270):
-            status, headers, body = \
-                self._test_object_PUT_copy(swob.HTTPOk, leading_slash=False)
+        # Some clients (like Boto) don't include the leading slash;
+        # AWS seems to tolerate this so we should, too
+        status, headers, body = self._test_object_PUT_copy(
+            swob.HTTPOk, src_path='some/source')
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(headers['Content-Type'], 'application/xml')
         self.assertTrue(headers.get('etag') is None)
