@@ -521,6 +521,61 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
                                    query=query)
         self.assertEquals(status, 200)
 
+    def test_delete_bucket_multi_upload_object_exisiting(self):
+        # NOTE: this is an failure test right now.
+        bucket = 'bucket'
+        keys = ['obj1']
+        uploads = []
+
+        results_generator = self._initiate_multi_uploads_result_generator(
+            bucket, keys)
+
+        # Initiate Multipart Upload
+        for expected_key, (status, _, body) in \
+                izip(keys, results_generator):
+            self.assertEquals(status, 200)  # sanity
+            elem = fromstring(body, 'InitiateMultipartUploadResult')
+            key = elem.find('Key').text
+            self.assertEquals(expected_key, key)  # sanity
+            upload_id = elem.find('UploadId').text
+            self.assertTrue(upload_id is not None)  # sanity
+            self.assertTrue((key, upload_id) not in uploads)
+            uploads.append((key, upload_id))
+
+        self.assertEquals(len(uploads), len(keys))  # sanity
+
+        # Upload Part
+        key, upload_id = uploads[0]
+        content = 'a' * MIN_SEGMENT_SIZE
+        status, headers, body = \
+            self._upload_part(bucket, key, upload_id, content)
+        self.assertEquals(status, 200)
+
+        # Complete Multipart Upload
+        key, upload_id = uploads[0]
+        etags = [md5(content).hexdigest()]
+        xml = self._gen_comp_xml(etags)
+        status, headers, body = \
+            self._complete_multi_upload(bucket, key, upload_id, xml)
+        self.assertEquals(status, 200)  # sanity
+
+        # GET multipart object
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, key)
+        self.assertEquals(status, 200)  # sanity
+        self.assertEquals(content, body)  # sanity
+
+        # DELETE bucket while the object existing
+        status, headers, body = \
+            self.conn.make_request('DELETE', bucket)
+        self.assertEquals(status, 409)  # sanity
+
+        # The object must still be there.
+        status, headers, body = \
+            self.conn.make_request('GET', bucket, key)
+        self.assertEquals(status, 200)  # sanity
+        self.assertEquals(content, body)  # sanity
+
 
 if __name__ == '__main__':
     unittest.main()

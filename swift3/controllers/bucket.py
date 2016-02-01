@@ -187,9 +187,9 @@ class BucketController(Controller):
         """
         Handle DELETE Bucket request
         """
-        resp = req.get_response(self.app)
         if CONF.allow_multipart_uploads:
             self._delete_segments_bucket(req)
+        resp = req.get_response(self.app)
         return resp
 
     def POST(self, req):
