@@ -126,6 +126,8 @@ def generate_s3acl_environ(account, swift, owner):
     # for bucket
     swift.register('HEAD', '/v1/AUTH_test/bucket', swob.HTTPNoContent,
                    container_headers, None)
+    swift.register('HEAD', '/v1/AUTH_test/bucket+segments', swob.HTTPNoContent,
+                   container_headers, None)
     swift.register('PUT', '/v1/AUTH_test/bucket',
                    swob.HTTPCreated, {}, None)
     swift.register('GET', '/v1/AUTH_test/bucket', swob.HTTPNoContent,
