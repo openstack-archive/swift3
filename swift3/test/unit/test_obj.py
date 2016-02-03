@@ -431,6 +431,7 @@ class TestSwift3Obj(Swift3TestCase):
                      'X-Amz-Meta-Something': 'oh hai',
                      'X-Amz-Meta-Unreadable-Prefix': '\x04w',
                      'X-Amz-Meta-Unreadable-Suffix': 'h\x04',
+                     'X-Amz-Meta-Lots-Of-Unprintable': 5 * '\x04',
                      'X-Amz-Copy-Source': '/some/source',
                      'Content-MD5': content_md5,
                      'Date': self.get_date_header()})
@@ -451,6 +452,8 @@ class TestSwift3Obj(Swift3TestCase):
                           '=?UTF-8?Q?=04w?=')
         self.assertEquals(headers['X-Object-Meta-Unreadable-Suffix'],
                           '=?UTF-8?Q?h=04?=')
+        self.assertEquals(headers['X-Object-Meta-Lots-Of-Unprintable'],
+                          '=?UTF-8?B?BAQEBAQ=?=')
         self.assertEquals(headers['X-Copy-From'], '/some/source')
         self.assertEquals(headers['Content-Length'], '0')
 
