@@ -16,7 +16,9 @@
 import unittest
 from datetime import datetime
 import hashlib
+import os
 from os.path import join
+import time
 from mock import patch
 
 from swift.common import swob
@@ -846,6 +848,19 @@ class TestSwift3Obj(Swift3TestCase):
         status, headers, body = self._test_object_copy_for_s3acl(
             'test:write', 'READ', src_path='')
         self.assertEquals(status.split()[0], '400')
+
+
+class TestSwift3ObjNonUTC(TestSwift3Obj):
+    def setUp(self):
+        self.orig_tz = os.environ.get('TZ', '')
+        os.environ['TZ'] = 'EST+05EDT,M4.1.0,M10.5.0'
+        time.tzset()
+        super(TestSwift3ObjNonUTC, self).setUp()
+
+    def tearDown(self):
+        super(TestSwift3ObjNonUTC, self).tearDown()
+        os.environ['TZ'] = self.orig_tz
+        time.tzset()
 
 if __name__ == '__main__':
     unittest.main()

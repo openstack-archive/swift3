@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import time
 import unittest
 from mock import patch
 from urllib import quote
@@ -1320,6 +1322,19 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertTrue(headers.get('If-None-Match') is None)
         self.assertTrue(headers.get('If-Unmodified-Since') is None)
         _, _, headers = self.swift.calls_with_headers[0]
+
+
+class TestSwift3MultiUploadNonUTC(TestSwift3MultiUpload):
+    def setUp(self):
+        self.orig_tz = os.environ.get('TZ', '')
+        os.environ['TZ'] = 'EST+05EDT,M4.1.0,M10.5.0'
+        time.tzset()
+        super(TestSwift3MultiUploadNonUTC, self).setUp()
+
+    def tearDown(self):
+        super(TestSwift3MultiUploadNonUTC, self).tearDown()
+        os.environ['TZ'] = self.orig_tz
+        time.tzset()
 
 if __name__ == '__main__':
     unittest.main()
