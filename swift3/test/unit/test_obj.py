@@ -118,7 +118,7 @@ class TestSwift3Obj(Swift3TestCase):
 
     @s3acl
     def test_object_HEAD_error(self):
-        # HEAD does not return the body even an error resonse in the
+        # HEAD does not return the body even an error response in the
         # specifications of the REST API.
         # So, check the response code for error test of HEAD.
         req = Request.blank('/bucket/object',
