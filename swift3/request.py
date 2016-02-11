@@ -693,6 +693,8 @@ class Request(swob.Request):
             raise SignatureDoesNotMatch()
         if status == HTTP_FORBIDDEN:
             raise AccessDenied()
+        if status == HTTP_ACCEPTED:
+            raise HTTPAccepted()
 
         raise InternalError('unexpected status code %d' % status)
 
