@@ -560,6 +560,7 @@ class Request(swob.Request):
                 ],
                 'PUT': [
                     HTTP_CREATED,
+                    HTTP_ACCEPTED,
                 ],
                 'POST': [
                     HTTP_ACCEPTED,
