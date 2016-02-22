@@ -166,7 +166,9 @@ class TestSwift3Middleware(Swift3TestCase):
         self.assertEquals(self._get_error_code(body), 'AccessDenied')
 
     def test_signed_urls(self):
-        expire = '10000000000'
+        # Set expire to last 32b timestamp value
+        # This number can't be higher, because it breaks tests on 32b systems
+        expire = '2147483647' # 19 Jan 2038 03:14:07
         req = Request.blank('/bucket/object?Signature=X&Expires=%s&'
                             'AWSAccessKeyId=test:tester' % expire,
                             environ={'REQUEST_METHOD': 'GET'},
