@@ -87,57 +87,57 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         # Initiate Multipart Upload
         for expected_key, (status, headers, body) in \
                 izip(keys, results_generator):
-            self.assertEquals(status, 200)
+            self.assertEqual(status, 200)
             self.assertCommonResponseHeaders(headers)
             self.assertTrue('content-type' in headers)
-            self.assertEquals(headers['content-type'], 'application/xml')
+            self.assertEqual(headers['content-type'], 'application/xml')
             self.assertTrue('content-length' in headers)
-            self.assertEquals(headers['content-length'], str(len(body)))
+            self.assertEqual(headers['content-length'], str(len(body)))
             elem = fromstring(body, 'InitiateMultipartUploadResult')
-            self.assertEquals(elem.find('Bucket').text, bucket)
+            self.assertEqual(elem.find('Bucket').text, bucket)
             key = elem.find('Key').text
-            self.assertEquals(expected_key, key)
+            self.assertEqual(expected_key, key)
             upload_id = elem.find('UploadId').text
             self.assertTrue(upload_id is not None)
             self.assertTrue((key, upload_id) not in uploads)
             uploads.append((key, upload_id))
 
-        self.assertEquals(len(uploads), len(keys))  # sanity
+        self.assertEqual(len(uploads), len(keys))  # sanity
 
         # List Multipart Uploads
         query = 'uploads'
         status, headers, body = \
             self.conn.make_request('GET', bucket, query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         self.assertCommonResponseHeaders(headers)
         self.assertTrue('content-type' in headers)
-        self.assertEquals(headers['content-type'], 'application/xml')
+        self.assertEqual(headers['content-type'], 'application/xml')
         self.assertTrue('content-length' in headers)
-        self.assertEquals(headers['content-length'], str(len(body)))
+        self.assertEqual(headers['content-length'], str(len(body)))
         elem = fromstring(body, 'ListMultipartUploadsResult')
-        self.assertEquals(elem.find('Bucket').text, bucket)
-        self.assertEquals(elem.find('KeyMarker').text, None)
-        self.assertEquals(elem.find('NextKeyMarker').text, uploads[-1][0])
-        self.assertEquals(elem.find('UploadIdMarker').text, None)
-        self.assertEquals(elem.find('NextUploadIdMarker').text, uploads[-1][1])
-        self.assertEquals(elem.find('MaxUploads').text, '1000')
+        self.assertEqual(elem.find('Bucket').text, bucket)
+        self.assertEqual(elem.find('KeyMarker').text, None)
+        self.assertEqual(elem.find('NextKeyMarker').text, uploads[-1][0])
+        self.assertEqual(elem.find('UploadIdMarker').text, None)
+        self.assertEqual(elem.find('NextUploadIdMarker').text, uploads[-1][1])
+        self.assertEqual(elem.find('MaxUploads').text, '1000')
         self.assertTrue(elem.find('EncodingType') is None)
-        self.assertEquals(elem.find('IsTruncated').text, 'false')
-        self.assertEquals(len(elem.findall('Upload')), 2)
+        self.assertEqual(elem.find('IsTruncated').text, 'false')
+        self.assertEqual(len(elem.findall('Upload')), 2)
         for (expected_key, expected_upload_id), u in \
                 izip(uploads, elem.findall('Upload')):
             key = u.find('Key').text
             upload_id = u.find('UploadId').text
-            self.assertEquals(expected_key, key)
-            self.assertEquals(expected_upload_id, upload_id)
-            self.assertEquals(u.find('Initiator/ID').text,
-                              self.conn.user_id)
-            self.assertEquals(u.find('Initiator/DisplayName').text,
-                              self.conn.user_id)
-            self.assertEquals(u.find('Owner/ID').text, self.conn.user_id)
-            self.assertEquals(u.find('Owner/DisplayName').text,
-                              self.conn.user_id)
-            self.assertEquals(u.find('StorageClass').text, 'STANDARD')
+            self.assertEqual(expected_key, key)
+            self.assertEqual(expected_upload_id, upload_id)
+            self.assertEqual(u.find('Initiator/ID').text,
+                             self.conn.user_id)
+            self.assertEqual(u.find('Initiator/DisplayName').text,
+                             self.conn.user_id)
+            self.assertEqual(u.find('Owner/ID').text, self.conn.user_id)
+            self.assertEqual(u.find('Owner/DisplayName').text,
+                             self.conn.user_id)
+            self.assertEqual(u.find('StorageClass').text, 'STANDARD')
             self.assertTrue(u.find('Initiated').text is not None)
 
         # Upload Part
@@ -146,12 +146,12 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         etag = md5(content).hexdigest()
         status, headers, body = \
             self._upload_part(bucket, key, upload_id, content)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         self.assertCommonResponseHeaders(headers, etag)
         self.assertTrue('content-type' in headers)
-        self.assertEquals(headers['content-type'], 'text/html; charset=UTF-8')
+        self.assertEqual(headers['content-type'], 'text/html; charset=UTF-8')
         self.assertTrue('content-length' in headers)
-        self.assertEquals(headers['content-length'], '0')
+        self.assertEqual(headers['content-length'], '0')
         expected_parts_list = [(headers['etag'], mktime(headers['date']))]
 
         # Upload Part Copy
@@ -170,19 +170,19 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         status, headers, body, resp_etag = \
             self._upload_part_copy(src_bucket, src_obj, bucket,
                                    key, upload_id)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         self.assertCommonResponseHeaders(headers)
         self.assertTrue('content-type' in headers)
-        self.assertEquals(headers['content-type'], 'application/xml')
+        self.assertEqual(headers['content-type'], 'application/xml')
         self.assertTrue('content-length' in headers)
-        self.assertEquals(headers['content-length'], str(len(body)))
+        self.assertEqual(headers['content-length'], str(len(body)))
         self.assertTrue('etag' not in headers)
         elem = fromstring(body, 'CopyPartResult')
 
         last_modified = elem.find('LastModified').text
         self.assertTrue(last_modified is not None)
 
-        self.assertEquals(resp_etag, etag)
+        self.assertEqual(resp_etag, etag)
 
         # Check last-modified timestamp
         key, upload_id = uploads[1]
@@ -194,7 +194,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
 
         # FIXME: COPY result drops mili/microseconds but GET doesn't
         last_modified_get = elem.find('Part').find('LastModified').text
-        self.assertEquals(
+        self.assertEqual(
             last_modified_get.rsplit('.', 1)[0],
             last_modified.rsplit('.', 1)[0])
 
@@ -203,27 +203,27 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         query = 'uploadId=%s' % upload_id
         status, headers, body = \
             self.conn.make_request('GET', bucket, key, query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         self.assertCommonResponseHeaders(headers)
         self.assertTrue('content-type' in headers)
-        self.assertEquals(headers['content-type'], 'application/xml')
+        self.assertEqual(headers['content-type'], 'application/xml')
         self.assertTrue('content-length' in headers)
-        self.assertEquals(headers['content-length'], str(len(body)))
+        self.assertEqual(headers['content-length'], str(len(body)))
         elem = fromstring(body, 'ListPartsResult')
-        self.assertEquals(elem.find('Bucket').text, bucket)
-        self.assertEquals(elem.find('Key').text, key)
-        self.assertEquals(elem.find('UploadId').text, upload_id)
-        self.assertEquals(u.find('Initiator/ID').text, self.conn.user_id)
-        self.assertEquals(u.find('Initiator/DisplayName').text,
-                          self.conn.user_id)
-        self.assertEquals(u.find('Owner/ID').text, self.conn.user_id)
-        self.assertEquals(u.find('Owner/DisplayName').text, self.conn.user_id)
-        self.assertEquals(elem.find('StorageClass').text, 'STANDARD')
-        self.assertEquals(elem.find('PartNumberMarker').text, '0')
-        self.assertEquals(elem.find('NextPartNumberMarker').text, '1')
-        self.assertEquals(elem.find('MaxParts').text, '1000')
-        self.assertEquals(elem.find('IsTruncated').text, 'false')
-        self.assertEquals(len(elem.findall('Part')), 1)
+        self.assertEqual(elem.find('Bucket').text, bucket)
+        self.assertEqual(elem.find('Key').text, key)
+        self.assertEqual(elem.find('UploadId').text, upload_id)
+        self.assertEqual(u.find('Initiator/ID').text, self.conn.user_id)
+        self.assertEqual(u.find('Initiator/DisplayName').text,
+                         self.conn.user_id)
+        self.assertEqual(u.find('Owner/ID').text, self.conn.user_id)
+        self.assertEqual(u.find('Owner/DisplayName').text, self.conn.user_id)
+        self.assertEqual(elem.find('StorageClass').text, 'STANDARD')
+        self.assertEqual(elem.find('PartNumberMarker').text, '0')
+        self.assertEqual(elem.find('NextPartNumberMarker').text, '1')
+        self.assertEqual(elem.find('MaxParts').text, '1000')
+        self.assertEqual(elem.find('IsTruncated').text, 'false')
+        self.assertEqual(len(elem.findall('Part')), 1)
         # etags will be used to generate xml for Complete Multipart Upload
         etags = []
         for (expected_etag, expected_date), p in \
@@ -236,10 +236,10 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
             #       by the constraint of the format.
             #       For now, we can do either the format check or round check
             # last_modified_from_xml = mktime(last_modified)
-            # self.assertEquals(expected_date,
+            # self.assertEqual(expected_date,
             #                   last_modified_from_xml)
-            self.assertEquals(expected_etag, p.find('ETag').text)
-            self.assertEquals(MIN_SEGMENT_SIZE, int(p.find('Size').text))
+            self.assertEqual(expected_etag, p.find('ETag').text)
+            self.assertEqual(MIN_SEGMENT_SIZE, int(p.find('Size').text))
             etags.append(p.find('ETag').text)
 
         # Abort Multipart Upload
@@ -247,29 +247,29 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         query = 'uploadId=%s' % upload_id
         status, headers, body = \
             self.conn.make_request('DELETE', bucket, key, query=query)
-        self.assertEquals(status, 204)
+        self.assertEqual(status, 204)
         self.assertCommonResponseHeaders(headers)
         self.assertTrue('content-type' in headers)
-        self.assertEquals(headers['content-type'], 'text/html; charset=UTF-8')
+        self.assertEqual(headers['content-type'], 'text/html; charset=UTF-8')
         self.assertTrue('content-length' in headers)
-        self.assertEquals(headers['content-length'], '0')
+        self.assertEqual(headers['content-length'], '0')
 
         # Complete Multipart Upload
         key, upload_id = uploads[0]
         xml = self._gen_comp_xml(etags)
         status, headers, body = \
             self._complete_multi_upload(bucket, key, upload_id, xml)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         self.assertCommonResponseHeaders(headers)
         self.assertTrue('content-type' in headers)
-        self.assertEquals(headers['content-type'], 'application/xml')
+        self.assertEqual(headers['content-type'], 'application/xml')
         self.assertTrue('content-length' in headers)
-        self.assertEquals(headers['content-length'], str(len(body)))
+        self.assertEqual(headers['content-length'], str(len(body)))
         elem = fromstring(body, 'CompleteMultipartUploadResult')
-        self.assertEquals('http://localhost:8080/bucket/obj1',
-                          elem.find('Location').text)
-        self.assertEquals(elem.find('Bucket').text, bucket)
-        self.assertEquals(elem.find('Key').text, key)
+        self.assertEqual('http://localhost:8080/bucket/obj1',
+                         elem.find('Location').text)
+        self.assertEqual(elem.find('Bucket').text, bucket)
+        self.assertEqual(elem.find('Key').text, key)
         # TODO: confirm completed etag value
         self.assertTrue(elem.find('ETag').text is not None)
 
@@ -282,11 +282,11 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         auth_error_conn = Connection(aws_secret_key='invalid')
         status, headers, body = \
             auth_error_conn.make_request('POST', bucket, key, query=query)
-        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEqual(get_error_code(body), 'SignatureDoesNotMatch')
 
         status, resp_headers, body = \
             self.conn.make_request('POST', 'nothing', key, query=query)
-        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+        self.assertEqual(get_error_code(body), 'NoSuchBucket')
 
     def test_list_multi_uploads_error(self):
         bucket = 'bucket'
@@ -296,11 +296,11 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         auth_error_conn = Connection(aws_secret_key='invalid')
         status, headers, body = \
             auth_error_conn.make_request('GET', bucket, query=query)
-        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEqual(get_error_code(body), 'SignatureDoesNotMatch')
 
         status, headers, body = \
             self.conn.make_request('GET', 'nothing', query=query)
-        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+        self.assertEqual(get_error_code(body), 'NoSuchBucket')
 
     def test_upload_part_error(self):
         bucket = 'bucket'
@@ -316,21 +316,21 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         auth_error_conn = Connection(aws_secret_key='invalid')
         status, headers, body = \
             auth_error_conn.make_request('PUT', bucket, key, query=query)
-        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEqual(get_error_code(body), 'SignatureDoesNotMatch')
 
         status, headers, body = \
             self.conn.make_request('PUT', 'nothing', key, query=query)
-        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+        self.assertEqual(get_error_code(body), 'NoSuchBucket')
 
         query = 'partNumber=%s&uploadId=%s' % (1, 'nothing')
         status, headers, body = \
             self.conn.make_request('PUT', bucket, key, query=query)
-        self.assertEquals(get_error_code(body), 'NoSuchUpload')
+        self.assertEqual(get_error_code(body), 'NoSuchUpload')
 
         query = 'partNumber=%s&uploadId=%s' % (0, upload_id)
         status, headers, body = \
             self.conn.make_request('PUT', bucket, key, query=query)
-        self.assertEquals(get_error_code(body), 'InvalidArgument')
+        self.assertEqual(get_error_code(body), 'InvalidArgument')
         err_msg = 'Part number must be an integer between 1 and'
         self.assertTrue(err_msg in get_error_msg(body))
 
@@ -358,20 +358,20 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
                                              'X-Amz-Copy-Source': src_path
                                          },
                                          query=query)
-        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEqual(get_error_code(body), 'SignatureDoesNotMatch')
 
         status, headers, body = \
             self.conn.make_request('PUT', 'nothing', key,
                                    headers={'X-Amz-Copy-Source': src_path},
                                    query=query)
-        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+        self.assertEqual(get_error_code(body), 'NoSuchBucket')
 
         query = 'partNumber=%s&uploadId=%s' % (1, 'nothing')
         status, headers, body = \
             self.conn.make_request('PUT', bucket, key,
                                    headers={'X-Amz-Copy-Source': src_path},
                                    query=query)
-        self.assertEquals(get_error_code(body), 'NoSuchUpload')
+        self.assertEqual(get_error_code(body), 'NoSuchUpload')
 
         src_path = '%s/%s' % (src_bucket, 'nothing')
         query = 'partNumber=%s&uploadId=%s' % (1, upload_id)
@@ -379,7 +379,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
             self.conn.make_request('PUT', bucket, key,
                                    headers={'X-Amz-Copy-Source': src_path},
                                    query=query)
-        self.assertEquals(get_error_code(body), 'NoSuchKey')
+        self.assertEqual(get_error_code(body), 'NoSuchKey')
 
     def test_list_parts_error(self):
         bucket = 'bucket'
@@ -396,16 +396,16 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
 
         status, headers, body = \
             auth_error_conn.make_request('GET', bucket, key, query=query)
-        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEqual(get_error_code(body), 'SignatureDoesNotMatch')
 
         status, headers, body = \
             self.conn.make_request('GET', 'nothing', key, query=query)
-        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+        self.assertEqual(get_error_code(body), 'NoSuchBucket')
 
         query = 'uploadId=%s' % 'nothing'
         status, headers, body = \
             self.conn.make_request('GET', bucket, key, query=query)
-        self.assertEquals(get_error_code(body), 'NoSuchUpload')
+        self.assertEqual(get_error_code(body), 'NoSuchUpload')
 
     def test_abort_multi_upload_error(self):
         bucket = 'bucket'
@@ -422,16 +422,16 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         auth_error_conn = Connection(aws_secret_key='invalid')
         status, headers, body = \
             auth_error_conn.make_request('DELETE', bucket, key, query=query)
-        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEqual(get_error_code(body), 'SignatureDoesNotMatch')
 
         status, headers, body = \
             self.conn.make_request('DELETE', 'nothing', key, query=query)
-        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+        self.assertEqual(get_error_code(body), 'NoSuchBucket')
 
         query = 'uploadId=%s' % 'nothing'
         status, headers, body = \
             self.conn.make_request('DELETE', bucket, key, query=query)
-        self.assertEquals(get_error_code(body), 'NoSuchUpload')
+        self.assertEqual(get_error_code(body), 'NoSuchUpload')
 
     def test_complete_multi_upload_error(self):
         bucket = 'bucket'
@@ -456,17 +456,17 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         status, headers, body = \
             auth_error_conn.make_request('POST', bucket, keys[0], body=xml,
                                          query=query)
-        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEqual(get_error_code(body), 'SignatureDoesNotMatch')
 
         status, headers, body = \
             self.conn.make_request('POST', 'nothing', keys[0], query=query)
-        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+        self.assertEqual(get_error_code(body), 'NoSuchBucket')
 
         query = 'uploadId=%s' % 'nothing'
         status, headers, body = \
             self.conn.make_request('POST', bucket, keys[0], body=xml,
                                    query=query)
-        self.assertEquals(get_error_code(body), 'NoSuchUpload')
+        self.assertEqual(get_error_code(body), 'NoSuchUpload')
 
         # without Part tag in xml
         query = 'uploadId=%s' % upload_id
@@ -474,7 +474,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('POST', bucket, keys[0], body=xml,
                                    query=query)
-        self.assertEquals(get_error_code(body), 'MalformedXML')
+        self.assertEqual(get_error_code(body), 'MalformedXML')
 
         # with ivalid etag in xml
         invalid_etag = 'invalid'
@@ -482,7 +482,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('POST', bucket, keys[0], body=xml,
                                    query=query)
-        self.assertEquals(get_error_code(body), 'InvalidPart')
+        self.assertEqual(get_error_code(body), 'InvalidPart')
 
         # without part in Swift
         query = 'uploads'
@@ -495,7 +495,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('POST', bucket, keys[1], body=xml,
                                    query=query)
-        self.assertEquals(get_error_code(body), 'InvalidPart')
+        self.assertEqual(get_error_code(body), 'InvalidPart')
 
     def test_complete_upload_with_fewer_etags(self):
         bucket = 'bucket'
@@ -519,7 +519,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('POST', bucket, key, body=xml,
                                    query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
 
 
 if __name__ == '__main__':

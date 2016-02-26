@@ -41,14 +41,14 @@ class TestSwift3Middleware(Swift3TestCase):
     def test_non_s3_request_passthrough(self):
         req = Request.blank('/something')
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(body, 'FAKE APP')
+        self.assertEqual(body, 'FAKE APP')
 
     def test_bad_format_authorization(self):
         req = Request.blank('/something',
                             headers={'Authorization': 'hoge',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     def test_bad_method(self):
         req = Request.blank('/',
@@ -56,7 +56,7 @@ class TestSwift3Middleware(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'MethodNotAllowed')
+        self.assertEqual(self._get_error_code(body), 'MethodNotAllowed')
 
     def test_path_info_encode(self):
         bucket_name = 'b%75cket'
@@ -70,8 +70,8 @@ class TestSwift3Middleware(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         raw_path_info = "/%s/%s" % (bucket_name, object_name)
         path_info = req.environ['PATH_INFO']
-        self.assertEquals(path_info, unquote(raw_path_info))
-        self.assertEquals(req.path, quote(path_info))
+        self.assertEqual(path_info, unquote(raw_path_info))
+        self.assertEqual(req.path, quote(path_info))
 
     def test_canonical_string(self):
         """
@@ -96,7 +96,7 @@ class TestSwift3Middleware(Swift3TestCase):
 
         def verify(hash, path, headers):
             s = canonical_string(path, headers)
-            self.assertEquals(hash, hashlib.md5(s).hexdigest())
+            self.assertEqual(hash, hashlib.md5(s).hexdigest())
 
         verify('6dd08c75e42190a1ce9468d1fd2eb787', '/bucket/object',
                {'Content-Type': 'text/plain', 'X-Amz-Something': 'test',
@@ -151,8 +151,8 @@ class TestSwift3Middleware(Swift3TestCase):
                                               'X-Amz-Something': 'test'})
         str3 = canonical_string('/', headers={'X-Amz-Something': 'test'})
 
-        self.assertEquals(str1, str2)
-        self.assertEquals(str2, str3)
+        self.assertEqual(str1, str2)
+        self.assertEqual(str2, str3)
 
     def test_signed_urls_expired(self):
         expire = '1000000000'
@@ -163,7 +163,7 @@ class TestSwift3Middleware(Swift3TestCase):
         req.headers['Date'] = datetime.utcnow()
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     def test_signed_urls(self):
         expire = '10000000000'
@@ -174,10 +174,10 @@ class TestSwift3Middleware(Swift3TestCase):
         req.headers['Date'] = datetime.utcnow()
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
         for _, _, headers in self.swift.calls_with_headers:
-            self.assertEquals(headers['Authorization'], 'AWS test:tester:X')
-            self.assertEquals(headers['Date'], expire)
+            self.assertEqual(headers['Authorization'], 'AWS test:tester:X')
+            self.assertEqual(headers['Date'], expire)
 
     def test_signed_urls_invalid_expire(self):
         expire = 'invalid'
@@ -188,7 +188,7 @@ class TestSwift3Middleware(Swift3TestCase):
         req.headers['Date'] = datetime.utcnow()
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     def test_signed_urls_no_sign(self):
         expire = 'invalid'
@@ -199,7 +199,7 @@ class TestSwift3Middleware(Swift3TestCase):
         req.headers['Date'] = datetime.utcnow()
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     def test_bucket_virtual_hosted_style(self):
         req = Request.blank('/',
@@ -209,7 +209,7 @@ class TestSwift3Middleware(Swift3TestCase):
                                      'AWS test:tester:hmac'},
                             headers={'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_object_virtual_hosted_style(self):
         req = Request.blank('/object',
@@ -219,7 +219,7 @@ class TestSwift3Middleware(Swift3TestCase):
                                      'AWS test:tester:hmac'},
                             headers={'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_token_generation(self):
         self.swift.register('HEAD', '/v1/AUTH_test/bucket+segments/'
@@ -236,7 +236,7 @@ class TestSwift3Middleware(Swift3TestCase):
         req.headers['Date'] = date_header
         status, headers, body = self.call_swift3(req)
         _, _, headers = self.swift.calls_with_headers[-1]
-        self.assertEquals(base64.urlsafe_b64decode(
+        self.assertEqual(base64.urlsafe_b64decode(
             headers['X-Auth-Token']),
             'PUT\n\n\n%s\n/bucket/object?partNumber=1&uploadId=123456789abcdef'
             % date_header)
@@ -247,7 +247,7 @@ class TestSwift3Middleware(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidURI')
+        self.assertEqual(self._get_error_code(body), 'InvalidURI')
 
     def test_object_create_bad_md5_unreadable(self):
         req = Request.blank('/bucket/object',
@@ -256,7 +256,7 @@ class TestSwift3Middleware(Swift3TestCase):
                                      'HTTP_CONTENT_MD5': '#'},
                             headers={'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidDigest')
+        self.assertEqual(self._get_error_code(body), 'InvalidDigest')
 
     def test_object_create_bad_md5_too_short(self):
         too_short_digest = md5('hey').hexdigest()[:-1]
@@ -268,7 +268,7 @@ class TestSwift3Middleware(Swift3TestCase):
                      'HTTP_CONTENT_MD5': md5_str},
             headers={'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidDigest')
+        self.assertEqual(self._get_error_code(body), 'InvalidDigest')
 
     def test_object_create_bad_md5_too_long(self):
         too_long_digest = md5('hey').hexdigest() + 'suffix'
@@ -280,7 +280,7 @@ class TestSwift3Middleware(Swift3TestCase):
                      'HTTP_CONTENT_MD5': md5_str},
             headers={'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidDigest')
+        self.assertEqual(self._get_error_code(body), 'InvalidDigest')
 
     def test_invalid_metadata_directive(self):
         req = Request.blank('/',
@@ -290,7 +290,7 @@ class TestSwift3Middleware(Swift3TestCase):
                                      'invalid'},
                             headers={'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+        self.assertEqual(self._get_error_code(body), 'InvalidArgument')
 
     def test_invalid_storage_class(self):
         req = Request.blank('/',
@@ -299,7 +299,7 @@ class TestSwift3Middleware(Swift3TestCase):
                                      'HTTP_X_AMZ_STORAGE_CLASS': 'INVALID'},
                             headers={'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidStorageClass')
+        self.assertEqual(self._get_error_code(body), 'InvalidStorageClass')
 
     def _test_unsupported_header(self, header):
         req = Request.blank('/error',
@@ -308,7 +308,7 @@ class TestSwift3Middleware(Swift3TestCase):
                             headers={'x-amz-' + header: 'value',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'NotImplemented')
+        self.assertEqual(self._get_error_code(body), 'NotImplemented')
 
     def test_mfa(self):
         self._test_unsupported_header('mfa')
@@ -325,7 +325,7 @@ class TestSwift3Middleware(Swift3TestCase):
                                      'HTTP_AUTHORIZATION': 'AWS X:Y:Z'},
                             headers={'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'NotImplemented')
+        self.assertEqual(self._get_error_code(body), 'NotImplemented')
 
     def test_notification(self):
         self._test_unsupported_resource('notification')
@@ -358,9 +358,9 @@ class TestSwift3Middleware(Swift3TestCase):
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'Error')
-        self.assertEquals(elem.find('./Code').text, 'MethodNotAllowed')
-        self.assertEquals(elem.find('./Method').text, 'POST')
-        self.assertEquals(elem.find('./ResourceType').text, 'ACL')
+        self.assertEqual(elem.find('./Code').text, 'MethodNotAllowed')
+        self.assertEqual(elem.find('./Method').text, 'POST')
+        self.assertEqual(elem.find('./ResourceType').text, 'ACL')
 
     def test_registered_defaults(self):
         filter_factory(CONF)

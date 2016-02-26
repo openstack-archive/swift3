@@ -37,9 +37,9 @@ class TestSwift3Acl(Swift3TestCase):
     def _check_acl(self, owner, body):
         elem = fromstring(body, 'AccessControlPolicy')
         permission = elem.find('./AccessControlList/Grant/Permission').text
-        self.assertEquals(permission, 'FULL_CONTROL')
+        self.assertEqual(permission, 'FULL_CONTROL')
         name = elem.find('./AccessControlList/Grant/Grantee/ID').text
-        self.assertEquals(name, owner)
+        self.assertEqual(name, owner)
 
     def test_bucket_acl_GET(self):
         req = Request.blank('/bucket?acl',
@@ -68,7 +68,7 @@ class TestSwift3Acl(Swift3TestCase):
                                      'Date': self.get_date_header()},
                             body=xml)
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
         req = Request.blank('/bucket?acl',
                             environ={'REQUEST_METHOD': 'PUT',
@@ -79,7 +79,7 @@ class TestSwift3Acl(Swift3TestCase):
         self.assertIsNone(req.content_length)
         self.assertIsNone(req.message_length())
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_bucket_canned_acl_PUT(self):
         req = Request.blank('/bucket?acl',
@@ -88,7 +88,7 @@ class TestSwift3Acl(Swift3TestCase):
                                      'Date': self.get_date_header(),
                                      'X-AMZ-ACL': 'public-read'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     @s3acl(s3acl_only=True)
     def test_bucket_canned_acl_PUT_with_s3acl(self):
@@ -99,8 +99,8 @@ class TestSwift3Acl(Swift3TestCase):
                                      'X-AMZ-ACL': 'public-read'})
         with mock.patch('swift3.request.handle_acl_header') as mock_handler:
             status, headers, body = self.call_swift3(req)
-            self.assertEquals(status.split()[0], '200')
-            self.assertEquals(mock_handler.call_count, 0)
+            self.assertEqual(status.split()[0], '200')
+            self.assertEqual(mock_handler.call_count, 0)
 
     def test_bucket_fails_with_both_acl_header_and_xml_PUT(self):
         elem = Element('AccessControlPolicy')
@@ -122,8 +122,8 @@ class TestSwift3Acl(Swift3TestCase):
                                      'X-AMZ-ACL': 'public-read'},
                             body=xml)
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body),
-                          'UnexpectedContent')
+        self.assertEqual(self._get_error_code(body),
+                         'UnexpectedContent')
 
     def test_object_acl_GET(self):
         req = Request.blank('/bucket/object?acl',
@@ -140,7 +140,7 @@ class TestSwift3Acl(Swift3TestCase):
                                      'Date': self.get_date_header()},
                             body='invalid')
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'MalformedACLError')
+        self.assertEqual(self._get_error_code(body), 'MalformedACLError')
 
     def test_handle_acl_header(self):
         def check_generated_acl_header(acl, targets):
@@ -149,7 +149,7 @@ class TestSwift3Acl(Swift3TestCase):
             handle_acl_header(req)
             for target in targets:
                 self.assertTrue(target[0] in req.headers)
-                self.assertEquals(req.headers[target[0]], target[1])
+                self.assertEqual(req.headers[target[0]], target[1])
 
         check_generated_acl_header('public-read',
                                    [('X-Container-Read', '.r:*,.rlistings')])
@@ -182,9 +182,9 @@ class TestSwift3Acl(Swift3TestCase):
         with self.assertRaises(InvalidArgument) as cm:
             handle_acl_header(req)
         self.assertTrue('argument_name' in cm.exception.info)
-        self.assertEquals(cm.exception.info['argument_name'], 'x-amz-acl')
+        self.assertEqual(cm.exception.info['argument_name'], 'x-amz-acl')
         self.assertTrue('argument_value' in cm.exception.info)
-        self.assertEquals(cm.exception.info['argument_value'], 'invalid')
+        self.assertEqual(cm.exception.info['argument_value'], 'invalid')
 
 
 if __name__ == '__main__':

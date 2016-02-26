@@ -39,39 +39,39 @@ class TestSwift3Acl(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('PUT', self.bucket, headers=headers,
                                    query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         self.assertCommonResponseHeaders(headers)
-        self.assertEquals(headers['content-length'], '0')
+        self.assertEqual(headers['content-length'], '0')
 
         # GET Bucket ACL
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         self.assertCommonResponseHeaders(headers)
         # TODO: Fix the response that last-modified must be in the response.
         # self.assertTrue(headers['last-modified'] is not None)
-        self.assertEquals(headers['content-length'], str(len(body)))
+        self.assertEqual(headers['content-length'], str(len(body)))
         self.assertTrue(headers['content-type'] is not None)
         elem = fromstring(body, 'AccessControlPolicy')
         owner = elem.find('Owner')
-        self.assertEquals(owner.find('ID').text, self.conn.user_id)
-        self.assertEquals(owner.find('DisplayName').text, self.conn.user_id)
+        self.assertEqual(owner.find('ID').text, self.conn.user_id)
+        self.assertEqual(owner.find('DisplayName').text, self.conn.user_id)
         acl = elem.find('AccessControlList')
         self.assertTrue(acl.find('Grant') is not None)
 
         # GET Object ACL
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, self.obj, query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         self.assertCommonResponseHeaders(headers)
         # TODO: Fix the response that last-modified must be in the response.
         # self.assertTrue(headers['last-modified'] is not None)
-        self.assertEquals(headers['content-length'], str(len(body)))
+        self.assertEqual(headers['content-length'], str(len(body)))
         self.assertTrue(headers['content-type'] is not None)
         elem = fromstring(body, 'AccessControlPolicy')
         owner = elem.find('Owner')
-        self.assertEquals(owner.find('ID').text, self.conn.user_id)
-        self.assertEquals(owner.find('DisplayName').text, self.conn.user_id)
+        self.assertEqual(owner.find('ID').text, self.conn.user_id)
+        self.assertEqual(owner.find('DisplayName').text, self.conn.user_id)
         acl = elem.find('AccessControlList')
         self.assertTrue(acl.find('Grant') is not None)
 
@@ -81,31 +81,31 @@ class TestSwift3Acl(Swift3FunctionalTestCase):
         status, headers, body = \
             aws_error_conn.make_request('PUT', self.bucket,
                                         headers=req_headers, query='acl')
-        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEqual(get_error_code(body), 'SignatureDoesNotMatch')
 
         status, headers, body = \
             self.conn.make_request('PUT', 'nothing',
                                    headers=req_headers, query='acl')
-        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+        self.assertEqual(get_error_code(body), 'NoSuchBucket')
 
         status, headers, body = \
             self.conn2.make_request('PUT', self.bucket,
                                     headers=req_headers, query='acl')
-        self.assertEquals(get_error_code(body), 'AccessDenied')
+        self.assertEqual(get_error_code(body), 'AccessDenied')
 
     def test_get_bucket_acl_error(self):
         aws_error_conn = Connection(aws_secret_key='invalid')
         status, headers, body = \
             aws_error_conn.make_request('GET', self.bucket, query='acl')
-        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEqual(get_error_code(body), 'SignatureDoesNotMatch')
 
         status, headers, body = \
             self.conn.make_request('GET', 'nothing', query='acl')
-        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+        self.assertEqual(get_error_code(body), 'NoSuchBucket')
 
         status, headers, body = \
             self.conn2.make_request('GET', self.bucket, query='acl')
-        self.assertEquals(get_error_code(body), 'AccessDenied')
+        self.assertEqual(get_error_code(body), 'AccessDenied')
 
     def test_get_object_acl_error(self):
         self.conn.make_request('PUT', self.bucket, self.obj)
@@ -114,15 +114,15 @@ class TestSwift3Acl(Swift3FunctionalTestCase):
         status, headers, body = \
             aws_error_conn.make_request('GET', self.bucket, self.obj,
                                         query='acl')
-        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEqual(get_error_code(body), 'SignatureDoesNotMatch')
 
         status, headers, body = \
             self.conn.make_request('GET', self.bucket, 'nothing', query='acl')
-        self.assertEquals(get_error_code(body), 'NoSuchKey')
+        self.assertEqual(get_error_code(body), 'NoSuchKey')
 
         status, headers, body = \
             self.conn2.make_request('GET', self.bucket, self.obj, query='acl')
-        self.assertEquals(get_error_code(body), 'AccessDenied')
+        self.assertEqual(get_error_code(body), 'AccessDenied')
 
 if __name__ == '__main__':
     unittest.main()

@@ -61,13 +61,13 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
             self.conn.make_request('POST', bucket, body=xml,
                                    headers={'Content-MD5': content_md5},
                                    query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         self.assertCommonResponseHeaders(headers)
         self.assertTrue(headers['content-type'] is not None)
-        self.assertEquals(headers['content-length'], str(len(body)))
+        self.assertEqual(headers['content-length'], str(len(body)))
         elem = fromstring(body)
         resp_objects = elem.findall('Deleted')
-        self.assertEquals(len(resp_objects), len(req_objects))
+        self.assertEqual(len(resp_objects), len(req_objects))
         for o in resp_objects:
             self.assertTrue(o.find('Key').text in req_objects)
 
@@ -79,10 +79,10 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
             self.conn.make_request('POST', bucket, body=xml,
                                    headers={'Content-MD5': content_md5},
                                    query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         elem = fromstring(body, 'DeleteResult')
         resp_objects = elem.findall('Deleted')
-        self.assertEquals(len(resp_objects), len(req_objects))
+        self.assertEqual(len(resp_objects), len(req_objects))
         for o in resp_objects:
             self.assertTrue(o.find('Key').text in req_objects)
 
@@ -94,11 +94,11 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
             self.conn.make_request('POST', bucket, body=xml,
                                    headers={'Content-MD5': content_md5},
                                    query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         elem = fromstring(body, 'DeleteResult')
         resp_objects = elem.findall('Deleted')
         # S3 assumes a NoSuchKey object as deleted.
-        self.assertEquals(len(resp_objects), len(req_objects))
+        self.assertEqual(len(resp_objects), len(req_objects))
         for o in resp_objects:
             self.assertTrue(o.find('Key').text in req_objects)
 
@@ -110,10 +110,10 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
             self.conn.make_request('POST', bucket, body=xml,
                                    headers={'Content-MD5': content_md5},
                                    query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         elem = fromstring(body, 'DeleteResult')
         resp_objects = elem.findall('Deleted')
-        self.assertEquals(len(resp_objects), len(req_objects))
+        self.assertEqual(len(resp_objects), len(req_objects))
         for o in resp_objects:
             self.assertTrue(o.find('Key').text in req_objects)
 
@@ -132,13 +132,13 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
                                              'Content-MD5': content_md5
                                          },
                                          query=query)
-        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEqual(get_error_code(body), 'SignatureDoesNotMatch')
 
         status, headers, body = \
             self.conn.make_request('POST', 'nothing', body=xml,
                                    headers={'Content-MD5': content_md5},
                                    query=query)
-        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+        self.assertEqual(get_error_code(body), 'NoSuchBucket')
 
         # without Object tag
         xml = self._gen_invalid_multi_delete_xml()
@@ -147,7 +147,7 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
             self.conn.make_request('POST', bucket, body=xml,
                                    headers={'Content-MD5': content_md5},
                                    query=query)
-        self.assertEquals(get_error_code(body), 'MalformedXML')
+        self.assertEqual(get_error_code(body), 'MalformedXML')
 
         # without value of Key tag
         xml = self._gen_invalid_multi_delete_xml(hasObjectTag=True)
@@ -156,7 +156,7 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
             self.conn.make_request('POST', bucket, body=xml,
                                    headers={'Content-MD5': content_md5},
                                    query=query)
-        self.assertEquals(get_error_code(body), 'UserKeyMustBeSpecified')
+        self.assertEqual(get_error_code(body), 'UserKeyMustBeSpecified')
 
         # specified number of objects are over CONF.max_multi_delete_objects
         # (Default 1000), but xml size is smaller than 61365 bytes.
@@ -168,7 +168,7 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
             self.conn.make_request('POST', bucket, body=xml,
                                    headers={'Content-MD5': content_md5},
                                    query=query)
-        self.assertEquals(get_error_code(body), 'MalformedXML')
+        self.assertEqual(get_error_code(body), 'MalformedXML')
 
         # specified xml size is over 61365 bytes, but number of objects are
         # smaller than CONF.max_multi_delete_objects.
@@ -181,7 +181,7 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
             self.conn.make_request('POST', bucket, body=xml,
                                    headers={'Content-MD5': content_md5},
                                    query=query)
-        self.assertEquals(get_error_code(body), 'MalformedXML')
+        self.assertEqual(get_error_code(body), 'MalformedXML')
 
     def test_delete_multi_objects_with_quiet(self):
         bucket = 'bucket'
@@ -197,10 +197,10 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
             self.conn.make_request('POST', bucket, body=xml,
                                    headers={'Content-MD5': content_md5},
                                    query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         elem = fromstring(body, 'DeleteResult')
         resp_objects = elem.findall('Deleted')
-        self.assertEquals(len(resp_objects), 0)
+        self.assertEqual(len(resp_objects), 0)
 
         # with Quiet false
         quiet = 'false'
@@ -211,7 +211,7 @@ class TestSwift3MultiDelete(Swift3FunctionalTestCase):
             self.conn.make_request('POST', bucket, body=xml,
                                    headers={'Content-MD5': content_md5},
                                    query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         elem = fromstring(body, 'DeleteResult')
         resp_objects = elem.findall('Deleted')
-        self.assertEquals(len(resp_objects), 1)
+        self.assertEqual(len(resp_objects), 1)

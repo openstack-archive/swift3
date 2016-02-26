@@ -38,10 +38,10 @@ class TestSwift3Location(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
         elem = fromstring(body, 'LocationConstraint')
         location = elem.text
-        self.assertEquals(location, None)
+        self.assertEqual(location, None)
 
     def test_object_location_setting_as_us_west_1(self):
         CONF.location = 'us-west-1'
@@ -50,10 +50,10 @@ class TestSwift3Location(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
         elem = fromstring(body, 'LocationConstraint')
         location = elem.text
-        self.assertEquals(location, 'us-west-1')
+        self.assertEqual(location, 'us-west-1')
 
 
 if __name__ == '__main__':

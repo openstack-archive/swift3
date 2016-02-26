@@ -124,8 +124,8 @@ class TestRequest(Swift3TestCase):
     def test_get_response_without_match_ACL_MAP(self):
         with self.assertRaises(Exception) as e:
             self._test_get_response('POST', req_klass=S3AclRequest)
-        self.assertEquals(e.exception.message,
-                          'No permission to be checked exists')
+        self.assertEqual(e.exception.message,
+                         'No permission to be checked exists')
 
     def test_get_response_without_duplication_HEAD_request(self):
         obj = 'object'
@@ -186,11 +186,11 @@ class TestRequest(Swift3TestCase):
         s3req = create_s3request_with_param('max-keys', '1')
 
         # a param in the range
-        self.assertEquals(s3req.get_validated_param('max-keys', 1000, 1000), 1)
-        self.assertEquals(s3req.get_validated_param('max-keys', 0, 1), 1)
+        self.assertEqual(s3req.get_validated_param('max-keys', 1000, 1000), 1)
+        self.assertEqual(s3req.get_validated_param('max-keys', 0, 1), 1)
 
         # a param in the out of the range
-        self.assertEquals(s3req.get_validated_param('max-keys', 0, 0), 0)
+        self.assertEqual(s3req.get_validated_param('max-keys', 0, 0), 0)
 
         # a param in the out of the integer range
         s3req = create_s3request_with_param('max-keys', '1' * 30)
@@ -198,7 +198,7 @@ class TestRequest(Swift3TestCase):
             s3req.get_validated_param('max-keys', 1)
         self.assertTrue(
             'not an integer or within integer range' in result.exception.body)
-        self.assertEquals(
+        self.assertEqual(
             result.exception.headers['content-type'], 'application/xml')
 
         # a param is negative integer
@@ -207,7 +207,7 @@ class TestRequest(Swift3TestCase):
             s3req.get_validated_param('max-keys', 1)
         self.assertTrue(
             'must be an integer between 0 and' in result.exception.body)
-        self.assertEquals(
+        self.assertEqual(
             result.exception.headers['content-type'], 'application/xml')
 
         # a param is not integer
@@ -216,7 +216,7 @@ class TestRequest(Swift3TestCase):
             s3req.get_validated_param('max-keys', 1)
         self.assertTrue(
             'not an integer or within integer range' in result.exception.body)
-        self.assertEquals(
+        self.assertEqual(
             result.exception.headers['content-type'], 'application/xml')
 
     def test_authenticate_delete_Authorization_from_s3req_headers(self):
@@ -232,7 +232,7 @@ class TestRequest(Swift3TestCase):
             s3_req = S3AclRequest(req.environ, MagicMock())
             self.assertTrue('HTTP_AUTHORIZATION' not in s3_req.environ)
             self.assertTrue('Authorization' not in s3_req.headers)
-            self.assertEquals(s3_req.token, 'token')
+            self.assertEqual(s3_req.token, 'token')
 
     def test_to_swift_req_Authorization_not_exist_in_swreq_headers(self):
         container = 'bucket'
@@ -251,7 +251,7 @@ class TestRequest(Swift3TestCase):
             sw_req = s3_req.to_swift_req(method, container, obj)
             self.assertTrue('HTTP_AUTHORIZATION' not in sw_req.environ)
             self.assertTrue('Authorization' not in sw_req.headers)
-            self.assertEquals(sw_req.headers['X-Auth-Token'], 'token')
+            self.assertEqual(sw_req.headers['X-Auth-Token'], 'token')
 
     def test_to_swift_req_subrequest_proxy_access_log(self):
         container = 'bucket'
@@ -302,18 +302,18 @@ class TestRequest(Swift3TestCase):
         # first, call get_response('HEAD')
         info = s3_req.get_container_info(self.app)
         self.assertTrue('status' in info)  # sanity
-        self.assertEquals(204, info['status'])  # sanity
-        self.assertEquals('foo', info['read_acl'])  # sanity
-        self.assertEquals('5', info['object_count'])  # sanity
-        self.assertEquals({'foo': 'bar'}, info['meta'])  # sanity
+        self.assertEqual(204, info['status'])  # sanity
+        self.assertEqual('foo', info['read_acl'])  # sanity
+        self.assertEqual('5', info['object_count'])  # sanity
+        self.assertEqual({'foo': 'bar'}, info['meta'])  # sanity
         with patch('swift3.request.get_container_info',
                    return_value={'status': 204}) as mock_info:
             # Then all calls goes to get_container_info
             for x in xrange(10):
                 info = s3_req.get_container_info(self.swift)
                 self.assertTrue('status' in info)  # sanity
-                self.assertEquals(204, info['status'])  # sanity
-            self.assertEquals(10, mock_info.call_count)
+                self.assertEqual(204, info['status'])  # sanity
+            self.assertEqual(10, mock_info.call_count)
 
         expected_errors = [(404, NoSuchBucket), (0, InternalError)]
         for status, expected_error in expected_errors:
@@ -329,8 +329,8 @@ class TestRequest(Swift3TestCase):
                             environ={'REQUEST_METHOD': 'HEAD'},
                             headers={'Authorization': 'AWS test:tester:hmac'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '403')
-        self.assertEquals(body, '')
+        self.assertEqual(status.split()[0], '403')
+        self.assertEqual(body, '')
 
     def test_date_header_expired(self):
         self.swift.register('HEAD', '/v1/AUTH_test/nojunk', swob.HTTPNotFound,
@@ -341,8 +341,8 @@ class TestRequest(Swift3TestCase):
                                      'Date': 'Fri, 01 Apr 2014 12:00:00 GMT'})
 
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '403')
-        self.assertEquals(body, '')
+        self.assertEqual(status.split()[0], '403')
+        self.assertEqual(body, '')
 
     def test_date_header_with_x_amz_date_valid(self):
         self.swift.register('HEAD', '/v1/AUTH_test/nojunk', swob.HTTPNotFound,
@@ -354,8 +354,8 @@ class TestRequest(Swift3TestCase):
                                      'x-amz-date': self.get_date_header()})
 
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '404')
-        self.assertEquals(body, '')
+        self.assertEqual(status.split()[0], '404')
+        self.assertEqual(body, '')
 
     def test_date_header_with_x_amz_date_expired(self):
         self.swift.register('HEAD', '/v1/AUTH_test/nojunk', swob.HTTPNotFound,
@@ -368,8 +368,8 @@ class TestRequest(Swift3TestCase):
                                      'Fri, 01 Apr 2014 12:00:00 GMT'})
 
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '403')
-        self.assertEquals(body, '')
+        self.assertEqual(status.split()[0], '403')
+        self.assertEqual(body, '')
 
 if __name__ == '__main__':
     unittest.main()

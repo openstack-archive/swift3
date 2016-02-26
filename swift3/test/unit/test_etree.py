@@ -27,30 +27,30 @@ class TestSwift3Etree(unittest.TestCase):
         # No namespace is same as having the S3 namespace.
         xml = test_xml('', '')
         elem = etree.fromstring(xml)
-        self.assertEquals(elem.find('./B').text, 'C')
+        self.assertEqual(elem.find('./B').text, 'C')
 
         # The S3 namespace is handled as no namespace.
         xml = test_xml('xmlns="%s"' % etree.XMLNS_S3, '')
         elem = etree.fromstring(xml)
-        self.assertEquals(elem.find('./B').text, 'C')
+        self.assertEqual(elem.find('./B').text, 'C')
 
         xml = test_xml('xmlns:s3="%s"' % etree.XMLNS_S3, 's3:')
         elem = etree.fromstring(xml)
-        self.assertEquals(elem.find('./B').text, 'C')
+        self.assertEqual(elem.find('./B').text, 'C')
 
         # Any namespaces without a prefix work as no namespace.
         xml = test_xml('xmlns="http://example.com/"', '')
         elem = etree.fromstring(xml)
-        self.assertEquals(elem.find('./B').text, 'C')
+        self.assertEqual(elem.find('./B').text, 'C')
 
         xml = test_xml('xmlns:s3="http://example.com/"', 's3:')
         elem = etree.fromstring(xml)
-        self.assertEquals(elem.find('./B'), None)
+        self.assertEqual(elem.find('./B'), None)
 
     def test_xml_with_comments(self):
         xml = '<A><!-- comment --><B>C</B></A>'
         elem = etree.fromstring(xml)
-        self.assertEquals(elem.find('./B').text, 'C')
+        self.assertEqual(elem.find('./B').text, 'C')
 
     def test_tostring_with_nonascii_text(self):
         elem = etree.Element('Test')
@@ -65,7 +65,7 @@ class TestSwift3Etree(unittest.TestCase):
                     '<Test><FOO>\xef\xbc\xa1</FOO></Test>'
         elem = etree.fromstring(input_str)
         text = elem.find('FOO').text
-        self.assertEquals(text, '\xef\xbc\xa1')
+        self.assertEqual(text, '\xef\xbc\xa1')
         self.assertTrue(isinstance(text, str))
 
 

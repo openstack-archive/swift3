@@ -33,7 +33,7 @@ class TestSwift3Versioning(Swift3TestCase):
                                      'Date': self.get_date_header()})
 
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
         fromstring(body, 'VersioningConfiguration')
 
     def test_object_versioning_PUT(self):
@@ -42,7 +42,7 @@ class TestSwift3Versioning(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'NotImplemented')
+        self.assertEqual(self._get_error_code(body), 'NotImplemented')
 
     def test_bucket_versioning_GET(self):
         req = Request.blank('/bucket?versioning',

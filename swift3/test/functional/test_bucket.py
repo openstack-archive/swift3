@@ -36,48 +36,48 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
 
         # PUT Bucket
         status, headers, body = self.conn.make_request('PUT', bucket)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
 
         self.assertCommonResponseHeaders(headers)
-        self.assertEquals(headers['location'], '/' + bucket)
-        self.assertEquals(headers['content-length'], '0')
+        self.assertEqual(headers['location'], '/' + bucket)
+        self.assertEqual(headers['content-length'], '0')
 
         # GET Bucket(Without Object)
         status, headers, body = self.conn.make_request('GET', bucket)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
 
         self.assertCommonResponseHeaders(headers)
         self.assertTrue(headers['content-type'] is not None)
-        self.assertEquals(headers['content-length'], str(len(body)))
+        self.assertEqual(headers['content-length'], str(len(body)))
         # TODO; requires consideration
         # self.assertEquasl(headers['transfer-encoding'], 'chunked')
 
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('Name').text, bucket)
-        self.assertEquals(elem.find('Prefix').text, None)
-        self.assertEquals(elem.find('Marker').text, None)
-        self.assertEquals(elem.find('MaxKeys').text,
-                          str(CONF.max_bucket_listing))
-        self.assertEquals(elem.find('IsTruncated').text, 'false')
+        self.assertEqual(elem.find('Name').text, bucket)
+        self.assertEqual(elem.find('Prefix').text, None)
+        self.assertEqual(elem.find('Marker').text, None)
+        self.assertEqual(elem.find('MaxKeys').text,
+                         str(CONF.max_bucket_listing))
+        self.assertEqual(elem.find('IsTruncated').text, 'false')
         objects = elem.findall('./Contents')
-        self.assertEquals(list(objects), [])
+        self.assertEqual(list(objects), [])
 
         # GET Bucket(With Object)
         req_objects = ('object', 'object2')
         for obj in req_objects:
             self.conn.make_request('PUT', bucket, obj)
         status, headers, body = self.conn.make_request('GET', bucket)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
 
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('Name').text, bucket)
-        self.assertEquals(elem.find('Prefix').text, None)
-        self.assertEquals(elem.find('Marker').text, None)
-        self.assertEquals(elem.find('MaxKeys').text,
-                          str(CONF.max_bucket_listing))
-        self.assertEquals(elem.find('IsTruncated').text, 'false')
+        self.assertEqual(elem.find('Name').text, bucket)
+        self.assertEqual(elem.find('Prefix').text, None)
+        self.assertEqual(elem.find('Marker').text, None)
+        self.assertEqual(elem.find('MaxKeys').text,
+                         str(CONF.max_bucket_listing))
+        self.assertEqual(elem.find('IsTruncated').text, 'false')
         resp_objects = elem.findall('./Contents')
-        self.assertEquals(len(list(resp_objects)), 2)
+        self.assertEqual(len(list(resp_objects)), 2)
         for o in resp_objects:
             self.assertTrue(o.find('Key').text in req_objects)
             self.assertTrue(o.find('LastModified').text is not None)
@@ -93,11 +93,11 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
 
         # HEAD Bucket
         status, headers, body = self.conn.make_request('HEAD', bucket)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
 
         self.assertCommonResponseHeaders(headers)
         self.assertTrue(headers['content-type'] is not None)
-        self.assertEquals(headers['content-length'], str(len(body)))
+        self.assertEqual(headers['content-length'], str(len(body)))
         # TODO; requires consideration
         # self.assertEquasl(headers['transfer-encoding'], 'chunked')
 
@@ -105,43 +105,43 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         for obj in req_objects:
             self.conn.make_request('DELETE', bucket, obj)
         status, headers, body = self.conn.make_request('DELETE', bucket)
-        self.assertEquals(status, 204)
+        self.assertEqual(status, 204)
 
         self.assertCommonResponseHeaders(headers)
 
     def test_put_bucket_error(self):
         status, headers, body = \
             self.conn.make_request('PUT', 'bucket+invalid')
-        self.assertEquals(get_error_code(body), 'InvalidBucketName')
+        self.assertEqual(get_error_code(body), 'InvalidBucketName')
 
         auth_error_conn = Connection(aws_secret_key='invalid')
         status, headers, body = auth_error_conn.make_request('PUT', 'bucket')
-        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEqual(get_error_code(body), 'SignatureDoesNotMatch')
 
         self.conn.make_request('PUT', 'bucket')
         status, headers, body = self.conn.make_request('PUT', 'bucket')
-        self.assertEquals(get_error_code(body), 'BucketAlreadyExists')
+        self.assertEqual(get_error_code(body), 'BucketAlreadyExists')
 
     def test_put_bucket_with_LocationConstraint(self):
         bucket = 'bucket'
         xml = self._gen_location_xml('US')
         status, headers, body = \
             self.conn.make_request('PUT', bucket, body=xml)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
 
     def test_get_bucket_error(self):
         self.conn.make_request('PUT', 'bucket')
 
         status, headers, body = \
             self.conn.make_request('GET', 'bucket+invalid')
-        self.assertEquals(get_error_code(body), 'InvalidBucketName')
+        self.assertEqual(get_error_code(body), 'InvalidBucketName')
 
         auth_error_conn = Connection(aws_secret_key='invalid')
         status, headers, body = auth_error_conn.make_request('GET', 'bucket')
-        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEqual(get_error_code(body), 'SignatureDoesNotMatch')
 
         status, headers, body = self.conn.make_request('GET', 'nothing')
-        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+        self.assertEqual(get_error_code(body), 'NoSuchBucket')
 
     def _prepare_test_get_bucket(self, bucket, objects):
         self.conn.make_request('PUT', bucket)
@@ -160,27 +160,27 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         expect_prefixes = ('dir/', 'subdir/', 'subdir2/')
         status, headers, body = \
             self.conn.make_request('GET', bucket, query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('Delimiter').text, delimiter)
+        self.assertEqual(elem.find('Delimiter').text, delimiter)
         resp_objects = elem.findall('./Contents')
-        self.assertEquals(len(list(resp_objects)), len(expect_objects))
+        self.assertEqual(len(list(resp_objects)), len(expect_objects))
         for i, o in enumerate(resp_objects):
-            self.assertEquals(o.find('Key').text, expect_objects[i])
+            self.assertEqual(o.find('Key').text, expect_objects[i])
             self.assertTrue(o.find('LastModified').text is not None)
             self.assertRegexpMatches(
                 o.find('LastModified').text,
                 r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$')
             self.assertTrue(o.find('ETag').text is not None)
             self.assertTrue(o.find('Size').text is not None)
-            self.assertEquals(o.find('StorageClass').text, 'STANDARD')
+            self.assertEqual(o.find('StorageClass').text, 'STANDARD')
             self.assertTrue(o.find('Owner/ID').text, self.conn.user_id)
             self.assertTrue(o.find('Owner/DisplayName').text,
                             self.conn.user_id)
         resp_prefixes = elem.findall('CommonPrefixes')
-        self.assertEquals(len(resp_prefixes), len(expect_prefixes))
+        self.assertEqual(len(resp_prefixes), len(expect_prefixes))
         for i, p in enumerate(resp_prefixes):
-            self.assertEquals(p.find('./Prefix').text, expect_prefixes[i])
+            self.assertEqual(p.find('./Prefix').text, expect_prefixes[i])
 
     def test_get_bucket_with_encoding_type(self):
         bucket = 'bucket'
@@ -191,9 +191,9 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         query = 'encoding-type=%s' % encoding_type
         status, headers, body = \
             self.conn.make_request('GET', bucket, query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('EncodingType').text, encoding_type)
+        self.assertEqual(elem.find('EncodingType').text, encoding_type)
 
     def test_get_bucket_with_marker(self):
         bucket = 'bucket'
@@ -206,20 +206,20 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         expect_objects = ('object2', 'subdir/object', 'subdir2/object')
         status, headers, body = \
             self.conn.make_request('GET', bucket, query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('Marker').text, marker)
+        self.assertEqual(elem.find('Marker').text, marker)
         resp_objects = elem.findall('./Contents')
-        self.assertEquals(len(list(resp_objects)), len(expect_objects))
+        self.assertEqual(len(list(resp_objects)), len(expect_objects))
         for i, o in enumerate(resp_objects):
-            self.assertEquals(o.find('Key').text, expect_objects[i])
+            self.assertEqual(o.find('Key').text, expect_objects[i])
             self.assertTrue(o.find('LastModified').text is not None)
             self.assertRegexpMatches(
                 o.find('LastModified').text,
                 r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$')
             self.assertTrue(o.find('ETag').text is not None)
             self.assertTrue(o.find('Size').text is not None)
-            self.assertEquals(o.find('StorageClass').text, 'STANDARD')
+            self.assertEqual(o.find('StorageClass').text, 'STANDARD')
             self.assertTrue(o.find('Owner/ID').text, self.conn.user_id)
             self.assertTrue(o.find('Owner/DisplayName').text,
                             self.conn.user_id)
@@ -235,20 +235,20 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         expect_objects = ('dir/subdir/object', 'object')
         status, headers, body = \
             self.conn.make_request('GET', bucket, query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('MaxKeys').text, max_keys)
+        self.assertEqual(elem.find('MaxKeys').text, max_keys)
         resp_objects = elem.findall('./Contents')
-        self.assertEquals(len(list(resp_objects)), len(expect_objects))
+        self.assertEqual(len(list(resp_objects)), len(expect_objects))
         for i, o in enumerate(resp_objects):
-            self.assertEquals(o.find('Key').text, expect_objects[i])
+            self.assertEqual(o.find('Key').text, expect_objects[i])
             self.assertTrue(o.find('LastModified').text is not None)
             self.assertRegexpMatches(
                 o.find('LastModified').text,
                 r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$')
             self.assertTrue(o.find('ETag').text is not None)
             self.assertTrue(o.find('Size').text is not None)
-            self.assertEquals(o.find('StorageClass').text, 'STANDARD')
+            self.assertEqual(o.find('StorageClass').text, 'STANDARD')
             self.assertTrue(o.find('Owner/ID').text, self.conn.user_id)
             self.assertTrue(o.find('Owner/DisplayName').text,
                             self.conn.user_id)
@@ -264,20 +264,20 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         expect_objects = ('object', 'object2')
         status, headers, body = \
             self.conn.make_request('GET', bucket, query=query)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('Prefix').text, prefix)
+        self.assertEqual(elem.find('Prefix').text, prefix)
         resp_objects = elem.findall('./Contents')
-        self.assertEquals(len(list(resp_objects)), len(expect_objects))
+        self.assertEqual(len(list(resp_objects)), len(expect_objects))
         for i, o in enumerate(resp_objects):
-            self.assertEquals(o.find('Key').text, expect_objects[i])
+            self.assertEqual(o.find('Key').text, expect_objects[i])
             self.assertTrue(o.find('LastModified').text is not None)
             self.assertRegexpMatches(
                 o.find('LastModified').text,
                 r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$')
             self.assertTrue(o.find('ETag').text is not None)
             self.assertTrue(o.find('Size').text is not None)
-            self.assertEquals(o.find('StorageClass').text, 'STANDARD')
+            self.assertEqual(o.find('StorageClass').text, 'STANDARD')
             self.assertTrue(o.find('Owner/ID').text, self.conn.user_id)
             self.assertTrue(o.find('Owner/DisplayName').text,
                             self.conn.user_id)
@@ -287,31 +287,31 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
 
         status, headers, body = \
             self.conn.make_request('HEAD', 'bucket+invalid')
-        self.assertEquals(status, 400)
-        self.assertEquals(body, '')  # sanifty
+        self.assertEqual(status, 400)
+        self.assertEqual(body, '')  # sanifty
 
         auth_error_conn = Connection(aws_secret_key='invalid')
         status, headers, body = \
             auth_error_conn.make_request('HEAD', 'bucket')
-        self.assertEquals(status, 403)
-        self.assertEquals(body, '')  # sanifty
+        self.assertEqual(status, 403)
+        self.assertEqual(body, '')  # sanifty
 
         status, headers, body = self.conn.make_request('HEAD', 'nothing')
-        self.assertEquals(status, 404)
-        self.assertEquals(body, '')  # sanifty
+        self.assertEqual(status, 404)
+        self.assertEqual(body, '')  # sanifty
 
     def test_delete_bucket_error(self):
         status, headers, body = \
             self.conn.make_request('DELETE', 'bucket+invalid')
-        self.assertEquals(get_error_code(body), 'InvalidBucketName')
+        self.assertEqual(get_error_code(body), 'InvalidBucketName')
 
         auth_error_conn = Connection(aws_secret_key='invalid')
         status, headers, body = \
             auth_error_conn.make_request('DELETE', 'bucket')
-        self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
+        self.assertEqual(get_error_code(body), 'SignatureDoesNotMatch')
 
         status, headers, body = self.conn.make_request('DELETE', 'bucket')
-        self.assertEquals(get_error_code(body), 'NoSuchBucket')
+        self.assertEqual(get_error_code(body), 'NoSuchBucket')
 
 if __name__ == '__main__':
     unittest.main()

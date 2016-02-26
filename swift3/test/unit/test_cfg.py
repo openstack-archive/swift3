@@ -36,9 +36,9 @@ class TestSwift3Cfg(unittest.TestCase):
             }
         )
 
-        self.assertEquals(conf['a'], 'str2')
-        self.assertEquals(conf['b'], 100)
-        self.assertEquals(conf['c'], False)
+        self.assertEqual(conf['a'], 'str2')
+        self.assertEqual(conf['b'], 100)
+        self.assertEqual(conf['c'], False)
 
 if __name__ == '__main__':
     unittest.main()

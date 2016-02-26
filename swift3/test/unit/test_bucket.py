@@ -83,7 +83,7 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_bucket_HEAD_error(self):
         req = Request.blank('/nojunk',
@@ -91,8 +91,8 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '404')
-        self.assertEquals(body, '')  # sanifty
+        self.assertEqual(status.split()[0], '404')
+        self.assertEqual(body, '')  # sanifty
 
     def test_bucket_HEAD_slash(self):
         req = Request.blank('/junk/',
@@ -100,7 +100,7 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_bucket_HEAD_slash_error(self):
         req = Request.blank('/nojunk/',
@@ -108,18 +108,18 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '404')
+        self.assertEqual(status.split()[0], '404')
 
     @s3acl
     def test_bucket_GET_error(self):
         code = self._test_method_error('GET', '/bucket', swob.HTTPUnauthorized)
-        self.assertEquals(code, 'SignatureDoesNotMatch')
+        self.assertEqual(code, 'SignatureDoesNotMatch')
         code = self._test_method_error('GET', '/bucket', swob.HTTPForbidden)
-        self.assertEquals(code, 'AccessDenied')
+        self.assertEqual(code, 'AccessDenied')
         code = self._test_method_error('GET', '/bucket', swob.HTTPNotFound)
-        self.assertEquals(code, 'NoSuchBucket')
+        self.assertEqual(code, 'NoSuchBucket')
         code = self._test_method_error('GET', '/bucket', swob.HTTPServerError)
-        self.assertEquals(code, 'InternalError')
+        self.assertEqual(code, 'InternalError')
 
     def test_bucket_GET(self):
         bucket_name = 'junk'
@@ -128,11 +128,11 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
         elem = fromstring(body, 'ListBucketResult')
         name = elem.find('./Name').text
-        self.assertEquals(name, bucket_name)
+        self.assertEqual(name, bucket_name)
 
         objects = elem.iterchildren('Contents')
 
@@ -143,7 +143,7 @@ class TestSwift3Bucket(Swift3TestCase):
                              o.find('./LastModified').text)
             self.assertEqual('"0"', o.find('./ETag').text)
 
-        self.assertEquals(len(names), len(self.objects))
+        self.assertEqual(len(names), len(self.objects))
         for i in self.objects:
             self.assertTrue(i[0] in names)
 
@@ -154,14 +154,14 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
         elem = fromstring(body, 'ListBucketResult')
         name = elem.find('./Name').text
-        self.assertEquals(name, bucket_name)
+        self.assertEqual(name, bucket_name)
 
         prefixes = elem.findall('CommonPrefixes')
 
-        self.assertEquals(len(prefixes), len(self.prefixes))
+        self.assertEqual(len(prefixes), len(self.prefixes))
         for p in prefixes:
             self.assertTrue(p.find('./Prefix').text in self.prefixes)
 
@@ -174,7 +174,7 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('./IsTruncated').text, 'false')
+        self.assertEqual(elem.find('./IsTruncated').text, 'false')
 
         req = Request.blank('/%s?max-keys=4' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
@@ -182,7 +182,7 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('./IsTruncated').text, 'true')
+        self.assertEqual(elem.find('./IsTruncated').text, 'true')
 
     def test_bucket_GET_max_keys(self):
         bucket_name = 'junk'
@@ -193,7 +193,7 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('./MaxKeys').text, '5')
+        self.assertEqual(elem.find('./MaxKeys').text, '5')
         _, path = self.swift.calls[-1]
         _, query_string = path.split('?')
         args = dict(cgi.parse_qsl(query_string))
@@ -205,11 +205,11 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('./MaxKeys').text, '5000')
+        self.assertEqual(elem.find('./MaxKeys').text, '5000')
         _, path = self.swift.calls[-1]
         _, query_string = path.split('?')
         args = dict(cgi.parse_qsl(query_string))
-        self.assertEquals(args['limit'], '1001')
+        self.assertEqual(args['limit'], '1001')
 
     def test_bucket_GET_str_max_keys(self):
         bucket_name = 'junk'
@@ -219,7 +219,7 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+        self.assertEqual(self._get_error_code(body), 'InvalidArgument')
 
     def test_bucket_GET_negative_max_keys(self):
         bucket_name = 'junk'
@@ -229,7 +229,7 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+        self.assertEqual(self._get_error_code(body), 'InvalidArgument')
 
     def test_bucket_GET_over_32bit_int_max_keys(self):
         bucket_name = 'junk'
@@ -240,7 +240,7 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+        self.assertEqual(self._get_error_code(body), 'InvalidArgument')
 
     def test_bucket_GET_passthroughs(self):
         bucket_name = 'junk'
@@ -250,15 +250,15 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('./Prefix').text, 'c')
-        self.assertEquals(elem.find('./Marker').text, 'b')
-        self.assertEquals(elem.find('./Delimiter').text, 'a')
+        self.assertEqual(elem.find('./Prefix').text, 'c')
+        self.assertEqual(elem.find('./Marker').text, 'b')
+        self.assertEqual(elem.find('./Delimiter').text, 'a')
         _, path = self.swift.calls[-1]
         _, query_string = path.split('?')
         args = dict(cgi.parse_qsl(query_string))
-        self.assertEquals(args['delimiter'], 'a')
-        self.assertEquals(args['marker'], 'b')
-        self.assertEquals(args['prefix'], 'c')
+        self.assertEqual(args['delimiter'], 'a')
+        self.assertEqual(args['marker'], 'b')
+        self.assertEqual(args['prefix'], 'c')
 
     def test_bucket_GET_with_nonascii_queries(self):
         bucket_name = 'junk'
@@ -270,15 +270,15 @@ class TestSwift3Bucket(Swift3TestCase):
                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('./Prefix').text, '\xef\xbc\xa3')
-        self.assertEquals(elem.find('./Marker').text, '\xef\xbc\xa2')
-        self.assertEquals(elem.find('./Delimiter').text, '\xef\xbc\xa1')
+        self.assertEqual(elem.find('./Prefix').text, '\xef\xbc\xa3')
+        self.assertEqual(elem.find('./Marker').text, '\xef\xbc\xa2')
+        self.assertEqual(elem.find('./Delimiter').text, '\xef\xbc\xa1')
         _, path = self.swift.calls[-1]
         _, query_string = path.split('?')
         args = dict(cgi.parse_qsl(query_string))
-        self.assertEquals(args['delimiter'], '\xef\xbc\xa1')
-        self.assertEquals(args['marker'], '\xef\xbc\xa2')
-        self.assertEquals(args['prefix'], '\xef\xbc\xa3')
+        self.assertEqual(args['delimiter'], '\xef\xbc\xa1')
+        self.assertEqual(args['marker'], '\xef\xbc\xa2')
+        self.assertEqual(args['prefix'], '\xef\xbc\xa3')
 
     def test_bucket_GET_with_delimiter_max_keys(self):
         bucket_name = 'junk'
@@ -287,11 +287,11 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('./NextMarker').text, 'viola')
-        self.assertEquals(elem.find('./MaxKeys').text, '2')
-        self.assertEquals(elem.find('./IsTruncated').text, 'true')
+        self.assertEqual(elem.find('./NextMarker').text, 'viola')
+        self.assertEqual(elem.find('./MaxKeys').text, '2')
+        self.assertEqual(elem.find('./IsTruncated').text, 'true')
 
     def test_bucket_GET_subdir_with_delimiter_max_keys(self):
         bucket_name = 'junk-subdir'
@@ -300,11 +300,11 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEquals(elem.find('./NextMarker').text, 'rose')
-        self.assertEquals(elem.find('./MaxKeys').text, '1')
-        self.assertEquals(elem.find('./IsTruncated').text, 'true')
+        self.assertEqual(elem.find('./NextMarker').text, 'rose')
+        self.assertEqual(elem.find('./MaxKeys').text, '1')
+        self.assertEqual(elem.find('./IsTruncated').text, 'true')
 
     @s3acl
     def test_bucket_PUT_error(self):
@@ -315,13 +315,13 @@ class TestSwift3Bucket(Swift3TestCase):
                                        headers={'Content-Length': '-1'})
         self.assertEqual(code, 'InvalidArgument')
         code = self._test_method_error('PUT', '/bucket', swob.HTTPUnauthorized)
-        self.assertEquals(code, 'SignatureDoesNotMatch')
+        self.assertEqual(code, 'SignatureDoesNotMatch')
         code = self._test_method_error('PUT', '/bucket', swob.HTTPForbidden)
-        self.assertEquals(code, 'AccessDenied')
+        self.assertEqual(code, 'AccessDenied')
         code = self._test_method_error('PUT', '/bucket', swob.HTTPAccepted)
-        self.assertEquals(code, 'BucketAlreadyExists')
+        self.assertEqual(code, 'BucketAlreadyExists')
         code = self._test_method_error('PUT', '/bucket', swob.HTTPServerError)
-        self.assertEquals(code, 'InternalError')
+        self.assertEqual(code, 'InternalError')
         code = self._test_method_error(
             'PUT', '/bucket+bucket', swob.HTTPCreated)
         self.assertEqual(code, 'InvalidBucketName')
@@ -350,8 +350,8 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
-        self.assertEquals(headers['Location'], '/bucket')
+        self.assertEqual(status.split()[0], '200')
+        self.assertEqual(headers['Location'], '/bucket')
 
         # Apparently some clients will include a chunked transfer-encoding
         # even with no body
@@ -361,8 +361,8 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'Date': self.get_date_header(),
                                      'Transfer-Encoding': 'chunked'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
-        self.assertEquals(headers['Location'], '/bucket')
+        self.assertEqual(status.split()[0], '200')
+        self.assertEqual(headers['Location'], '/bucket')
 
     @s3acl
     def test_bucket_PUT_with_location(self):
@@ -376,7 +376,7 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'Date': self.get_date_header()},
                             body=xml)
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_bucket_PUT_with_canned_acl(self):
         req = Request.blank('/bucket',
@@ -385,10 +385,10 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'Date': self.get_date_header(),
                                      'X-Amz-Acl': 'public-read'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
         _, _, headers = self.swift.calls_with_headers[-1]
         self.assertTrue('X-Container-Read' in headers)
-        self.assertEquals(headers.get('X-Container-Read'), '.r:*,.rlistings')
+        self.assertEqual(headers.get('X-Container-Read'), '.r:*,.rlistings')
         self.assertTrue('X-Container-Sysmeta-Swift3-Acl' not in headers)
 
     @s3acl(s3acl_only=True)
@@ -402,12 +402,12 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'Date': self.get_date_header(),
                                      'X-Amz-Acl': 'public-read'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
         _, _, headers = self.swift.calls_with_headers[-1]
         self.assertTrue('X-Container-Read' not in headers)
         self.assertTrue('X-Container-Sysmeta-Swift3-Acl' in headers)
-        self.assertEquals(headers.get('X-Container-Sysmeta-Swift3-Acl'),
-                          acl['x-container-sysmeta-swift3-acl'])
+        self.assertEqual(headers.get('X-Container-Sysmeta-Swift3-Acl'),
+                         acl['x-container-sysmeta-swift3-acl'])
 
     @s3acl
     def test_bucket_PUT_with_location_error(self):
@@ -421,8 +421,8 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'Date': self.get_date_header()},
                             body=xml)
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body),
-                          'InvalidLocationConstraint')
+        self.assertEqual(self._get_error_code(body),
+                         'InvalidLocationConstraint')
 
     @s3acl
     def test_bucket_PUT_with_location_invalid_xml(self):
@@ -432,22 +432,22 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'Date': self.get_date_header()},
                             body='invalid_xml')
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'MalformedXML')
+        self.assertEqual(self._get_error_code(body), 'MalformedXML')
 
     @s3acl
     def test_bucket_DELETE_error(self):
         code = self._test_method_error('DELETE', '/bucket',
                                        swob.HTTPUnauthorized)
-        self.assertEquals(code, 'SignatureDoesNotMatch')
+        self.assertEqual(code, 'SignatureDoesNotMatch')
         code = self._test_method_error('DELETE', '/bucket', swob.HTTPForbidden)
-        self.assertEquals(code, 'AccessDenied')
+        self.assertEqual(code, 'AccessDenied')
         code = self._test_method_error('DELETE', '/bucket', swob.HTTPNotFound)
-        self.assertEquals(code, 'NoSuchBucket')
+        self.assertEqual(code, 'NoSuchBucket')
         code = self._test_method_error('DELETE', '/bucket', swob.HTTPConflict)
-        self.assertEquals(code, 'BucketNotEmpty')
+        self.assertEqual(code, 'BucketNotEmpty')
         code = self._test_method_error('DELETE', '/bucket',
                                        swob.HTTPServerError)
-        self.assertEquals(code, 'InternalError')
+        self.assertEqual(code, 'InternalError')
 
     @s3acl
     def test_bucket_DELETE(self):
@@ -456,7 +456,7 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '204')
+        self.assertEqual(status.split()[0], '204')
 
     def _test_bucket_for_s3acl(self, method, account):
         req = Request.blank('/bucket',
@@ -470,25 +470,25 @@ class TestSwift3Bucket(Swift3TestCase):
     def test_bucket_GET_without_permission(self):
         status, headers, body = self._test_bucket_for_s3acl('GET',
                                                             'test:other')
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     @s3acl(s3acl_only=True)
     def test_bucket_GET_with_read_permission(self):
         status, headers, body = self._test_bucket_for_s3acl('GET',
                                                             'test:read')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     @s3acl(s3acl_only=True)
     def test_bucket_GET_with_fullcontrol_permission(self):
         status, headers, body = \
             self._test_bucket_for_s3acl('GET', 'test:full_control')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     @s3acl(s3acl_only=True)
     def test_bucket_GET_with_owner_permission(self):
         status, headers, body = self._test_bucket_for_s3acl('GET',
                                                             'test:tester')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def _test_bucket_GET_canned_acl(self, bucket):
         req = Request.blank('/%s' % bucket,
@@ -502,30 +502,30 @@ class TestSwift3Bucket(Swift3TestCase):
     def test_bucket_GET_authenticated_users(self):
         status, headers, body = \
             self._test_bucket_GET_canned_acl('authenticated')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     @s3acl(s3acl_only=True)
     def test_bucket_GET_all_users(self):
         status, headers, body = self._test_bucket_GET_canned_acl('public')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     @s3acl(s3acl_only=True)
     def test_bucket_DELETE_without_permission(self):
         status, headers, body = self._test_bucket_for_s3acl('DELETE',
                                                             'test:other')
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     @s3acl(s3acl_only=True)
     def test_bucket_DELETE_with_write_permission(self):
         status, headers, body = self._test_bucket_for_s3acl('DELETE',
                                                             'test:write')
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     @s3acl(s3acl_only=True)
     def test_bucket_DELETE_with_fullcontrol_permission(self):
         status, headers, body = \
             self._test_bucket_for_s3acl('DELETE', 'test:full_control')
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
 if __name__ == '__main__':
     unittest.main()

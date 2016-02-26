@@ -52,11 +52,11 @@ class TestSwift3Service(Swift3TestCase):
 
     def test_service_GET_error(self):
         code = self._test_method_error('GET', '', swob.HTTPUnauthorized)
-        self.assertEquals(code, 'SignatureDoesNotMatch')
+        self.assertEqual(code, 'SignatureDoesNotMatch')
         code = self._test_method_error('GET', '', swob.HTTPForbidden)
-        self.assertEquals(code, 'AccessDenied')
+        self.assertEqual(code, 'AccessDenied')
         code = self._test_method_error('GET', '', swob.HTTPServerError)
-        self.assertEquals(code, 'InternalError')
+        self.assertEqual(code, 'InternalError')
 
     @s3acl
     def test_service_GET(self):
@@ -65,20 +65,20 @@ class TestSwift3Service(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
         elem = fromstring(body, 'ListAllMyBucketsResult')
 
         all_buckets = elem.find('./Buckets')
         buckets = all_buckets.iterchildren('Bucket')
         listing = list(list(buckets)[0])
-        self.assertEquals(len(listing), 2)
+        self.assertEqual(len(listing), 2)
 
         names = []
         for b in all_buckets.iterchildren('Bucket'):
             names.append(b.find('./Name').text)
 
-        self.assertEquals(len(names), len(self.buckets))
+        self.assertEqual(len(names), len(self.buckets))
         for i in self.buckets:
             self.assertTrue(i[0] in names)
 
@@ -89,20 +89,20 @@ class TestSwift3Service(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
         elem = fromstring(body, 'ListAllMyBucketsResult')
 
         all_buckets = elem.find('./Buckets')
         buckets = all_buckets.iterchildren('Bucket')
         listing = list(list(buckets)[0])
-        self.assertEquals(len(listing), 2)
+        self.assertEqual(len(listing), 2)
 
         names = []
         for b in all_buckets.iterchildren('Bucket'):
             names.append(b.find('./Name').text)
 
-        self.assertEquals(len(names), len(self.buckets))
+        self.assertEqual(len(names), len(self.buckets))
         for i in self.buckets:
             self.assertTrue(i[0] in names)
 
@@ -120,19 +120,19 @@ class TestSwift3Service(Swift3TestCase):
                                      'Date': self.get_date_header()})
 
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
         elem = fromstring(body, 'ListAllMyBucketsResult')
         all_buckets = elem.find('./Buckets')
         buckets = all_buckets.iterchildren('Bucket')
         listing = list(list(buckets)[0])
-        self.assertEquals(len(listing), 2)
+        self.assertEqual(len(listing), 2)
 
         names = []
         for b in all_buckets.iterchildren('Bucket'):
             names.append(b.find('./Name').text)
 
-        self.assertEquals(len(names), len(expected))
+        self.assertEqual(len(names), len(expected))
         for i in expected:
             self.assertTrue(i[0] in names)
 
@@ -160,13 +160,13 @@ class TestSwift3Service(Swift3TestCase):
 
         status, headers, body = \
             self._test_service_GET_for_check_bucket_owner(bucket_list)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
         elem = fromstring(body, 'ListAllMyBucketsResult')
 
         resp_buckets = elem.find('./Buckets')
         buckets = resp_buckets.iterchildren('Bucket')
-        self.assertEquals(len(list(buckets)), 0)
+        self.assertEqual(len(list(buckets)), 0)
 
     @s3acl(s3acl_only=True)
     def test_service_GET_without_owner_bucket(self):
@@ -182,13 +182,13 @@ class TestSwift3Service(Swift3TestCase):
 
         status, headers, body = \
             self._test_service_GET_for_check_bucket_owner(bucket_list)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
         elem = fromstring(body, 'ListAllMyBucketsResult')
 
         resp_buckets = elem.find('./Buckets')
         buckets = resp_buckets.iterchildren('Bucket')
-        self.assertEquals(len(list(buckets)), 0)
+        self.assertEqual(len(list(buckets)), 0)
 
     @s3acl(s3acl_only=True)
     def test_service_GET_bucekt_list(self):
@@ -212,13 +212,13 @@ class TestSwift3Service(Swift3TestCase):
 
         status, headers, body = \
             self._test_service_GET_for_check_bucket_owner(bucket_list)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
         elem = fromstring(body, 'ListAllMyBucketsResult')
         resp_buckets = elem.find('./Buckets')
         buckets = resp_buckets.iterchildren('Bucket')
         listing = list(list(buckets)[0])
-        self.assertEquals(len(listing), 2)
+        self.assertEqual(len(listing), 2)
 
         names = []
         for b in resp_buckets.iterchildren('Bucket'):
@@ -228,10 +228,10 @@ class TestSwift3Service(Swift3TestCase):
         # bucket_list which mean requested user is owner.
         expected_buckets = [b for i, b in enumerate(bucket_list)
                             if i % 3 == 0]
-        self.assertEquals(len(names), len(expected_buckets))
+        self.assertEqual(len(names), len(expected_buckets))
         for i in expected_buckets:
             self.assertTrue(i[0] in names)
-        self.assertEquals(len(self.swift.calls_with_headers), 11)
+        self.assertEqual(len(self.swift.calls_with_headers), 11)
 
 if __name__ == '__main__':
     unittest.main()
