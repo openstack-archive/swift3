@@ -177,7 +177,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                     Owner(id='test:other',
                                           name='test:other')).elem()))
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     def test_object_acl_PUT_xml_error(self):
         req = Request.blank('/bucket/object?acl',
@@ -186,7 +186,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'Date': self.get_date_header()},
                             body="invalid xml")
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'MalformedACLError')
+        self.assertEqual(self._get_error_code(body), 'MalformedACLError')
 
     def test_canned_acl_private(self):
         req = Request.blank('/bucket/object?acl',
@@ -195,7 +195,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'Date': self.get_date_header(),
                                      'x-amz-acl': 'private'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_canned_acl_public_read(self):
         req = Request.blank('/bucket/object?acl',
@@ -204,7 +204,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'Date': self.get_date_header(),
                                      'x-amz-acl': 'public-read'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_canned_acl_public_read_write(self):
         req = Request.blank('/bucket/object?acl',
@@ -213,7 +213,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'Date': self.get_date_header(),
                                      'x-amz-acl': 'public-read-write'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_canned_acl_authenticated_read(self):
         req = Request.blank('/bucket/object?acl',
@@ -222,7 +222,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'Date': self.get_date_header(),
                                      'x-amz-acl': 'authenticated-read'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_canned_acl_bucket_owner_read(self):
         req = Request.blank('/bucket/object?acl',
@@ -231,7 +231,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'Date': self.get_date_header(),
                                      'x-amz-acl': 'bucket-owner-read'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_canned_acl_bucket_owner_full_control(self):
         req = Request.blank('/bucket/object?acl',
@@ -240,7 +240,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'Date': self.get_date_header(),
                                      'x-amz-acl': 'bucket-owner-full-control'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_invalid_canned_acl(self):
         req = Request.blank('/bucket/object?acl',
@@ -249,7 +249,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'Date': self.get_date_header(),
                                      'x-amz-acl': 'invalid'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+        self.assertEqual(self._get_error_code(body), 'InvalidArgument')
 
     def _test_grant_header(self, permission):
         req = Request.blank('/bucket/object?acl',
@@ -262,27 +262,27 @@ class TestSwift3S3Acl(Swift3TestCase):
 
     def test_grant_read(self):
         status, headers, body = self._test_grant_header('read')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_grant_write(self):
         status, headers, body = self._test_grant_header('write')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_grant_read_acp(self):
         status, headers, body = self._test_grant_header('read-acp')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_grant_write_acp(self):
         status, headers, body = self._test_grant_header('write-acp')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_grant_full_control(self):
         status, headers, body = self._test_grant_header('full-control')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_grant_invalid_permission(self):
         status, headers, body = self._test_grant_header('invalid')
-        self.assertEquals(self._get_error_code(body), 'MissingSecurityHeader')
+        self.assertEqual(self._get_error_code(body), 'MissingSecurityHeader')
 
     def test_grant_with_both_header_and_xml(self):
         req = Request.blank('/bucket/object?acl',
@@ -296,7 +296,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                     Owner(id='test:tester',
                                           name='test:tester')).elem()))
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'UnexpectedContent')
+        self.assertEqual(self._get_error_code(body), 'UnexpectedContent')
 
     def test_grant_with_both_header_and_canned_acl(self):
         req = Request.blank('/bucket/object?acl',
@@ -307,7 +307,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'id=test:tester',
                                      'x-amz-acl': 'public-read'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidRequest')
+        self.assertEqual(self._get_error_code(body), 'InvalidRequest')
 
     def test_grant_email(self):
         req = Request.blank('/bucket/object?acl',
@@ -316,7 +316,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'Date': self.get_date_header(),
                                      'x-amz-grant-read': 'emailAddress=a@b.c'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'NotImplemented')
+        self.assertEqual(self._get_error_code(body), 'NotImplemented')
 
     def test_grant_email_xml(self):
         grantee = Element('Grantee', nsmap={'xsi': XMLNS_XSI})
@@ -329,7 +329,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'Date': self.get_date_header()},
                             body=xml)
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'NotImplemented')
+        self.assertEqual(self._get_error_code(body), 'NotImplemented')
 
     def test_grant_invalid_group_xml(self):
         grantee = Element('Grantee', nsmap={'xsi': XMLNS_XSI})
@@ -341,7 +341,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'Date': self.get_date_header()},
                             body=xml)
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'MalformedACLError')
+        self.assertEqual(self._get_error_code(body), 'MalformedACLError')
 
     def test_grant_authenticated_users(self):
         req = Request.blank('/bucket/object?acl',
@@ -352,7 +352,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'uri="http://acs.amazonaws.com/groups/'
                                      'global/AuthenticatedUsers"'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_grant_all_users(self):
         req = Request.blank('/bucket/object?acl',
@@ -363,7 +363,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'uri="http://acs.amazonaws.com/groups/'
                                      'global/AllUsers"'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_grant_invalid_uri(self):
         req = Request.blank('/bucket/object?acl',
@@ -373,7 +373,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'x-amz-grant-read':
                                      'uri="http://localhost/"'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+        self.assertEqual(self._get_error_code(body), 'InvalidArgument')
 
     def test_grant_invalid_uri_xml(self):
         grantee = Element('Grantee', nsmap={'xsi': XMLNS_XSI})
@@ -387,7 +387,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'Date': self.get_date_header()},
                             body=xml)
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+        self.assertEqual(self._get_error_code(body), 'InvalidArgument')
 
     def test_grant_invalid_target(self):
         req = Request.blank('/bucket/object?acl',
@@ -396,7 +396,7 @@ class TestSwift3S3Acl(Swift3TestCase):
                                      'Date': self.get_date_header(),
                                      'x-amz-grant-read': 'key=value'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+        self.assertEqual(self._get_error_code(body), 'InvalidArgument')
 
     def _test_bucket_acl_GET(self, account):
         req = Request.blank('/bucket?acl',
@@ -407,19 +407,19 @@ class TestSwift3S3Acl(Swift3TestCase):
 
     def test_bucket_acl_GET_without_permission(self):
         status, headers, body = self._test_bucket_acl_GET('test:other')
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     def test_bucket_acl_GET_with_read_acp_permission(self):
         status, headers, body = self._test_bucket_acl_GET('test:read_acp')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_bucket_acl_GET_with_fullcontrol_permission(self):
         status, headers, body = self._test_bucket_acl_GET('test:full_control')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_bucket_acl_GET_with_owner_permission(self):
         status, headers, body = self._test_bucket_acl_GET('test:tester')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def _test_bucket_acl_PUT(self, account, permission='FULL_CONTROL'):
         acl = ACL(self.default_owner, [Grant(User(account), permission)])
@@ -433,19 +433,19 @@ class TestSwift3S3Acl(Swift3TestCase):
 
     def test_bucket_acl_PUT_without_permission(self):
         status, headers, body = self._test_bucket_acl_PUT('test:other')
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     def test_bucket_acl_PUT_with_write_acp_permission(self):
         status, headers, body = self._test_bucket_acl_PUT('test:write_acp')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_bucket_acl_PUT_with_fullcontrol_permission(self):
         status, headers, body = self._test_bucket_acl_PUT('test:full_control')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_bucket_acl_PUT_with_owner_permission(self):
         status, headers, body = self._test_bucket_acl_PUT('test:tester')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def _test_object_acl_GET(self, account):
         req = Request.blank('/bucket/object?acl',
@@ -456,19 +456,19 @@ class TestSwift3S3Acl(Swift3TestCase):
 
     def test_object_acl_GET_without_permission(self):
         status, headers, body = self._test_object_acl_GET('test:other')
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     def test_object_acl_GET_with_read_acp_permission(self):
         status, headers, body = self._test_object_acl_GET('test:read_acp')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_object_acl_GET_with_fullcontrol_permission(self):
         status, headers, body = self._test_object_acl_GET('test:full_control')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_object_acl_GET_with_owner_permission(self):
         status, headers, body = self._test_object_acl_GET('test:tester')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def _test_object_acl_PUT(self, account, permission='FULL_CONTROL'):
         acl = ACL(self.default_owner, [Grant(User(account), permission)])
@@ -482,19 +482,19 @@ class TestSwift3S3Acl(Swift3TestCase):
 
     def test_object_acl_PUT_without_permission(self):
         status, headers, body = self._test_object_acl_PUT('test:other')
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     def test_object_acl_PUT_with_write_acp_permission(self):
         status, headers, body = self._test_object_acl_PUT('test:write_acp')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_object_acl_PUT_with_fullcontrol_permission(self):
         status, headers, body = self._test_object_acl_PUT('test:full_control')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_object_acl_PUT_with_owner_permission(self):
         status, headers, body = self._test_object_acl_PUT('test:tester')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     def test_s3acl_decorator(self):
         @s3acl
@@ -529,7 +529,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         self.assertRaises(TypeError, fake_class.s3acl_error)
         self.assertRaises(AssertionError, fake_class.s3acl_assert_fail)
         self.assertRaises(TypeError, fake_class.s3acl_s3only_error)
-        self.assertEquals(None, fake_class.s3acl_s3only_no_error())
+        self.assertEqual(None, fake_class.s3acl_s3only_no_error())
 
 if __name__ == '__main__':
     unittest.main()

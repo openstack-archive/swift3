@@ -47,4 +47,4 @@ class Swift3FunctionalTestCase(unittest.TestCase):
         # self.assertTrue(headers['server'] is not None)
         if etag is not None:
             self.assertTrue('etag' in headers)  # sanity
-            self.assertEquals(etag, headers['etag'].strip('"'))
+            self.assertEqual(etag, headers['etag'].strip('"'))

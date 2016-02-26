@@ -33,8 +33,8 @@ class TestSwift3Logging(Swift3TestCase):
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         xml = fromstring(body, 'BucketLoggingStatus')
-        self.assertEquals(xml.keys(), [])
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(xml.keys(), [])
+        self.assertEqual(status.split()[0], '200')
 
     def test_object_logging_GET_error(self):
         req = Request.blank('/bucket/object?logging',
@@ -42,7 +42,7 @@ class TestSwift3Logging(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'NoLoggingStatusForKey')
+        self.assertEqual(self._get_error_code(body), 'NoLoggingStatusForKey')
 
     def test_bucket_logging_PUT(self):
         req = Request.blank('/bucket?logging',
@@ -51,8 +51,8 @@ class TestSwift3Logging(Swift3TestCase):
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         # FIXME: Support PUT logging
-        # self.assertEquals(status, 201)
-        self.assertEquals(self._get_error_code(body), 'NotImplemented')
+        # self.assertEqual(status, 201)
+        self.assertEqual(self._get_error_code(body), 'NotImplemented')
 
     def test_object_logging_PUT_error(self):
         req = Request.blank('/bucket/object?logging',
@@ -60,7 +60,7 @@ class TestSwift3Logging(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'NoLoggingStatusForKey')
+        self.assertEqual(self._get_error_code(body), 'NoLoggingStatusForKey')
 
 if __name__ == '__main__':
     unittest.main()

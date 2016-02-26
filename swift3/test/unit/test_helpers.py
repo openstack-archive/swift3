@@ -29,7 +29,7 @@ class Swift3HelperTestCase(unittest.TestCase):
 
     def _check_headers(self, swift, method, path, headers):
         _, response_headers, _ = swift._responses[(method, path)]
-        self.assertEquals(headers, response_headers)
+        self.assertEqual(headers, response_headers)
 
     def test_fake_swift_sysmeta(self):
         swift = FakeSwift()
