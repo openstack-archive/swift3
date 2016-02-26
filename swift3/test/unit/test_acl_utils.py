@@ -33,7 +33,7 @@ class TestSwift3AclUtils(Swift3TestCase):
             handle_acl_header(req)
             for target in targets:
                 self.assertTrue(target[0] in req.headers)
-                self.assertEquals(req.headers[target[0]], target[1])
+                self.assertEqual(req.headers[target[0]], target[1])
 
         check_generated_acl_header('public-read',
                                    [('X-Container-Read', '.r:*,.rlistings')])

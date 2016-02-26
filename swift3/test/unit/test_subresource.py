@@ -39,8 +39,8 @@ class TestSwift3Subresource(unittest.TestCase):
 
         self.assertTrue('test:tester' in grantee)
         self.assertTrue('test:tester2' not in grantee)
-        self.assertEquals(str(grantee), 'test:tester')
-        self.assertEquals(grantee.elem().find('./ID').text, 'test:tester')
+        self.assertEqual(str(grantee), 'test:tester')
+        self.assertEqual(grantee.elem().find('./ID').text, 'test:tester')
 
     def test_acl_authenticated_users(self):
         grantee = AuthenticatedUsers()
@@ -48,7 +48,7 @@ class TestSwift3Subresource(unittest.TestCase):
         self.assertTrue('test:tester' in grantee)
         self.assertTrue('test:tester2' in grantee)
         uri = 'http://acs.amazonaws.com/groups/global/AuthenticatedUsers'
-        self.assertEquals(grantee.elem().find('./URI').text, uri)
+        self.assertEqual(grantee.elem().find('./URI').text, uri)
 
     def test_acl_all_users(self):
         grantee = AllUsers()
@@ -56,7 +56,7 @@ class TestSwift3Subresource(unittest.TestCase):
         self.assertTrue('test:tester' in grantee)
         self.assertTrue('test:tester2' in grantee)
         uri = 'http://acs.amazonaws.com/groups/global/AllUsers'
-        self.assertEquals(grantee.elem().find('./URI').text, uri)
+        self.assertEqual(grantee.elem().find('./URI').text, uri)
 
     def check_permission(self, acl, user_id, permission):
         try:
@@ -163,9 +163,9 @@ class TestSwift3Subresource(unittest.TestCase):
         self.assertTrue(elem.find('./Owner') is not None)
         self.assertTrue(elem.find('./AccessControlList') is not None)
         grants = [e for e in elem.findall('./AccessControlList/Grant')]
-        self.assertEquals(len(grants), 1)
-        self.assertEquals(grants[0].find('./Grantee/ID').text, 'test:tester')
-        self.assertEquals(
+        self.assertEqual(len(grants), 1)
+        self.assertEqual(grants[0].find('./Grantee/ID').text, 'test:tester')
+        self.assertEqual(
             grants[0].find('./Grantee/DisplayName').text, 'test:tester')
 
     def test_acl_from_elem(self):
@@ -302,7 +302,7 @@ class TestSwift3Subresource(unittest.TestCase):
             acl = ACL.from_headers({'x-amz-acl': acl_str}, owner)
             expected = grantee_map[acl_str]
 
-            self.assertEquals(len(acl.grants), len(expected))  # sanity
+            self.assertEqual(len(acl.grants), len(expected))  # sanity
 
             # parse Grant object to permission and grantee
             actual_grants = [(grant.permission, grant.grantee)
@@ -312,22 +312,22 @@ class TestSwift3Subresource(unittest.TestCase):
 
             for (expected_permission, expected_grantee), \
                     (permission, grantee) in assertions:
-                self.assertEquals(expected_permission, permission)
+                self.assertEqual(expected_permission, permission)
                 self.assertTrue(
                     isinstance(grantee, expected_grantee.__class__))
                 if isinstance(grantee, User):
-                    self.assertEquals(expected_grantee.id, grantee.id)
-                    self.assertEquals(expected_grantee.display_name,
-                                      grantee.display_name)
+                    self.assertEqual(expected_grantee.id, grantee.id)
+                    self.assertEqual(expected_grantee.display_name,
+                                     grantee.display_name)
 
     def test_from_headers_x_amz_acl_invalid(self):
         with self.assertRaises(InvalidArgument) as cm:
             ACL.from_headers({'x-amz-acl': 'invalid'},
                              Owner('test:tester', 'test:tester'))
         self.assertTrue('argument_name' in cm.exception.info)
-        self.assertEquals(cm.exception.info['argument_name'], 'x-amz-acl')
+        self.assertEqual(cm.exception.info['argument_name'], 'x-amz-acl')
         self.assertTrue('argument_value' in cm.exception.info)
-        self.assertEquals(cm.exception.info['argument_value'], 'invalid')
+        self.assertEqual(cm.exception.info['argument_value'], 'invalid')
 
     def test_canned_acl_grantees(self):
         grantee_map = canned_acl_grantees(Owner('test:tester', 'test:tester'))
@@ -336,7 +336,7 @@ class TestSwift3Subresource(unittest.TestCase):
                        'bucket-owner-full-control', 'log-delivery-write']
         for canned_acl in canned_acls:
             self.assertTrue(canned_acl in grantee_map)
-        self.assertEquals(len(canned_acls), len(grantee_map))  # sanity
+        self.assertEqual(len(canned_acls), len(grantee_map))  # sanity
 
     def test_base_grantee(self):
         grantee = Grantee()

@@ -52,7 +52,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
                             body=body)
 
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
     @s3acl
     def test_object_multi_DELETE(self):
@@ -83,15 +83,15 @@ class TestSwift3MultiDelete(Swift3TestCase):
         req.date = datetime.now()
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
         elem = fromstring(body)
-        self.assertEquals(len(elem.findall('Deleted')), 3)
+        self.assertEqual(len(elem.findall('Deleted')), 3)
         _, path, _ = self.swift.calls_with_headers[-1]
         path, query_string = path.split('?', 1)
-        self.assertEquals(path, '/v1/AUTH_test/bucket/Key3')
+        self.assertEqual(path, '/v1/AUTH_test/bucket/Key3')
         query = dict(urllib.parse.parse_qsl(query_string))
-        self.assertEquals(query['multipart-manifest'], 'delete')
+        self.assertEqual(query['multipart-manifest'], 'delete')
 
     @s3acl
     def test_object_multi_DELETE_quiet(self):
@@ -115,10 +115,10 @@ class TestSwift3MultiDelete(Swift3TestCase):
                                      'Content-MD5': content_md5},
                             body=body)
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
         elem = fromstring(body)
-        self.assertEquals(len(elem.findall('Deleted')), 0)
+        self.assertEqual(len(elem.findall('Deleted')), 0)
 
     @s3acl
     def test_object_multi_DELETE_no_key(self):
@@ -142,7 +142,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
                                      'Content-MD5': content_md5},
                             body=body)
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'UserKeyMustBeSpecified')
+        self.assertEqual(self._get_error_code(body), 'UserKeyMustBeSpecified')
 
     @s3acl
     def test_object_multi_DELETE_with_invalid_md5(self):
@@ -159,7 +159,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
                                      'Content-MD5': 'XXXX'},
                             body=body)
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidDigest')
+        self.assertEqual(self._get_error_code(body), 'InvalidDigest')
 
     @s3acl
     def test_object_multi_DELETE_without_md5(self):
@@ -175,7 +175,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
                                      'Date': self.get_date_header()},
                             body=body)
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidRequest')
+        self.assertEqual(self._get_error_code(body), 'InvalidRequest')
 
     @s3acl
     def test_object_multi_DELETE_too_many_keys(self):
@@ -193,7 +193,7 @@ class TestSwift3MultiDelete(Swift3TestCase):
                                      'Content-MD5': content_md5},
                             body=body)
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'MalformedXML')
+        self.assertEqual(self._get_error_code(body), 'MalformedXML')
 
     def _test_object_multi_DELETE(self, account):
         self.keys = ['Key1', 'Key2']
@@ -225,29 +225,29 @@ class TestSwift3MultiDelete(Swift3TestCase):
     @s3acl(s3acl_only=True)
     def test_object_multi_DELETE_without_permission(self):
         status, headers, body = self._test_object_multi_DELETE('test:other')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
         elem = fromstring(body)
         errors = elem.findall('Error')
-        self.assertEquals(len(errors), len(self.keys))
+        self.assertEqual(len(errors), len(self.keys))
         for e in errors:
             self.assertTrue(e.find('Key').text in self.keys)
-            self.assertEquals(e.find('Code').text, 'AccessDenied')
-            self.assertEquals(e.find('Message').text, 'Access Denied.')
+            self.assertEqual(e.find('Code').text, 'AccessDenied')
+            self.assertEqual(e.find('Message').text, 'Access Denied.')
 
     @s3acl(s3acl_only=True)
     def test_object_multi_DELETE_with_write_permission(self):
         status, headers, body = self._test_object_multi_DELETE('test:write')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
         elem = fromstring(body)
-        self.assertEquals(len(elem.findall('Deleted')), len(self.keys))
+        self.assertEqual(len(elem.findall('Deleted')), len(self.keys))
 
     @s3acl(s3acl_only=True)
     def test_object_multi_DELETE_with_fullcontrol_permission(self):
         status, headers, body = \
             self._test_object_multi_DELETE('test:full_control')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
         elem = fromstring(body)
-        self.assertEquals(len(elem.findall('Deleted')), len(self.keys))
+        self.assertEqual(len(elem.findall('Deleted')), len(self.keys))
 
 if __name__ == '__main__':
     unittest.main()
