@@ -18,7 +18,6 @@ export OS_TENANT_NAME=admin
 export OS_USERNAME=admin
 export OS_PASSWORD=password
 
-export OS_TOKEN=ADMIN
 export OS_URL=http://localhost:35357/v2.0
 
 _get_id()
@@ -80,6 +79,9 @@ _setup_keystone()
 
     keystone-manage --config-file conf/keystone.conf --debug db_sync
     keystone-manage --config-file conf/keystone.conf --debug pki_setup
+    keystone-manage --config-file conf/keystone.conf --debug bootstrap --bootstrap-password password
+    token_id=$(openstack token issue -c id -f value)
+    export OS_TOKEN=$token_id
 
     _create_swift_accounts
 }
