@@ -85,6 +85,10 @@ class Swift3TestCase(unittest.TestCase):
         elem = fromstring(body, 'Error')
         return elem.find('./Code').text
 
+    def _get_error_message(self, body):
+        elem = fromstring(body, 'Error')
+        return elem.find('./Message').text
+
     def _test_method_error(self, method, path, response_class, headers={}):
         if not path.startswith('/'):
             path = '/' + path  # add a missing slash before the path

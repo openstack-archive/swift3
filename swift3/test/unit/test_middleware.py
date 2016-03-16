@@ -252,7 +252,7 @@ class TestSwift3Middleware(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'InvalidArgument')
 
-    def test_signed_urls_v4_invalid_signed_headers(self):
+    def test_signed_urls_v4_missing_signed_headers(self):
         req = Request.blank('/bucket/object'
                             '?X-Amz-Algorithm=AWS4-HMAC-SHA256'
                             '&X-Amz-Credential=test/20T20Z/US/s3/aws4_request'
@@ -262,7 +262,7 @@ class TestSwift3Middleware(Swift3TestCase):
                             headers={'Date': self.get_date_header()})
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+        self.assertEquals(self._get_error_code(body), 'AuthorizationHeaderMalformed')
 
     def test_signed_urls_v4_invalid_credentials(self):
         req = Request.blank('/bucket/object'
@@ -591,10 +591,13 @@ class TestSwift3Middleware(Swift3TestCase):
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '400')
-        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+        self.assertEquals(self._get_error_code(body), 'InvalidRequest')
+        self.assertEquals(
+            self._get_error_message(body),
+            'Missing required header for this request: x-amz-content-sha256')
 
     def test_signature_v4_bad_authorization_string(self):
-        def test(auth_str, error):
+        def test(auth_str, error, msg):
             environ = {
                 'REQUEST_METHOD': 'GET'}
             headers = {
@@ -606,21 +609,25 @@ class TestSwift3Middleware(Swift3TestCase):
             req.content_type = 'text/plain'
             status, headers, body = self.call_swift3(req)
             self.assertEquals(self._get_error_code(body), error)
+            self.assertEquals(self._get_error_message(body), msg)
 
         auth_str = ('AWS4-HMAC-SHA256 '
                     'SignedHeaders=host;range;x-amz-date,'
                     'Signature=X')
-        test(auth_str, 'AccessDenied')
+        test(auth_str, 'AccessDenied', 'Access Denied.')
 
         auth_str = ('AWS4-HMAC-SHA256 '
                     'Credential=test/20130524/US/s3/aws4_request, '
                     'Signature=X')
-        test(auth_str, 'InvalidArgument')
+        test(auth_str, 'AuthorizationHeaderMalformed',
+             'The authorization header is malformed; the authorization '
+             'header requires three components: Credential, SignedHeaders, '
+             'and Signature.')
 
         auth_str = ('AWS4-HMAC-SHA256 '
                     'Credential=test/20130524/US/s3/aws4_request, '
                     'SignedHeaders=host;range;x-amz-date')
-        test(auth_str, 'AccessDenied')
+        test(auth_str, 'AccessDenied', 'Access Denied.')
 
     def test_canonical_string_v4(self):
         def canonical_string(path, environ, headers):
