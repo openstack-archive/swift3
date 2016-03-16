@@ -50,7 +50,8 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
-    MalformedXML, InvalidRequest, RequestTimeout, InvalidBucketName, BadDigest
+    MalformedXML, InvalidRequest, RequestTimeout, InvalidBucketName, \
+    BadDigest, AuthorizationHeaderMalformed
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.utils import utf8encode, LOGGER, check_path_header
 from swift3.cfg import CONF
@@ -107,7 +108,7 @@ class Request(swob.Request):
         self.access_key, is_v4_request = self._get_access()
         signature = self._get_signature()
         expires = self.params.get('Expires')
-        if expires:
+        if expires and not is_v4_request:
             self.headers['Date'] = expires
 
         self.bucket_in_host = self._parse_host()
@@ -185,8 +186,7 @@ class Request(swob.Request):
             return access, False
 
         if 'X-Amz-Credential' in self.params:
-            if ('X-Amz-Algorithm' not in self.params
-                    or self.params['X-Amz-Algorithm'] != 'AWS4-HMAC-SHA256'):
+            if self.params.get('X-Amz-Algorithm') != 'AWS4-HMAC-SHA256':
                 raise InvalidArgument('X-Amz-Algorithm',
                                       self.params.get('X-Amz-Algorithm'))
             cred_param = self.params['X-Amz-Credential']
@@ -200,17 +200,14 @@ class Request(swob.Request):
             raise NotS3Request()
 
         auth_str = self.headers['Authorization']
-        try:
-            if auth_str.startswith('AWS4-HMAC-SHA256 '):
-                cred_str = auth_str.partition("Credential=")[2].split(',')[0]
-                access = cred_str.split("/")[0]
-                if not access:
-                    raise AccessDenied()
-                return access, True
-            if auth_str.startswith('AWS '):
-                return auth_str.split(' ', 1)[1].rsplit(':', 1)[0], False
-        except IndexError:
-            raise InvalidArgument('Authorization', auth_str)
+        if auth_str.startswith('AWS4-HMAC-SHA256 '):
+            cred_str = auth_str.partition("Credential=")[2].split(',')[0]
+            access = cred_str.split("/")[0]
+            if not access:
+                raise AccessDenied()
+            return access, True
+        if auth_str.startswith('AWS '):
+            return auth_str.split(' ', 1)[1].rsplit(':', 1)[0], False
 
         raise AccessDenied()
 
@@ -277,7 +274,10 @@ class Request(swob.Request):
             date = email.utils.parsedate(date_header)
             if not date:
                 # NOTE(andrey-mp): Date in Signature V4 has different format
-                date = datetime.datetime.strptime(date_header, SIGV4_TIMESTAMP)
+                try:
+                    date = datetime.datetime.strptime(date_header, SIGV4_TIMESTAMP)
+                except ValueError:
+                    date = None
             else:
                 date = datetime.datetime(*date[0:6])
             if date is None:
@@ -500,8 +500,8 @@ class Request(swob.Request):
             # V4 with query parameters only
             payload = 'UNSIGNED-PAYLOAD'
         elif 'X-Amz-Content-SHA256' not in self.headers:
-            msg = 'AWS4 request needs X-Amz-Content-SHA256 header.'
-            raise InvalidArgument('X-Amz-Content-SHA256', None, msg=msg)
+            msg = 'Missing required header for this request: x-amz-content-sha256'
+            raise InvalidRequest(msg)
         else:
             payload = self.headers['X-Amz-Content-SHA256']
         cr.append(payload)
@@ -523,13 +523,10 @@ class Request(swob.Request):
             return self._canonical_query_string_url(urlsplit(self.url))
 
     def _canonical_query_string_params(self, params):
-        l = []
-        for param in sorted(params):
-            value = str(params[param])
-            l.append('%s=%s' % (quote(param, safe='-_.~'),
-                                quote(value, safe='-_.~')))
-        cqs = '&'.join(l)
-        return cqs
+        return '&'.join(
+            '%s=%s' % (quote(key, safe='-_.~'),
+                       quote(value, safe='-_.~'))
+            for key, value in sorted(params.items()))
 
     def _canonical_query_string_url(self, parts):
         canonical_query_string = ''
@@ -539,12 +536,11 @@ class Request(swob.Request):
             for pair in parts.query.split('&'):
                 key, _, value = pair.partition('=')
                 key_val_pairs.append((key, value))
-            sorted_key_vals = []
             # Sort by the key names, and in the case of
             # repeated keys, then sort by the value.
-            for key, value in sorted(key_val_pairs):
-                sorted_key_vals.append('%s=%s' % (key, value))
-            canonical_query_string = '&'.join(sorted_key_vals)
+            canonical_query_string = '&'.join(
+                '%s=%s' % (key, value))
+                for key, value in sorted(key_val_pairs))
         return canonical_query_string
 
     def _headers_to_sign(self):
@@ -559,9 +555,8 @@ class Request(swob.Request):
         else:
             sh_str = self.params.get('X-Amz-SignedHeaders')
         if not sh_str:
-            msg = 'Signature V4 request requires SignedHeaders param.'
-            raise InvalidArgument('SignedHeaders', None, msg=msg)
-        headers_lower = dict((k.lower().strip(), v.strip())
+            raise AuthorizationHeaderMalformed()
+        headers_lower = dict((k.lower().strip(), ' '.join(v.strip().split()))
                              for (k, v) in six.iteritems(self.headers)
                              if v)
 
@@ -590,7 +585,7 @@ class Request(swob.Request):
         them into a string, separated by newlines.
         """
         headers = []
-        sorted_header_names = sorted(set(headers_to_sign))
+        sorted_header_names = sorted(headers_to_sign)
         for key in sorted_header_names:
             value = ','.join(str(v).strip() for v in
                              sorted(headers_to_sign.get(key)))
@@ -598,9 +593,9 @@ class Request(swob.Request):
         return '\n'.join(headers)
 
     def _signed_headers(self, headers_to_sign):
-        l = ['%s' % n.lower().strip() for n in set(headers_to_sign)]
-        l = sorted(l)
-        return ';'.join(l)
+        return ';'.join(sorted(
+            n.lower().strip()
+            for n in headers_to_sign))
 
     @property
     def controller_name(self):
