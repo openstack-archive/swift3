@@ -118,4 +118,8 @@ sleep 3
 coverage report
 coverage html
 
+# copy logs
+mkdir -p "${LOG_DEST}"
+cp "${TEST_DIR}/log/*" "${LOG_DEST}"
+
 exit $rvalue
