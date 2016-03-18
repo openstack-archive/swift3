@@ -1,9 +1,10 @@
-[DEFAULT]
-policy_file=%CONF_DIR%/policy.json
-
 [database]
 
 connection=sqlite:///%TEST_DIR%/keystone.db
+
+[oslo_policy]
+
+policy_file=%CONF_DIR%/policy.json
 
 [paste_deploy]
 
