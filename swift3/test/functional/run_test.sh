@@ -79,21 +79,22 @@ cd -
 _start()
 {
     local name=$1; shift
+    local log_file="${LOG_DEST:-${TEST_DIR}/log}/${name}.log"
+    mkdir -p "$(dirname "${log_file}")"
 
     echo Start ${name}-server.
-    "$@" > ${TEST_DIR}/log/${name}.log 2>&1 &
+    "$@" > "${log_file}" 2>&1 &
     export ${name}_pid=$!
 
     local cnt
     for cnt in `seq 60`; do # wait at most 60 seconds
-	grep 'Started child' ${TEST_DIR}/log/${name}.log > /dev/null
-	if [ $? == 0 ]; then
+	if ! grep 'Started child' "${log_file}" > /dev/null ; then
 	    return
 	fi
 	sleep 1
     done
 
-    cat ${TEST_DIR}/log/${name}.log
+    cat "${log_file}"
     echo "Cannot start ${name}-server."
     exit 1
 }
