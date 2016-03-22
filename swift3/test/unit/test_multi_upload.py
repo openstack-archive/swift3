@@ -1101,7 +1101,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
     def _test_copy_for_s3acl(self, account, src_permission=None,
                              src_path='/src_bucket/src_obj', src_headers=None,
-                             head_resp=swob.HTTPOk, put_header={}):
+                             head_resp=swob.HTTPOk, put_header=None):
         owner = 'test:tester'
         grants = [Grant(User(account), src_permission)] \
             if src_permission else [Grant(User(owner), 'FULL_CONTROL')]
@@ -1110,7 +1110,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
         src_o_headers.update(src_headers or {})
         self.swift.register('HEAD', '/v1/AUTH_test/%s' % src_path.lstrip('/'),
                             head_resp, src_o_headers, None)
-
+        put_header = put_header or {}
         put_headers = {'Authorization': 'AWS %s:hmac' % account,
                        'Date': self.get_date_header(),
                        'X-Amz-Copy-Source': src_path}

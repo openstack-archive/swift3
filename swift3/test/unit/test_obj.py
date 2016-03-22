@@ -465,7 +465,7 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEquals(headers['X-Copy-From'], '/some/source')
         self.assertEquals(headers['Content-Length'], '0')
 
-    def _test_object_PUT_copy(self, head_resp, put_header={},
+    def _test_object_PUT_copy(self, head_resp, put_header=None,
                               src_path='/some/source'):
         account = 'test:tester'
         grants = [Grant(User(account), 'FULL_CONTROL')]
@@ -475,9 +475,10 @@ class TestSwift3Obj(Swift3TestCase):
         head_headers.update({'last-modified': self.last_modified})
         self.swift.register('HEAD', '/v1/AUTH_test/some/source',
                             head_resp, head_headers, None)
+        put_header = put_header or {}
         return self._call_object_copy(src_path, put_header)
 
-    def _test_object_PUT_copy_self(self, head_resp, put_header={}):
+    def _test_object_PUT_copy_self(self, head_resp, put_header=None):
         account = 'test:tester'
         grants = [Grant(User(account), 'FULL_CONTROL')]
         head_headers = \
@@ -486,6 +487,7 @@ class TestSwift3Obj(Swift3TestCase):
         head_headers.update({'last-modified': self.last_modified})
         self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
                             head_resp, head_headers, None)
+        put_header = put_header or {}
         return self._call_object_copy('/bucket/object', put_header)
 
     def _call_object_copy(self, src_path, put_header):
