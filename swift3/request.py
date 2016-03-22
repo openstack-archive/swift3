@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import base64
 from email.header import Header
 from hashlib import sha256, md5
 import re
@@ -386,7 +385,12 @@ class Request(swob.Request):
         self.bucket_in_host = self._parse_host()
         self.container_name, self.object_name = self._parse_uri()
         self._validate_headers()
-        self.token = base64.urlsafe_b64encode(self._string_to_sign())
+        self.environ['swift3.auth_details'] = {
+            'access_key': self.access_key,
+            'signature': signature,
+            'string_to_sign': self._string_to_sign(),
+        }
+        self.token = None
         self.account = None
         self.user_id = None
         self.slo_enabled = slo_enabled
@@ -1202,6 +1206,7 @@ class S3AclRequest(Request):
             # Need to skip S3 authorization since authtoken middleware
             # overwrites account in PATH_INFO
             del self.headers['Authorization']
+            del self.environ['swift3.auth_details']
         else:
             # tempauth
             self.user_id = self.access_key

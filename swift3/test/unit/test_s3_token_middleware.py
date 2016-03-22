@@ -13,6 +13,7 @@
 # under the License.
 
 import copy
+import base64
 import json
 import logging
 import time
@@ -196,10 +197,20 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
             self.assertIsInstance(req.headers[header], str)
         self.assertEqual(1, self.middleware._app.calls)
 
+        self.assertEqual(1, self.requests_mock.call_count)
+        request_call = self.requests_mock.request_history[0]
+        self.assertEqual(json.loads(request_call.body), {'credentials': {
+            'access': 'access',
+            'signature': 'signature',
+            'token': base64.urlsafe_b64encode(b'token').decode('ascii')}})
+
     def test_authorized(self):
         req = Request.blank('/v1/AUTH_cfa/c/o')
-        req.headers['Authorization'] = 'AWS access:signature'
-        req.headers['X-Storage-Token'] = 'token'
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
         req.get_response(self.middleware)
         self._assert_authorized(req)
 
@@ -211,10 +222,31 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
                                 json=resp)
 
         req = Request.blank('/v1/AUTH_cfa/c/o')
-        req.headers['Authorization'] = 'AWS access:signature'
-        req.headers['X-Storage-Token'] = 'token'
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
         req.get_response(self.middleware)
         self._assert_authorized(req, expect_token=False)
+
+    def test_authorized_bytes(self):
+        req = Request.blank('/v1/AUTH_cfa/c/o')
+        req.environ['swift3.auth_details'] = {
+            'access_key': b'access',
+            'signature': b'signature',
+            'string_to_sign': b'token',
+        }
+        req.get_response(self.middleware)
+        self.assertTrue(req.path.startswith('/v1/AUTH_TENANT_ID'))
+        self.assertEqual(req.headers['X-Auth-Token'], 'TOKEN_ID')
+
+        self.assertEqual(1, self.requests_mock.call_count)
+        request_call = self.requests_mock.request_history[0]
+        self.assertEqual(json.loads(request_call.body), {'credentials': {
+            'access': 'access',
+            'signature': 'signature',
+            'token': base64.urlsafe_b64encode(b'token').decode('ascii')}})
 
     def test_authorized_http(self):
         protocol = 'http'
@@ -229,27 +261,57 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
                                      'auth_host': host,
                                      'auth_port': port})(self.app))
         req = Request.blank('/v1/AUTH_cfa/c/o')
-        req.headers['Authorization'] = 'AWS access:signature'
-        req.headers['X-Storage-Token'] = 'token'
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
         req.get_response(self.middleware)
         self._assert_authorized(req)
+
+        self.assertEqual(1, self.requests_mock.call_count)
+        request_call = self.requests_mock.request_history[0]
+        self.assertEqual(json.loads(request_call.body), {'credentials': {
+            'access': 'access',
+            'signature': 'signature',
+            'token': base64.urlsafe_b64encode(b'token').decode('ascii')}})
 
     def test_authorized_trailing_slash(self):
         self.middleware = s3_token.filter_factory({
             'auth_uri': self.TEST_AUTH_URI + '/'})(self.app)
         req = Request.blank('/v1/AUTH_cfa/c/o')
-        req.headers['Authorization'] = 'AWS access:signature'
-        req.headers['X-Storage-Token'] = 'token'
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
         req.get_response(self.middleware)
         self._assert_authorized(req)
 
+        self.assertEqual(1, self.requests_mock.call_count)
+        request_call = self.requests_mock.request_history[0]
+        self.assertEqual(json.loads(request_call.body), {'credentials': {
+            'access': 'access',
+            'signature': 'signature',
+            'token': base64.urlsafe_b64encode(b'token').decode('ascii')}})
+
     def test_authorization_nova_toconnect(self):
         req = Request.blank('/v1/AUTH_swiftint/c/o')
-        req.headers['Authorization'] = 'AWS access:FORCED_TENANT_ID:signature'
-        req.headers['X-Storage-Token'] = 'token'
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access:FORCED_TENANT_ID',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
         req.get_response(self.middleware)
         path = req.environ['PATH_INFO']
         self.assertTrue(path.startswith('/v1/AUTH_FORCED_TENANT_ID'))
+
+        self.assertEqual(1, self.requests_mock.call_count)
+        request_call = self.requests_mock.request_history[0]
+        self.assertEqual(json.loads(request_call.body), {'credentials': {
+            'access': 'access',
+            'signature': 'signature',
+            'token': base64.urlsafe_b64encode(b'token').decode('ascii')}})
 
     @mock.patch.object(requests, 'post')
     def test_insecure(self, MOCK_REQUEST):
@@ -262,8 +324,11 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
             'text': text_return_value})
 
         req = Request.blank('/v1/AUTH_cfa/c/o')
-        req.headers['Authorization'] = 'AWS access:signature'
-        req.headers['X-Storage-Token'] = 'token'
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
         req.get_response(self.middleware)
 
         self.assertTrue(MOCK_REQUEST.called)
@@ -331,8 +396,11 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
             'text': json.dumps(GOOD_RESPONSE)})
 
         req = Request.blank('/v1/AUTH_cfa/c/o')
-        req.headers['Authorization'] = 'AWS access:signature'
-        req.headers['X-Storage-Token'] = 'token'
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
         req.get_response(self.middleware)
 
         self.assertTrue(MOCK_REQUEST.called)
@@ -369,10 +437,20 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
     def test_unicode_path(self):
         url = u'/v1/AUTH_cfa/c/euro\u20ac'.encode('utf8')
         req = Request.blank(urllib.parse.quote(url))
-        req.headers['Authorization'] = 'AWS access:signature'
-        req.headers['X-Storage-Token'] = 'token'
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
         req.get_response(self.middleware)
         self._assert_authorized(req)
+
+        self.assertEqual(1, self.requests_mock.call_count)
+        request_call = self.requests_mock.request_history[0]
+        self.assertEqual(json.loads(request_call.body), {'credentials': {
+            'access': 'access',
+            'signature': 'signature',
+            'token': base64.urlsafe_b64encode(b'token').decode('ascii')}})
 
 
 class S3TokenMiddlewareTestBad(S3TokenMiddlewareTestBase):
@@ -383,8 +461,11 @@ class S3TokenMiddlewareTestBad(S3TokenMiddlewareTestBase):
                 "title": "Unauthorized"}}
         self.requests_mock.post(self.TEST_URL, status_code=403, json=ret)
         req = Request.blank('/v1/AUTH_cfa/c/o')
-        req.headers['Authorization'] = 'AWS access:signature'
-        req.headers['X-Storage-Token'] = 'token'
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
         resp = req.get_response(self.middleware)
         s3_denied_req = self.middleware._deny_request('AccessDenied')
         self.assertEqual(resp.body, s3_denied_req.body)
@@ -393,18 +474,18 @@ class S3TokenMiddlewareTestBad(S3TokenMiddlewareTestBase):
             s3_denied_req.status_int)  # pylint: disable-msg=E1101
         self.assertEqual(0, self.middleware._app.calls)
 
-    def test_bogus_authorization(self):
+        self.assertEqual(1, self.requests_mock.call_count)
+        request_call = self.requests_mock.request_history[0]
+        self.assertEqual(json.loads(request_call.body), {'credentials': {
+            'access': 'access',
+            'signature': 'signature',
+            'token': base64.urlsafe_b64encode(b'token').decode('ascii')}})
+
+    def test_no_s3_creds(self):
         req = Request.blank('/v1/AUTH_cfa/c/o')
-        req.headers['Authorization'] = 'AWS badboy'
-        req.headers['X-Storage-Token'] = 'token'
         resp = req.get_response(self.middleware)
-        self.assertEqual(resp.status_int, 400)  # pylint: disable-msg=E1101
-        s3_invalid_resp = self.middleware._deny_request('InvalidURI')
-        self.assertEqual(resp.body, s3_invalid_resp.body)
-        self.assertEqual(
-            resp.status_int,  # pylint: disable-msg=E1101
-            s3_invalid_resp.status_int)  # pylint: disable-msg=E1101
-        self.assertEqual(0, self.middleware._app.calls)
+        self.assertEqual(resp.status_int, 200)  # pylint: disable-msg=E1101
+        self.assertEqual(1, self.middleware._app.calls)
 
     def test_fail_to_connect_to_keystone(self):
         with mock.patch.object(self.middleware, '_json_request') as o:
@@ -412,8 +493,11 @@ class S3TokenMiddlewareTestBad(S3TokenMiddlewareTestBase):
             o.side_effect = s3_invalid_resp
 
             req = Request.blank('/v1/AUTH_cfa/c/o')
-            req.headers['Authorization'] = 'AWS access:signature'
-            req.headers['X-Storage-Token'] = 'token'
+            req.environ['swift3.auth_details'] = {
+                'access_key': u'access',
+                'signature': u'signature',
+                'string_to_sign': u'token',
+            }
             resp = req.get_response(self.middleware)
             self.assertEqual(resp.body, s3_invalid_resp.body)
             self.assertEqual(
@@ -427,8 +511,11 @@ class S3TokenMiddlewareTestBad(S3TokenMiddlewareTestBase):
                                 text=response_body)
 
         req = Request.blank('/v1/AUTH_cfa/c/o')
-        req.headers['Authorization'] = 'AWS access:signature'
-        req.headers['X-Storage-Token'] = 'token'
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
         resp = req.get_response(self.middleware)
         s3_invalid_resp = self.middleware._deny_request('InvalidURI')
         self.assertEqual(resp.body, s3_invalid_resp.body)
@@ -494,8 +581,11 @@ class S3TokenMiddlewareTestDeferredAuth(S3TokenMiddlewareTestBase):
                 "title": "Unauthorized"}}
         self.requests_mock.post(self.TEST_URL, status_code=403, json=ret)
         req = Request.blank('/v1/AUTH_cfa/c/o')
-        req.headers['Authorization'] = 'AWS access:signature'
-        req.headers['X-Storage-Token'] = 'token'
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
         resp = req.get_response(self.middleware)
         self.assertEqual(
             resp.status_int,  # pylint: disable-msg=E1101
@@ -503,24 +593,23 @@ class S3TokenMiddlewareTestDeferredAuth(S3TokenMiddlewareTestBase):
         self.assertNotIn('X-Auth-Token', req.headers)
         self.assertEqual(1, self.middleware._app.calls)
 
-    def test_bogus_authorization(self):
-        req = Request.blank('/v1/AUTH_cfa/c/o')
-        req.headers['Authorization'] = 'AWS badboy'
-        req.headers['X-Storage-Token'] = 'token'
-        resp = req.get_response(self.middleware)
-        self.assertEqual(
-            resp.status_int,  # pylint: disable-msg=E1101
-            200)
-        self.assertNotIn('X-Auth-Token', req.headers)
-        self.assertEqual(1, self.middleware._app.calls)
+        self.assertEqual(1, self.requests_mock.call_count)
+        request_call = self.requests_mock.request_history[0]
+        self.assertEqual(json.loads(request_call.body), {'credentials': {
+            'access': 'access',
+            'signature': 'signature',
+            'token': base64.urlsafe_b64encode(b'token').decode('ascii')}})
 
     def test_fail_to_connect_to_keystone(self):
         with mock.patch.object(self.middleware, '_json_request') as o:
             o.side_effect = self.middleware._deny_request('InvalidURI')
 
             req = Request.blank('/v1/AUTH_cfa/c/o')
-            req.headers['Authorization'] = 'AWS access:signature'
-            req.headers['X-Storage-Token'] = 'token'
+            req.environ['swift3.auth_details'] = {
+                'access_key': u'access',
+                'signature': u'signature',
+                'string_to_sign': u'token',
+            }
             resp = req.get_response(self.middleware)
             self.assertEqual(
                 resp.status_int,  # pylint: disable-msg=E1101
@@ -534,8 +623,11 @@ class S3TokenMiddlewareTestDeferredAuth(S3TokenMiddlewareTestBase):
                                 text="<badreply>")
 
         req = Request.blank('/v1/AUTH_cfa/c/o')
-        req.headers['Authorization'] = 'AWS access:signature'
-        req.headers['X-Storage-Token'] = 'token'
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
         resp = req.get_response(self.middleware)
         self.assertEqual(
             resp.status_int,  # pylint: disable-msg=E1101

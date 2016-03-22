@@ -18,7 +18,6 @@ from mock import patch, MagicMock
 from contextlib import nested
 from datetime import datetime
 import hashlib
-import base64
 import requests
 import json
 import copy
@@ -102,16 +101,21 @@ class TestSwift3Middleware(Swift3TestCase):
                 path, query_string = path.split('?', 1)
             else:
                 query_string = ''
+            env = {
+                'REQUEST_METHOD': 'GET',
+                'PATH_INFO': path,
+                'QUERY_STRING': query_string,
+                'HTTP_AUTHORIZATION': 'AWS X:Y:Z',
+            }
+            for header, value in headers.items():
+                header = 'HTTP_' + header.replace('-', '_').upper()
+                if header in ('HTTP_CONTENT_TYPE', 'HTTP_CONTENT_LENGTH'):
+                    header = header[5:]
+                env[header] = value
 
             with patch('swift3.request.Request._validate_headers'):
-                req = S3Request({
-                    'REQUEST_METHOD': 'GET',
-                    'PATH_INFO': path,
-                    'QUERY_STRING': query_string,
-                    'HTTP_AUTHORIZATION': 'AWS X:Y:Z',
-                })
-            req.headers.update(headers)
-            return req._string_to_sign()
+                req = S3Request(env)
+            return req.environ['swift3.auth_details']['string_to_sign']
 
         def verify(hash, path, headers):
             s = canonical_string(path, headers)
@@ -379,10 +383,12 @@ class TestSwift3Middleware(Swift3TestCase):
         req.headers['Date'] = date_header
         status, headers, body = self.call_swift3(req)
         _, _, headers = self.swift.calls_with_headers[-1]
-        self.assertEqual(base64.urlsafe_b64decode(
-            headers['X-Auth-Token']),
-            'PUT\n\n\n%s\n/bucket/object?partNumber=1&uploadId=123456789abcdef'
-            % date_header)
+        self.assertEqual(req.environ['swift3.auth_details'], {
+            'access_key': 'test:tester',
+            'signature': 'hmac',
+            'string_to_sign': '\n'.join([
+                'PUT', '', '', date_header,
+                '/bucket/object?partNumber=1&uploadId=123456789abcdef'])})
 
     def test_invalid_uri(self):
         req = Request.blank('/bucket/invalid\xffname',
