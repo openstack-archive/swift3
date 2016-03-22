@@ -131,26 +131,51 @@ class TestSwift3Obj(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEqual(status.split()[0], '403')
         self.assertEqual(body, '')  # sanity
+
+        req = Request.blank('/bucket/object',
+                            environ={'REQUEST_METHOD': 'HEAD'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
                             swob.HTTPForbidden, {}, None)
         status, headers, body = self.call_swift3(req)
         self.assertEqual(status.split()[0], '403')
         self.assertEqual(body, '')  # sanity
+
+        req = Request.blank('/bucket/object',
+                            environ={'REQUEST_METHOD': 'HEAD'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
                             swob.HTTPNotFound, {}, None)
         status, headers, body = self.call_swift3(req)
         self.assertEqual(status.split()[0], '404')
         self.assertEqual(body, '')  # sanity
+
+        req = Request.blank('/bucket/object',
+                            environ={'REQUEST_METHOD': 'HEAD'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
                             swob.HTTPPreconditionFailed, {}, None)
         status, headers, body = self.call_swift3(req)
         self.assertEqual(status.split()[0], '412')
         self.assertEqual(body, '')  # sanity
+
+        req = Request.blank('/bucket/object',
+                            environ={'REQUEST_METHOD': 'HEAD'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
                             swob.HTTPServerError, {}, None)
         status, headers, body = self.call_swift3(req)
         self.assertEqual(status.split()[0], '500')
         self.assertEqual(body, '')  # sanity
+
+        req = Request.blank('/bucket/object',
+                            environ={'REQUEST_METHOD': 'HEAD'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
         self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
                             swob.HTTPServiceUnavailable, {}, None)
         status, headers, body = self.call_swift3(req)

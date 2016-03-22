@@ -31,6 +31,7 @@ This WSGI component:
 
 """
 
+import base64
 import json
 import logging
 
@@ -176,31 +177,24 @@ class S3Token(object):
             return self._app(environ, start_response)
 
         # Read request signature and access id.
-        if 'Authorization' not in req.headers:
-            msg = 'No Authorization header. skipping.'
+        s3_auth_details = req.environ.get('swift3.auth_details')
+        if not s3_auth_details:
+            msg = 'No authorization deatils from Swift3. skipping.'
             self._logger.debug(msg)
             return self._app(environ, start_response)
 
-        token = req.headers.get('X-Auth-Token',
-                                req.headers.get('X-Storage-Token'))
-        if not token:
-            msg = 'You did not specify an auth or a storage token. skipping.'
-            self._logger.debug(msg)
-            return self._app(environ, start_response)
+        access = s3_auth_details['access_key']
+        if isinstance(access, six.binary_type):
+            access = access.decode('utf-8')
 
-        auth_header = req.headers['Authorization']
-        try:
-            access, signature = auth_header.split(' ')[-1].rsplit(':', 1)
-        except ValueError:
-            if self._delay_auth_decision:
-                self._logger.debug('Invalid Authorization header: %s - '
-                                   'deferring reject downstream', auth_header)
-                return self._app(environ, start_response)
-            else:
-                self._logger.debug('Invalid Authorization header: %s - '
-                                   'rejecting request', auth_header)
-                return self._deny_request('InvalidURI')(
-                    environ, start_response)
+        signature = s3_auth_details['signature']
+        if isinstance(signature, six.binary_type):
+            signature = signature.decode('utf-8')
+
+        string_to_sign = s3_auth_details['string_to_sign']
+        if isinstance(string_to_sign, six.text_type):
+            string_to_sign = string_to_sign.encode('utf-8')
+        token = base64.urlsafe_b64encode(string_to_sign).encode('ascii')
 
         # NOTE(chmou): This is to handle the special case with nova
         # when we have the option s3_affix_tenant. We will force it to

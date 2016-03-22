@@ -221,7 +221,7 @@ class TestRequest(Swift3TestCase):
         self.assertEqual(
             result.exception.headers['content-type'], 'application/xml')
 
-    def test_authenticate_delete_Authorization_from_s3req_headers(self):
+    def test_authenticate_delete_Authorization_from_s3req(self):
         req = Request.blank('/bucket/obj',
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac',
@@ -232,11 +232,12 @@ class TestRequest(Swift3TestCase):
 
             m_swift_resp.return_value = FakeSwiftResponse()
             s3_req = S3AclRequest(req.environ, MagicMock())
-            self.assertTrue('HTTP_AUTHORIZATION' not in s3_req.environ)
-            self.assertTrue('Authorization' not in s3_req.headers)
+            self.assertNotIn('swift3.auth_details', s3_req.environ)
+            self.assertNotIn('HTTP_AUTHORIZATION', s3_req.environ)
+            self.assertNotIn('Authorization', s3_req.headers)
             self.assertEqual(s3_req.token, 'token')
 
-    def test_to_swift_req_Authorization_not_exist_in_swreq_headers(self):
+    def test_to_swift_req_Authorization_not_exist_in_swreq(self):
         container = 'bucket'
         obj = 'obj'
         method = 'GET'
@@ -251,6 +252,7 @@ class TestRequest(Swift3TestCase):
             m_swift_resp.return_value = FakeSwiftResponse()
             s3_req = S3AclRequest(req.environ, MagicMock())
             sw_req = s3_req.to_swift_req(method, container, obj)
+            self.assertNotIn('swift3.auth_details', sw_req.environ)
             self.assertNotIn('HTTP_AUTHORIZATION', sw_req.environ)
             self.assertNotIn('Authorization', sw_req.headers)
             self.assertEqual(sw_req.headers['X-Auth-Token'], 'token')
