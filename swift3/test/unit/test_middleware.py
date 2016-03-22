@@ -92,7 +92,7 @@ class TestSwift3Middleware(Swift3TestCase):
                     'HTTP_AUTHORIZATION': 'AWS X:Y:Z',
                 })
             req.headers.update(headers)
-            return req._string_to_sign(False)
+            return req._string_to_sign()
 
         def verify(hash, path, headers):
             s = canonical_string(path, headers)
@@ -172,6 +172,17 @@ class TestSwift3Middleware(Swift3TestCase):
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Date': self.get_date_header()})
         req.headers['Date'] = datetime.utcnow()
+        req.content_type = 'text/plain'
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(status.split()[0], '200')
+        for _, _, headers in self.swift.calls_with_headers:
+            self.assertEquals(headers['Authorization'], 'AWS test:tester:X')
+
+    def test_signed_urls_no_date_header(self):
+        expire = '10000000000'
+        req = Request.blank('/bucket/object?Signature=X&Expires=%s&'
+                            'AWSAccessKeyId=test:tester' % expire,
+                            environ={'REQUEST_METHOD': 'GET'})
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
         self.assertEquals(status.split()[0], '200')
@@ -282,7 +293,10 @@ class TestSwift3Middleware(Swift3TestCase):
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'X-Amz-Date': self.get_amz_date_header()})
         req.content_type = 'text/plain'
+        print 'hoge'
         status, headers, body = self.call_swift3(req)
+        print 'hoge'
+        print status, headers, body
         self.assertEquals(self._get_error_code(body), 'AccessDenied')
 
     def test_signed_urls_v4_invalid_signature(self):
@@ -656,7 +670,7 @@ class TestSwift3Middleware(Swift3TestCase):
             with patch('swift3.request.Request._validate_headers'):
                 req = S3Request(env)
             req.headers.update(headers)
-            return req._string_to_sign(True)
+            return req._string_to_sign()
 
         def verify(hash, path, environ, headers):
             s = canonical_string(path, environ, headers)
