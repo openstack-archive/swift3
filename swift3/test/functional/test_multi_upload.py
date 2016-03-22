@@ -20,7 +20,7 @@ from itertools import izip
 from swift3.test.functional.utils import get_error_code, get_error_msg
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.test.functional import Swift3FunctionalTestCase
-from swift3.test.functional.utils import mktime
+from swift3.utils import mktime
 from swift3.test.functional.s3_test_client import Connection
 
 MIN_SEGMENT_SIZE = 5242880
