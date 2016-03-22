@@ -354,7 +354,7 @@ class TestRequest(Swift3TestCase):
                                      'x-amz-date': self.get_date_header()})
 
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '403')
+        self.assertEquals(status.split()[0], '404')
         self.assertEquals(body, '')
 
     def test_date_header_with_x_amz_date_expired(self):
@@ -368,7 +368,7 @@ class TestRequest(Swift3TestCase):
                                      'Fri, 01 Apr 2014 12:00:00 GMT'})
 
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '404')
+        self.assertEquals(status.split()[0], '403')
         self.assertEquals(body, '')
 
 if __name__ == '__main__':
