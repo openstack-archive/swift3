@@ -25,7 +25,6 @@ import re
 import six
 import string
 from urllib import quote, unquote
-from urlparse import urlsplit
 
 from swift.common.utils import split_path
 from swift.common import swob
@@ -52,7 +51,8 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
     MalformedXML, InvalidRequest, RequestTimeout, InvalidBucketName, \
     BadDigest, AuthorizationHeaderMalformed
-from swift3.exception import NotS3Request, BadSwiftRequest
+from swift3.exception import NotS3Request, BadSwiftRequest, \
+    NotQueryAuthentication, NotHeaderAuthentication
 from swift3.utils import utf8encode, LOGGER, check_path_header
 from swift3.cfg import CONF
 from swift3.subresource import decode_acl, encode_acl
@@ -94,6 +94,91 @@ def _header_acl_property(resource):
                     doc='Get and set the %s acl property' % resource)
 
 
+def signature_v4(req_cls):
+    """
+    A decorator request class to attach S3 signature v4 functionality
+
+    :param req_cls: a Request class (Request or S3AclRequest or child classes)
+    """
+
+    class SigV4Class(req_cls):
+        def _parse_query_authentication(self):
+            """
+            - version 4:
+                'X-Amz-Credential' and 'X-Amz-Signature' should be in param
+            """
+            if 'X-Amz-Credential' not in self.params:
+                raise NotQueryAuthentication()
+
+            if self.params.get('X-Amz-Algorithm') != 'AWS4-HMAC-SHA256':
+                raise InvalidArgument('X-Amz-Algorithm',
+                                      self.params.get('X-Amz-Algorithm'))
+            try:
+                cred_param = self.params['X-Amz-Credential'].split("/")
+                access = cred_param[0]
+                sig = self.params['X-Amz-Signature']
+            except KeyError:
+                raise AccessDenied()
+
+            try:
+                signed_headers = self.params['X-Amz-SignedHeaders']
+            except KeyError:
+                # TODO: make sure if is it malformed request?
+                raise AuthorizationHeaderMalformed()
+
+            self._v4_info = {'signed_headers': signed_headers}
+
+            # credential must be in following format:
+            # <access-key-id>/<date>/<AWS-region>/<AWS-service>/aws4_request
+            if not all([access, sig, len(cred_param) == 5]):
+                raise AccessDenied()
+
+            return access, sig
+
+        def _parse_header_authentication(self):
+            if 'Authorization' not in self.headers:
+                raise NotHeaderAuthentication()
+
+            auth_str = self.headers['Authorization']
+            cred_param = auth_str.partition(
+                "Credential=")[2].split(',')[0].split("/")
+            access = cred_param[0]
+            sig = auth_str.partition("Signature=")[2].split(',')[0]
+            sh_str = auth_str.partition("SignedHeaders=")[2].split(',')[0]
+            # credential must be in following format:
+            # <access-key-id>/<date>/<AWS-region>/<AWS-service>/aws4_request
+            if not all([access, sig, len(cred_param) == 5]):
+                raise AccessDenied()
+            if not sh_str:
+                # TODO: make sure if is it Malformed?
+                raise AuthorizationHeaderMalformed()
+
+            self._v4_info = {'signed_headers': sh_str}
+            return access, sig
+
+    return SigV4Class
+
+
+def get_request_class(env):
+    """
+    map the request class to use
+    """
+    if CONF.s3_acl:
+        request_classes = (S3AclRequest, SigV4S3AclRequest)
+    else:
+        request_classes = (Request, SigV4Request)
+
+    req = swob.Request(env)
+    if 'X-Amz-Credential' in req.params or \
+            ('Authorization' in req.headers and
+             req.headers['Authorization'].startswith('AWS4-HMAC-SHA256 ')):
+        # This is Amazon SigV4
+        return request_classes[1]
+    else:
+        # The others using Amazon SigV2 class
+        return request_classes[0]
+
+
 class Request(swob.Request):
     """
     S3 request object.
@@ -102,17 +187,16 @@ class Request(swob.Request):
     bucket_acl = _header_acl_property('container')
     object_acl = _header_acl_property('object')
 
-    def __init__(self, env, slo_enabled=True):
+    def __init__(self, env, app=None, slo_enabled=True):
+        # NOTE: app is needn't for this class, need for compatibility of S3acl
         swob.Request.__init__(self, env)
-
-        self.access_key, is_v4_request = self._get_access()
-        signature = self._get_signature()
+        self._v4_info = None
+        self.access_key, signature = self._parse_auth_info()
 
         self.bucket_in_host = self._parse_host()
         self.container_name, self.object_name = self._parse_uri()
         self._validate_headers()
-        self.token = base64.urlsafe_b64encode(
-            self._string_to_sign(is_v4_request))
+        self.token = base64.urlsafe_b64encode(self._string_to_sign())
         self.account = None
         self.user_id = None
         self.slo_enabled = slo_enabled
@@ -120,7 +204,8 @@ class Request(swob.Request):
         # NOTE(andrey-mp): substitute authorization header for next modules
         # in pipeline (s3token). it uses this and X-Auth-Token in specific
         # format.
-        self.auth_header = 'AWS %s:%s' % (self.access_key, signature)
+        self.headers['Authorization'] = 'AWS %s:%s' % (
+            self.access_key, signature)
         # Avoids that swift.swob.Response replaces Location header value
         # by full URL when absolute path given. See swift.swob for more detail.
         self.environ['swift.leave_relative_location'] = True
@@ -167,8 +252,41 @@ class Request(swob.Request):
             raise InvalidBucketName(bucket)
         return (bucket, obj)
 
-    def _get_access(self):
-        """Extract the access key identifier.
+    def _parse_query_authentication(self):
+        """
+        TODO: make sure if 0, 1, 3 is supported?
+        - version 0, 1, 2, 3:
+            'AWSAccessKeyId' and 'Signature' should be in param
+        """
+
+        if 'AWSAccessKeyId' not in self.params:
+            raise NotQueryAuthentication()
+        try:
+            access = self.params['AWSAccessKeyId']
+            expires = self.params['Expires']
+            self.headers['Date'] = expires
+            sig = self.params['Signature']
+        except KeyError:
+            raise AccessDenied()
+
+        if not all([access, sig, expires]):
+            raise AccessDenied()
+
+        return access, sig
+
+    def _parse_header_authentication(self):
+        if 'Authorization' not in self.headers:
+            raise NotS3Request()
+
+        auth_str = self.headers['Authorization']
+        if not auth_str.startswith('AWS '):
+            raise AccessDenied()
+        # This means signature format V2
+        access, sig = auth_str.split(' ', 1)[1].rsplit(':', 1)
+        return access, sig
+
+    def _parse_auth_info(self):
+        """Extract the access key identifier and signature.
 
         For version 0/1/2/3 this is passed as the AccessKeyId parameter, for
         version 4 it is either an X-Amz-Credential parameter or a Credential=
@@ -176,70 +294,15 @@ class Request(swob.Request):
         Returns tuple with access_key and boolen that equals to True if
         this is version 4 request
         """
-        if 'AWSAccessKeyId' in self.params:
-            access = self.params['AWSAccessKeyId']
-            if not access:
-                raise AccessDenied()
-            return access, False
-
-        if 'X-Amz-Credential' in self.params:
-            if self.params.get('X-Amz-Algorithm') != 'AWS4-HMAC-SHA256':
-                raise InvalidArgument('X-Amz-Algorithm',
-                                      self.params.get('X-Amz-Algorithm'))
-            cred_param = self.params['X-Amz-Credential']
-            if cred_param and '/' in cred_param:
-                access = cred_param.split("/")[0]
-                if access:
-                    return access, True
-            raise AccessDenied()
-
-        if 'Authorization' not in self.headers:
-            raise NotS3Request()
-
-        auth_str = self.headers['Authorization']
-        if auth_str.startswith('AWS4-HMAC-SHA256 '):
-            # This means that we recieve V4 signature headers
-            cred_str = auth_str.partition("Credential=")[2].split(',')[0]
-            access = cred_str.split("/")[0]
-            if not access:
-                raise AccessDenied()
-            return access, True
-        if auth_str.startswith('AWS '):
-            # This means signature format V2
-            return auth_str.split(' ', 1)[1].rsplit(':', 1)[0], False
-
-        raise AccessDenied()
-
-    def _get_signature(self):
-        """Extract the signature from the request.
-
-        This can be a get/post variable or for version 4 also in a header
-        called 'Authorization'.
-        - params['Signature'] == version 0,1,2,3
-        - params['X-Amz-Signature'] == version 4
-        - header 'Authorization' == version 4
-        """
-        sig = (self.params.get('Signature')
-               or self.params.get('X-Amz-Signature'))
-        if sig is not None:
-            return sig
-
-        if 'Authorization' not in self.headers:
-            raise AccessDenied()
-
         try:
-            auth_str = self.headers['Authorization']
-            if auth_str.startswith('AWS4-HMAC-SHA256 '):
-                signature = auth_str.partition("Signature=")[2].split(',')[0]
-                if not signature:
-                    raise AccessDenied()
-                return signature
-            if auth_str.startswith('AWS '):
-                return auth_str.split(' ', 1)[1].rsplit(':', 1)[1]
-        except IndexError:
-            raise InvalidArgument('Authorization', auth_str)
-
-        raise AccessDenied()
+            return self._parse_query_authentication()
+        except NotQueryAuthentication:
+            try:
+                return self._parse_header_authentication()
+            except NotHeaderAuthentication:
+                # if this request is neither query auth nor header auth
+                # swift3 regard this as not s3 request
+                raise NotS3Request()
 
     def _validate_headers(self):
         if 'CONTENT_LENGTH' in self.environ:
@@ -441,11 +504,11 @@ class Request(swob.Request):
             raw_path_info = '/' + self.bucket_in_host + raw_path_info
         return raw_path_info
 
-    def _string_to_sign(self, is_v4_request):
+    def _string_to_sign(self):
         """
         Create 'StringToSign' value in Amazon terminology.
         """
-        if is_v4_request:
+        if self._v4_info:
             return self._string_to_sign_v4()
 
         return self._string_to_sign_v2()
@@ -522,10 +585,7 @@ class Request(swob.Request):
         # params attribute of the request.  The other is from the request
         # url (in which case we have to re-split the url into its components
         # and parse out the query string component).
-        if self.params:
-            return self._canonical_query_string_params(self.params)
-        else:
-            return self._canonical_query_string_url(urlsplit(self.url))
+        return self._canonical_query_string_params(self.params)
 
     def _canonical_query_string_params(self, params):
         return '&'.join(
@@ -553,14 +613,6 @@ class Request(swob.Request):
         Select the headers from the request that need to be included
         in the StringToSign.
         """
-        sh_str = None
-        auth_str = self.headers.get('Authorization')
-        if auth_str and auth_str.startswith('AWS4-HMAC-SHA256 '):
-            sh_str = auth_str.partition("SignedHeaders=")[2].split(',')[0]
-        else:
-            sh_str = self.params.get('X-Amz-SignedHeaders')
-        if not sh_str:
-            raise AuthorizationHeaderMalformed()
         headers_lower = dict((k.lower().strip(), ' '.join(v.strip().split()))
                              for (k, v) in six.iteritems(self.headers)
                              if v)
@@ -573,7 +625,7 @@ class Request(swob.Request):
         strip_port = re.match('Boto/2.[0-9].[0-2]', user_agent)
 
         header_map = collections.defaultdict(list)
-        for h in sh_str.split(';'):
+        for h in self._v4_info['signed_headers'].split(';'):
             if h not in headers_lower:
                 continue
             if h == 'host' and strip_port:
@@ -694,8 +746,6 @@ class Request(swob.Request):
             env['REQUEST_METHOD'] = method
 
         env['HTTP_X_AUTH_TOKEN'] = self.token
-        if self.auth_header:
-            env['HTTP_AUTHORIZATION'] = self.auth_header
 
         if obj:
             path = '/v1/%s/%s/%s' % (account, container, obj)
@@ -1020,7 +1070,6 @@ class S3AclRequest(Request):
             # Need to skip S3 authorization since authtoken middleware
             # overwrites account in PATH_INFO
             del self.headers['Authorization']
-            self.auth_header = None
         else:
             # tempauth
             self.user_id = self.access_key
@@ -1064,3 +1113,13 @@ class S3AclRequest(Request):
             return resp
         return self.get_acl_response(app, method, container, obj,
                                      headers, body, query)
+
+
+@signature_v4
+class SigV4Request(Request):
+    pass
+
+
+@signature_v4
+class SigV4S3AclRequest(S3AclRequest):
+    pass
