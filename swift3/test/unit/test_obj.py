@@ -493,7 +493,7 @@ class TestSwift3Obj(Swift3TestCase):
     def _call_object_copy(self, src_path, put_header):
         put_headers = {'Authorization': 'AWS test:tester:hmac',
                        'X-Amz-Copy-Source': src_path,
-                       'Date': self.get_date_header()}
+                       'Date': self.get_date_header(1396353600.000000)}
         put_headers.update(put_header)
 
         req = Request.blank('/bucket/object',
@@ -590,7 +590,7 @@ class TestSwift3Obj(Swift3TestCase):
         last_modified_since = 'Fri, 01 Apr 2014 12:00:00 GMT'
 
         header = {'X-Amz-Copy-Source-If-Match': etag,
-                  'Date': self.get_date_header()}
+                  'Date': self.get_date_header(1396353600.000000)}
         status, header, body = \
             self._test_object_PUT_copy(swob.HTTPPreconditionFailed,
                                        header)
@@ -621,7 +621,7 @@ class TestSwift3Obj(Swift3TestCase):
 
         header = {'X-Amz-Copy-Source-If-Match': etag,
                   'X-Amz-Copy-Source-If-Modified-Since': last_modified_since,
-                  'Date': self.get_date_header()}
+                  'Date': self.get_date_header(1396353600.000000)}
         status, header, body = \
             self._test_object_PUT_copy(swob.HTTPOk, header)
         self.assertEquals(status.split()[0], '200')
@@ -640,7 +640,7 @@ class TestSwift3Obj(Swift3TestCase):
 
         header = {'X-Amz-Copy-Source-If-Match': etag,
                   'X-Amz-Copy-Source-If-Modified-Since': last_modified_since,
-                  'Date': self.get_date_header()}
+                  'Date': self.get_date_header(1396353600.000000)}
         status, header, body = \
             self._test_object_PUT_copy(swob.HTTPOk, header)
 
@@ -664,7 +664,7 @@ class TestSwift3Obj(Swift3TestCase):
 
         header = {'X-Amz-Copy-Source-If-None-Match': etag,
                   'X-Amz-Copy-Source-If-Unmodified-Since': last_modified_since,
-                  'Date': self.get_date_header()}
+                  'Date': self.get_date_header(1396353600.000000)}
         status, header, body = \
             self._test_object_PUT_copy(swob.HTTPOk, header)
 
@@ -684,7 +684,7 @@ class TestSwift3Obj(Swift3TestCase):
 
         header = {'X-Amz-Copy-Source-If-None-Match': etag,
                   'X-Amz-Copy-Source-If-Unmodified-Since': last_modified_since,
-                  'Date': self.get_date_header()}
+                  'Date': self.get_date_header(1396353600.000000)}
         status, header, body = \
             self._test_object_PUT_copy(swob.HTTPOk, header)
         self.assertEquals(status.split()[0], '200')
