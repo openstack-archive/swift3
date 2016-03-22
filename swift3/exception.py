@@ -22,6 +22,14 @@ class NotS3Request(S3Exception):
     pass
 
 
+class NotQueryAuthentication(S3Exception):
+    pass
+
+
+class NotHeaderAuthentication(S3Exception):
+    pass
+
+
 class BadSwiftRequest(S3Exception):
     pass
 
