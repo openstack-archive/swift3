@@ -105,8 +105,10 @@ class Swift3TestCase(unittest.TestCase):
         status, headers, body = self.call_swift3(req)
         return self._get_error_code(body)
 
-    def get_date_header(self):
-        return email.utils.formatdate(time.mktime(datetime.now().timetuple()))
+    def get_date_header(self, timestamp=None):
+        timestamp = timestamp or time.time()
+        # email.utils.formatdate returns utc timestamp in default
+        return email.utils.formatdate(timestamp)
 
     def get_amz_date_header(self):
         return datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
