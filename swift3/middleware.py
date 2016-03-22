@@ -57,7 +57,7 @@ from paste.deploy import loadwsgi
 from swift.common.wsgi import PipelineWrapper, loadcontext
 
 from swift3.exception import NotS3Request
-from swift3.request import Request, S3AclRequest
+from swift3.request import get_request_class
 from swift3.response import ErrorResponse, InternalError, MethodNotAllowed, \
     ResponseBase
 from swift3.cfg import CONF
@@ -74,10 +74,8 @@ class Swift3Middleware(object):
 
     def __call__(self, env, start_response):
         try:
-            if CONF.s3_acl:
-                req = S3AclRequest(env, self.app, self.slo_enabled)
-            else:
-                req = Request(env, self.slo_enabled)
+            req_class = get_request_class(env)
+            req = req_class(env, self.app, self.slo_enabled)
             resp = self.handle_request(req)
         except NotS3Request:
             resp = self.app
