@@ -801,6 +801,53 @@ class TestSwift3Middleware(Swift3TestCase):
                {'Content-Type':
                 'application/x-www-form-urlencoded'})
 
+    def test_mixture_param_v4(self):
+        # now we have an Authorization header
+        headers = {
+            'Authorization':
+                'AWS4-HMAC-SHA256 '
+                'Credential=test/20130524/US/s3/aws4_request_A, '
+                'SignedHeaders=hostA;rangeA;x-amz-dateA,'
+                'Signature=X',
+            'X-Amz-Date': self.get_amz_date_header(),
+            'X-Amz-Content-SHA256': '0123456789'}
+
+        # and then, different auth info (Credential, SignedHeaders, Signature)
+        # in query
+        req = Request.blank('/bucket/object'
+                            '?X-Amz-Algorithm=AWS4-HMAC-SHA256'
+                            '&X-Amz-Credential=test/20T20Z/US/s3/aws4_requestB'
+                            '&X-Amz-SignedHeaders=hostB'
+                            '&X-Amz-Signature=Y',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers=headers)
+        req.content_type = 'text/plain'
+        status, headers, body = self.call_swift3(req)
+        # TODO: should this failed as 400, here?
+        self.assertEquals(status.split()[0], '200', body)
+        for _, _, headers in self.swift.calls_with_headers:
+            # TODO: If succeeded, which parameter is prior to?
+            # (kota_) I thought header but looks like query
+            self.assertEquals('AWS test:Y', headers['Authorization'])
+            self.assertIn('X-Auth-Token', headers)
+
+        # But if we are missing Signature in query param
+        req = Request.blank('/bucket/object'
+                            '?X-Amz-Algorithm=AWS4-HMAC-SHA256'
+                            '&X-Amz-Credential=test/20T20Z/US/s3/aws4_requestB'
+                            '&X-Amz-SignedHeaders=hostB',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers=headers)
+        req.content_type = 'text/plain'
+        status, headers, body = self.call_swift3(req)
+        # TODO: currently still path because swift3 get the signature from
+        # header (too bad)
+        self.assertEquals(status.split()[0], '200', body)
+        for _, _, headers in self.swift.calls_with_headers:
+            # TODO: And still authed as query param  (ugh!)
+            self.assertEquals('AWS test:Y', headers['Authorization'])
+            self.assertIn('X-Auth-Token', headers)
+
 
 if __name__ == '__main__':
     unittest.main()
