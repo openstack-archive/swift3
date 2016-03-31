@@ -25,6 +25,7 @@ from md5 import md5
 from swift.common import swob, utils
 from swift.common.swob import Request
 
+import swift3
 from swift3.test.unit import Swift3TestCase
 from swift3.request import Request as S3Request
 from swift3.etree import fromstring
@@ -368,6 +369,8 @@ class TestSwift3Middleware(Swift3TestCase):
         filter_factory(CONF)
         swift_info = utils.get_swift_info()
         self.assertTrue('swift3' in swift_info)
+        self.assertEqual(swift_info['swift3'].get('version'),
+                         swift3.__version__)
         self.assertEqual(swift_info['swift3'].get('max_bucket_listing'),
                          CONF.max_bucket_listing)
         self.assertEqual(swift_info['swift3'].get('max_parts_listing'),

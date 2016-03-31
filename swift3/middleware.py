@@ -56,6 +56,7 @@ from paste.deploy import loadwsgi
 
 from swift.common.wsgi import PipelineWrapper, loadcontext
 
+from swift3 import __version__ as swift3_version
 from swift3.exception import NotS3Request
 from swift3.request import Request, S3AclRequest
 from swift3.response import ErrorResponse, InternalError, MethodNotAllowed, \
@@ -188,6 +189,7 @@ def filter_factory(global_conf, **local_conf):
         max_upload_part_num=CONF['max_upload_part_num'],
         max_multi_delete_objects=CONF['max_multi_delete_objects'],
         allow_multipart_uploads=CONF['allow_multipart_uploads'],
+        version=swift3_version,
     )
 
     def swift3_filter(app):
