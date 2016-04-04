@@ -1,5 +1,6 @@
 [DEFAULT]
 policy_file=%CONF_DIR%/policy.json
+admin_token = ADMIN
 
 [database]
 
