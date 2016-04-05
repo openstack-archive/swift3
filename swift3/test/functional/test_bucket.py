@@ -125,7 +125,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
 
     def test_put_bucket_with_LocationConstraint(self):
         bucket = 'bucket'
-        xml = self._gen_location_xml('RegionOne')
+        xml = self._gen_location_xml('US')
         status, headers, body = \
             self.conn.make_request('PUT', bucket, body=xml)
         self.assertEquals(status, 200)
