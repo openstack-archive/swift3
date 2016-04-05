@@ -578,8 +578,14 @@ class UploadController(Controller):
                                         headers=headers)
         except BadSwiftRequest as e:
             msg = str(e)
-            if msg.startswith('Each segment, except the last, '
-                              'must be at least '):
+            msg_pre_260 = 'Each segment, except the last, must be at least '
+            # see https://github.com/openstack/swift/commit/c0866ce
+            msg_260 = ('too small; each segment, except the last, must be '
+                       'at least ')
+            # see https://github.com/openstack/swift/commit/7f636a5
+            msg_post_260 = 'too small; each segment must be at least 1 byte'
+            if msg.startswith(msg_pre_260) or \
+                    msg_260 in msg or msg_post_260 in msg:
                 # FIXME: AWS S3 allows a smaller object than 5 MB if there is
                 # only one part.  Use a COPY request to copy the part object
                 # from the segments container instead.
