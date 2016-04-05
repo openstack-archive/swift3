@@ -551,11 +551,23 @@ class UploadController(Controller):
             LOGGER.error(e)
             raise exc_type, exc_value, exc_traceback
 
+        # following swift commit 7f636a5, zero-byte segments aren't allowed,
+        # even as the final segment
+        if int(info['size_bytes']) == 0:
+            manifest.pop()
+
         try:
             # TODO: add support for versioning
-            resp = req.get_response(self.app, 'PUT', body=json.dumps(manifest),
-                                    query={'multipart-manifest': 'put'},
-                                    headers=headers)
+            if manifest:
+                resp = req.get_response(self.app, 'PUT',
+                                        body=json.dumps(manifest),
+                                        query={'multipart-manifest': 'put'},
+                                        headers=headers)
+            else:
+                # the upload must have consisted of a single zero-length part
+                # just write it directly
+                resp = req.get_response(self.app, 'PUT', body='',
+                                        headers=headers)
         except BadSwiftRequest as e:
             msg = str(e)
             if msg.startswith('Each segment, except the last, '
@@ -567,6 +579,13 @@ class UploadController(Controller):
             else:
                 raise
 
+        if int(info['size_bytes']) == 0:
+            # clean up the zero-byte segment
+            empty_seg_cont, empty_seg_name = info['path'].split('/', 2)[1:]
+            req.get_response(self.app, 'DELETE',
+                             container=empty_seg_cont, obj=empty_seg_name)
+
+        # clean up the multipart-upload record
         obj = '%s/%s' % (req.object_name, upload_id)
         req.get_response(self.app, 'DELETE', container, obj)
 
