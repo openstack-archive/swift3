@@ -494,17 +494,26 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
             etags.append(headers['etag'])
         xml = self._gen_comp_xml(etags)
 
+        # part 1 too small
         query = 'uploadId=%s' % upload_id
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, keys[0], body=xml,
+                                   query=query)
+        self.assertEquals(get_error_code(body), 'EntityTooSmall')
+
+        # invalid credentials
         auth_error_conn = Connection(aws_secret_key='invalid')
         status, headers, body = \
             auth_error_conn.make_request('POST', bucket, keys[0], body=xml,
                                          query=query)
         self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
 
+        # wrong/missing bucket
         status, headers, body = \
             self.conn.make_request('POST', 'nothing', keys[0], query=query)
         self.assertEquals(get_error_code(body), 'NoSuchBucket')
 
+        # wrong upload ID
         query = 'uploadId=%s' % 'nothing'
         status, headers, body = \
             self.conn.make_request('POST', bucket, keys[0], body=xml,

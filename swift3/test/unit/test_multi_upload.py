@@ -634,6 +634,31 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEquals(headers.get('X-Object-Meta-Foo'), 'bar')
         self.assertEquals(headers.get('Content-Type'), 'baz/quux')
 
+    def test_object_multipart_upload_too_small(self):
+        msgs = [
+            # pre-2.6.0 swift
+            'Each segment, except the last, must be at least 1234 bytes.',
+            # swift 2.6.0
+            'Index 0: too small; each segment, except the last, must be '
+            'at least 1234 bytes.',
+            # swift 2.7.0+
+            'Index 0: too small; each segment must be at least 1 byte.',
+        ]
+
+        for msg in msgs:
+            req = Request.blank(
+                '/bucket/object?uploadId=X',
+                environ={'REQUEST_METHOD': 'POST'},
+                headers={'Authorization': 'AWS test:tester:hmac',
+                         'Date': self.get_date_header(), },
+                body=xml)
+
+            self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
+                                swob.HTTPBadRequest, {}, msg)
+            status, headers, body = self.call_swift3(req)
+            self.assertEquals(status.split()[0], '400')
+            self.assertEquals(self._get_error_code(body), 'EntityTooSmall')
+
     def test_object_multipart_upload_complete_single_zero_length_segment(self):
         segment_bucket = '/v1/AUTH_test/empty-bucket+segments'
         put_headers = {'etag': self.etag, 'last-modified': self.last_modified}
