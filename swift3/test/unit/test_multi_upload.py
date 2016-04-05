@@ -77,8 +77,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
                       objects_template)
         object_list = json.dumps(objects)
 
-        self.swift.register('PUT',
-                            '/v1/AUTH_test/bucket+segments',
+        self.swift.register('PUT', segment_bucket,
                             swob.HTTPAccepted, {}, None)
         self.swift.register('GET', segment_bucket, swob.HTTPOk, {},
                             object_list)
@@ -634,6 +633,112 @@ class TestSwift3MultiUpload(Swift3TestCase):
         _, _, headers = self.swift.calls_with_headers[-2]
         self.assertEquals(headers.get('X-Object-Meta-Foo'), 'bar')
         self.assertEquals(headers.get('Content-Type'), 'baz/quux')
+
+    def test_object_multipart_upload_complete_single_zero_length_segment(self):
+        segment_bucket = '/v1/AUTH_test/empty-bucket+segments'
+        put_headers = {'etag': self.etag, 'last-modified': self.last_modified}
+
+        object_list = [{
+            'name': 'object/X/1',
+            'last_modified': self.last_modified,
+            'hash': 'd41d8cd98f00b204e9800998ecf8427e',
+            'bytes': '0',
+        }]
+
+        self.swift.register('GET', segment_bucket, swob.HTTPOk, {},
+                            json.dumps(object_list))
+        self.swift.register('HEAD', '/v1/AUTH_test/empty-bucket',
+                            swob.HTTPNoContent, {}, None)
+        self.swift.register('HEAD', segment_bucket + '/object/X',
+                            swob.HTTPOk, {'x-object-meta-foo': 'bar',
+                                          'content-type': 'baz/quux'}, None)
+        self.swift.register('PUT', '/v1/AUTH_test/empty-bucket/object',
+                            swob.HTTPCreated, {}, None)
+        self.swift.register('DELETE', segment_bucket + '/object/X/1',
+                            swob.HTTPOk, {}, None)
+        self.swift.register('DELETE', segment_bucket + '/object/X',
+                            swob.HTTPOk, {}, None)
+
+        xml = '<CompleteMultipartUpload>' \
+            '<Part>' \
+            '<PartNumber>1</PartNumber>' \
+            '<ETag>d41d8cd98f00b204e9800998ecf8427e</ETag>' \
+            '</Part>' \
+            '</CompleteMultipartUpload>'
+
+        req = Request.blank('/empty-bucket/object?uploadId=X',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(), },
+                            body=xml)
+        status, headers, body = self.call_swift3(req)
+        fromstring(body, 'CompleteMultipartUploadResult')
+        self.assertEquals(status.split()[0], '200')
+
+        self.assertEqual(self.swift.calls, [
+            ('HEAD', '/v1/AUTH_test/empty-bucket'),
+            ('HEAD', '/v1/AUTH_test/empty-bucket+segments/object/X'),
+            ('GET', '/v1/AUTH_test/empty-bucket+segments?delimiter=/&'
+                    'format=json&prefix=object/X/'),
+            # note the lack of multipart-manifest=put below
+            ('PUT', '/v1/AUTH_test/empty-bucket/object'),
+            ('DELETE', '/v1/AUTH_test/empty-bucket+segments/object/X/1'),
+            ('DELETE', '/v1/AUTH_test/empty-bucket+segments/object/X'),
+        ])
+        _, _, put_headers = self.swift.calls_with_headers[-3]
+        self.assertEquals(put_headers.get('X-Object-Meta-Foo'), 'bar')
+        self.assertEquals(put_headers.get('Content-Type'), 'baz/quux')
+
+    def test_object_multipart_upload_complete_double_zero_length_segment(self):
+        segment_bucket = '/v1/AUTH_test/empty-bucket+segments'
+        put_headers = {'etag': self.etag, 'last-modified': self.last_modified}
+
+        object_list = [{
+            'name': 'object/X/1',
+            'last_modified': self.last_modified,
+            'hash': 'd41d8cd98f00b204e9800998ecf8427e',
+            'bytes': '0',
+        }, {
+            'name': 'object/X/2',
+            'last_modified': self.last_modified,
+            'hash': 'd41d8cd98f00b204e9800998ecf8427e',
+            'bytes': '0',
+        }]
+
+        self.swift.register('GET', segment_bucket, swob.HTTPOk, {},
+                            json.dumps(object_list))
+        self.swift.register('HEAD', '/v1/AUTH_test/empty-bucket',
+                            swob.HTTPNoContent, {}, None)
+        self.swift.register('HEAD', segment_bucket + '/object/X',
+                            swob.HTTPOk, {'x-object-meta-foo': 'bar',
+                                          'content-type': 'baz/quux'}, None)
+
+        xml = '<CompleteMultipartUpload>' \
+            '<Part>' \
+            '<PartNumber>1</PartNumber>' \
+            '<ETag>d41d8cd98f00b204e9800998ecf8427e</ETag>' \
+            '</Part>' \
+            '<Part>' \
+            '<PartNumber>2</PartNumber>' \
+            '<ETag>d41d8cd98f00b204e9800998ecf8427e</ETag>' \
+            '</Part>' \
+            '</CompleteMultipartUpload>'
+
+        req = Request.blank('/empty-bucket/object?uploadId=X',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(), },
+                            body=xml)
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'EntityTooSmall')
+        self.assertEquals(status.split()[0], '400')
+
+        self.assertEqual(self.swift.calls, [
+            ('HEAD', '/v1/AUTH_test/empty-bucket'),
+            ('HEAD', '/v1/AUTH_test/empty-bucket+segments/object/X'),
+            ('GET', '/v1/AUTH_test/empty-bucket+segments?delimiter=/&'
+                    'format=json&prefix=object/X/'),
+        ])
 
     @s3acl(s3acl_only=True)
     def test_object_multipart_upload_complete_s3acl(self):
