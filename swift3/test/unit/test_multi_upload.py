@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import hashlib
 import os
 import time
 import unittest
@@ -35,31 +36,36 @@ from swift3.request import MAX_32BIT_INT
 xml = '<CompleteMultipartUpload>' \
     '<Part>' \
     '<PartNumber>1</PartNumber>' \
-    '<ETag>HASH</ETag>' \
+    '<ETag>0123456789abcdef</ETag>' \
     '</Part>' \
     '<Part>' \
     '<PartNumber>2</PartNumber>' \
-    '<ETag>"HASH"</ETag>' \
+    '<ETag>"fedcba9876543210"</ETag>' \
     '</Part>' \
     '</CompleteMultipartUpload>'
 
 objects_template = \
-    (('object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 100),
-     ('object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 200))
+    (('object/X/1', '2014-05-07T19:47:51.592270', '0123456789abcdef', 100),
+     ('object/X/2', '2014-05-07T19:47:52.592270', 'fedcba9876543210', 200))
 
 multiparts_template = \
     (('object/X', '2014-05-07T19:47:50.592270', 'HASH', 1),
-     ('object/X/1', '2014-05-07T19:47:51.592270', 'HASH', 11),
-     ('object/X/2', '2014-05-07T19:47:52.592270', 'HASH', 21),
+     ('object/X/1', '2014-05-07T19:47:51.592270', '0123456789abcdef', 11),
+     ('object/X/2', '2014-05-07T19:47:52.592270', 'fedcba9876543210', 21),
      ('object/Y', '2014-05-07T19:47:53.592270', 'HASH', 2),
-     ('object/Y/1', '2014-05-07T19:47:54.592270', 'HASH', 12),
-     ('object/Y/2', '2014-05-07T19:47:55.592270', 'HASH', 22),
+     ('object/Y/1', '2014-05-07T19:47:54.592270', '0123456789abcdef', 12),
+     ('object/Y/2', '2014-05-07T19:47:55.592270', 'fedcba9876543210', 22),
      ('object/Z', '2014-05-07T19:47:56.592270', 'HASH', 3),
-     ('object/Z/1', '2014-05-07T19:47:57.592270', 'HASH', 13),
-     ('object/Z/2', '2014-05-07T19:47:58.592270', 'HASH', 23),
+     ('object/Z/1', '2014-05-07T19:47:57.592270', '0123456789abcdef', 13),
+     ('object/Z/2', '2014-05-07T19:47:58.592270', 'fedcba9876543210', 23),
      ('subdir/object/Z', '2014-05-07T19:47:58.592270', 'HASH', 4),
-     ('subdir/object/Z/1', '2014-05-07T19:47:58.592270', 'HASH', 41),
-     ('subdir/object/Z/2', '2014-05-07T19:47:58.592270', 'HASH', 41))
+     ('subdir/object/Z/1', '2014-05-07T19:47:58.592270', '0123456789abcdef',
+      41),
+     ('subdir/object/Z/2', '2014-05-07T19:47:58.592270', 'fedcba9876543210',
+      41))
+
+s3_etag = '"%s-2"' % hashlib.md5('0123456789abcdeffedcba9876543210'
+                                 .decode('hex')).hexdigest()
 
 
 class TestSwift3MultiUpload(Swift3TestCase):
@@ -627,12 +633,32 @@ class TestSwift3MultiUpload(Swift3TestCase):
                                      'Date': self.get_date_header(), },
                             body=xml)
         status, headers, body = self.call_swift3(req)
-        fromstring(body, 'CompleteMultipartUploadResult')
+        elem = fromstring(body, 'CompleteMultipartUploadResult')
+        self.assertNotIn('Etag', headers)
+        self.assertEqual(elem.find('ETag').text, s3_etag)
         self.assertEqual(status.split()[0], '200')
+
+        self.assertEqual(self.swift.calls, [
+            # Bucket exists
+            ('HEAD', '/v1/AUTH_test/bucket'),
+            # Segment container exists
+            ('HEAD', '/v1/AUTH_test/bucket+segments/object/X'),
+            # Get the currently-uploaded segments
+            ('GET', '/v1/AUTH_test/bucket+segments?delimiter=/'
+                    '&format=json&prefix=object/X/'),
+            # Create the SLO
+            ('PUT', '/v1/AUTH_test/bucket/object?multipart-manifest=put'),
+            # Delete the in-progress-upload marker
+            ('DELETE', '/v1/AUTH_test/bucket+segments/object/X')
+        ])
 
         _, _, headers = self.swift.calls_with_headers[-2]
         self.assertEqual(headers.get('X-Object-Meta-Foo'), 'bar')
         self.assertEqual(headers.get('Content-Type'), 'baz/quux')
+        h = 'X-Backend-Container-Update-Override-Etag'
+        self.assertEqual(headers.get(h), s3_etag)
+        h = 'X-Object-Sysmeta-Container-Update-Override-Etag'
+        self.assertEqual(headers.get(h), s3_etag)
 
     def test_object_multipart_upload_complete_weird_host_name(self):
         # This happens via boto signature v4

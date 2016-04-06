@@ -42,6 +42,7 @@ upload information:
    Static Large Object.
 """
 
+from hashlib import md5
 import os
 import re
 import sys
@@ -59,7 +60,8 @@ from swift3.response import InvalidArgument, ErrorResponse, MalformedXML, \
     InvalidRequest, HTTPOk, HTTPNoContent, NoSuchKey, NoSuchUpload, \
     NoSuchBucket
 from swift3.exception import BadSwiftRequest
-from swift3.utils import LOGGER, unique_id, MULTIUPLOAD_SUFFIX, S3Timestamp
+from swift3.utils import LOGGER, unique_id, MULTIUPLOAD_SUFFIX, S3Timestamp, \
+    sysmeta_header
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
 from swift3.cfg import CONF
@@ -526,6 +528,7 @@ class UploadController(Controller):
                           'etag': o['hash'],
                           'size_bytes': o['bytes']}) for o in objinfo)
 
+        s3_etag_hasher = md5()
         manifest = []
         previous_number = 0
         try:
@@ -549,6 +552,7 @@ class UploadController(Controller):
                     raise InvalidPart(upload_id=upload_id,
                                       part_number=part_number)
 
+                s3_etag_hasher.update(etag.decode('hex'))
                 manifest.append(info)
         except (XMLSyntaxError, DocumentInvalid):
             raise MalformedXML()
@@ -571,6 +575,15 @@ class UploadController(Controller):
             # it should always fail.
             if manifest and int(manifest[-1]['size_bytes']) == 0:
                 raise EntityTooSmall()
+
+        s3_etag = '"%s-%d"' % (s3_etag_hasher.hexdigest(), len(manifest))
+        headers[sysmeta_header('object', 'etag')] = s3_etag
+        headers['X-Object-Sysmeta-Container-Update-Override-Etag'] = s3_etag
+        # Include X-Backend-* for backwards compatibility with pre-2.9.0 Swift.
+        # Note that this will only work for replicated policies, and even then
+        # it will be subject to the POST-update problem described in
+        # https://bugs.launchpad.net/swift/+bug/1582723
+        headers['X-Backend-Container-Update-Override-Etag'] = s3_etag
 
         try:
             # TODO: add support for versioning
@@ -628,7 +641,8 @@ class UploadController(Controller):
         SubElement(result_elem, 'Location').text = host_url + req.path
         SubElement(result_elem, 'Bucket').text = req.container_name
         SubElement(result_elem, 'Key').text = req.object_name
-        SubElement(result_elem, 'ETag').text = resp.etag
+        SubElement(result_elem, 'ETag').text = s3_etag
+        del resp.headers['ETag']
 
         resp.body = tostring(result_elem)
         resp.status = 200
