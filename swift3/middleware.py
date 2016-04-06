@@ -52,9 +52,12 @@ following for an SAIO setup::
         calling_format=boto.s3.connection.OrdinaryCallingFormat())
 """
 
+import json
 from paste.deploy import loadwsgi
 
-from swift.common.wsgi import PipelineWrapper, loadcontext
+from swift.common.constraints import valid_api_version
+from swift.common.utils import get_logger, register_swift_info, split_path
+from swift.common.wsgi import PipelineWrapper, loadcontext, WSGIContext
 
 from swift3 import __version__ as swift3_version
 from swift3.exception import NotS3Request
@@ -63,7 +66,78 @@ from swift3.response import ErrorResponse, InternalError, MethodNotAllowed, \
     ResponseBase
 from swift3.cfg import CONF
 from swift3.utils import LOGGER
-from swift.common.utils import get_logger, register_swift_info
+
+
+class ListingEtagMiddleware(object):
+    def __init__(self, app):
+        self.app = app
+
+    def __call__(self, env, start_response):
+        # a lot of this is cribbed from listing_formats / swob.Request
+        if env['REQUEST_METHOD'] == 'HEAD':
+            # Nothing to translate
+            return self.app(env, start_response)
+
+        try:
+            v, a, c = split_path(env.get('SCRIPT_NAME', '') +
+                                 env['PATH_INFO'], 3, 3)
+            if not valid_api_version(v):
+                raise ValueError
+        except ValueError:
+            # not a container request; pass through
+            return self.app(env, start_response)
+
+        ctx = WSGIContext(self.app)
+        resp_iter = ctx._app_call(env)
+
+        content_type = content_length = cl_index = None
+        for index, (header, value) in enumerate(ctx._response_headers):
+            header = header.lower()
+            if header == 'content-type':
+                content_type = value.split(';', 1)[0].strip()
+                if content_length:
+                    break
+            elif header == 'content-length':
+                cl_index = index
+                try:
+                    content_length = int(value)
+                except ValueError:
+                    pass  # ignore -- we'll bail later
+                if content_type:
+                    break
+
+        if content_type != 'application/json' or content_length is None or \
+                content_length > 2 * 1024 * 1000:
+            start_response(ctx._response_status, ctx._response_headers,
+                           ctx._response_exc_info)
+            return resp_iter
+
+        # We've done our sanity checks, slurp the response into memory
+        body = b''.join(resp_iter)
+        if hasattr(resp_iter, 'close'):
+            resp_iter.close()
+
+        try:
+            listing = json.loads(body)
+            for item in listing:
+                item['hash'], s3_etag = item['hash'].partition(
+                    '; s3_etag=')[::2]
+                if s3_etag:
+                    item['s3_etag'] = s3_etag
+        except (TypeError, KeyError, ValueError):
+            # If anything goes wrong above, drop back to original response
+            start_response(ctx._response_status, ctx._response_headers,
+                           ctx._response_exc_info)
+            return [body]
+
+        body = json.dumps(listing)
+        ctx._response_headers[cl_index] = (
+            ctx._response_headers[cl_index][0],
+            str(len(body)),
+        )
+        start_response(ctx._response_status, ctx._response_headers,
+                       ctx._response_exc_info)
+        return [body]
 
 
 class Swift3Middleware(object):
@@ -194,6 +268,6 @@ def filter_factory(global_conf, **local_conf):
     )
 
     def swift3_filter(app):
-        return Swift3Middleware(app, CONF)
+        return Swift3Middleware(ListingEtagMiddleware(app), CONF)
 
     return swift3_filter

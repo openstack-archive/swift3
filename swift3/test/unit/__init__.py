@@ -75,9 +75,9 @@ class Swift3TestCase(unittest.TestCase):
                             swob.HTTPNoContent, {}, None)
 
         self.swift.register('GET', '/v1/AUTH_test/bucket/object',
-                            swob.HTTPOk, {}, "")
+                            swob.HTTPOk, {'etag': 'object etag'}, "")
         self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
-                            swob.HTTPCreated, {}, None)
+                            swob.HTTPCreated, {'etag': 'object etag'}, None)
         self.swift.register('DELETE', '/v1/AUTH_test/bucket/object',
                             swob.HTTPNoContent, {}, None)
 

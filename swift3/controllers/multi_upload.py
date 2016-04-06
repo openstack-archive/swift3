@@ -42,6 +42,7 @@ upload information:
    Static Large Object.
 """
 
+from hashlib import md5
 import os
 import re
 import sys
@@ -554,6 +555,7 @@ class UploadController(Controller):
                           'etag': o['hash'],
                           'size_bytes': o['bytes']}) for o in objinfo)
 
+        s3_etag_hasher = md5()
         manifest = []
         previous_number = 0
         try:
@@ -580,6 +582,7 @@ class UploadController(Controller):
                     raise InvalidPart(upload_id=upload_id,
                                       part_number=part_number)
 
+                s3_etag_hasher.update(etag.decode('hex'))
                 info['size_bytes'] = int(info['size_bytes'])
                 manifest.append(info)
         except (XMLSyntaxError, DocumentInvalid):
@@ -590,6 +593,8 @@ class UploadController(Controller):
             exc_type, exc_value, exc_traceback = sys.exc_info()
             LOGGER.error(e)
             raise exc_type, exc_value, exc_traceback
+
+        s3_etag = '%s-%d' % (s3_etag_hasher.hexdigest(), len(manifest))
 
         # Following swift commit 7f636a5, zero-byte segments aren't allowed,
         # even as the final segment
@@ -605,9 +610,22 @@ class UploadController(Controller):
 
         # Check the size of each segment except the last and make sure they are
         # all more than the minimum upload chunk size
-        for info in manifest[:-1]:
-            if info['size_bytes'] < CONF.min_segment_size:
+        swift_etag_hasher = md5()
+        last_size = None
+        for info in manifest:
+            swift_etag_hasher.update(info['etag'])
+            if last_size and last_size < CONF.min_segment_size:
                 raise EntityTooSmall()
+            last_size = info['size_bytes']
+
+        headers[sysmeta_header('object', 'etag')] = s3_etag
+        c_etag = '"%s"; s3_etag="%s"' % (swift_etag_hasher.hexdigest(), s3_etag)
+        headers['X-Object-Sysmeta-Container-Update-Override-Etag'] = c_etag
+        # Include X-Backend-* for backwards compatibility with pre-2.9.0 Swift.
+        # Note that this will only work for replicated policies, and even then
+        # it will be subject to the POST-update problem described in
+        # https://bugs.launchpad.net/swift/+bug/1582723
+        headers['X-Backend-Container-Update-Override-Etag'] = c_etag
 
         try:
             # TODO: add support for versioning
@@ -662,7 +680,8 @@ class UploadController(Controller):
         SubElement(result_elem, 'Location').text = host_url + req.path
         SubElement(result_elem, 'Bucket').text = req.container_name
         SubElement(result_elem, 'Key').text = req.object_name
-        SubElement(result_elem, 'ETag').text = resp.etag
+        SubElement(result_elem, 'ETag').text = '"%s"' % s3_etag
+        del resp.headers['ETag']
 
         resp.body = tostring(result_elem)
         resp.status = 200
