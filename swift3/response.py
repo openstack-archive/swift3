@@ -20,7 +20,7 @@ from functools import partial
 from swift.common import swob
 from swift.common.utils import config_true_value
 
-from swift3.utils import snake_to_camel, sysmeta_prefix
+from swift3.utils import snake_to_camel, sysmeta_prefix, sysmeta_header
 from swift3.etree import Element, SubElement, tostring
 
 
@@ -78,10 +78,6 @@ class Response(ResponseBase, swob.Response):
     def __init__(self, *args, **kwargs):
         swob.Response.__init__(self, *args, **kwargs)
 
-        if self.etag:
-            # add double quotes to the etag header
-            self.etag = self.etag
-
         sw_sysmeta_headers = swob.HeaderKeyDict()
         sw_headers = swob.HeaderKeyDict()
         headers = HeaderKeyDict()
@@ -111,7 +107,26 @@ class Response(ResponseBase, swob.Response):
                 # for delete slo
                 self.is_slo = config_true_value(val)
 
+        # Check whether we stored the AWS-style etag on upload
+        override_etag = sw_sysmeta_headers.get(
+            sysmeta_header('object', 'etag'))
+        if override_etag is not None:
+            # Multipart uploads in AWS have ETags like
+            #   <MD5(part_etag1 || ... || part_etagN)>-<number of parts>
+            headers['etag'] = override_etag
+        elif self.is_slo and 'etag' in headers:
+            # Many AWS clients use the presence of a '-' to decide whether
+            # to attempt client-side download validation, so even if we
+            # didn't store the AWS-style header, tack on a '-N'. (Use 'N'
+            # because we don't actually know how many parts there are.)
+            headers['etag'] += '-N'
+
         self.headers = headers
+
+        if self.etag:
+            # add double quotes to the etag header
+            self.etag = self.etag
+
         # Used for pure swift header handling at the request layer
         self.sw_headers = sw_headers
         self.sysmeta_headers = sw_sysmeta_headers
