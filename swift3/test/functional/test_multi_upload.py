@@ -314,7 +314,19 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         self.assertEquals(elem.find('Bucket').text, bucket)
         self.assertEquals(elem.find('Key').text, key)
         # TODO: confirm completed etag value
-        self.assertTrue(elem.find('ETag').text is not None)
+        etag = elem.find('ETag').text
+        self.assertIsNotNone(etag)
+        self.assertTrue(etag.startswith('"'))
+        self.assertTrue(etag.endswith('-N"'))
+
+        status, headers, body = \
+            self.conn.make_request('HEAD', bucket, key)
+        self.assertEquals(status, 200)
+        self.assertCommonResponseHeaders(headers)
+        self.assertTrue('etag' in headers)
+        etag = headers['etag']
+        self.assertTrue(etag.startswith('"'))
+        self.assertTrue(etag.endswith('-N"'))
 
     def test_initiate_multi_upload_error(self):
         bucket = 'bucket'
