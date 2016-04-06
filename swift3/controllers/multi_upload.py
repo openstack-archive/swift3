@@ -574,7 +574,7 @@ class UploadController(Controller):
         SubElement(result_elem, 'Location').text = req.host_url + req.path
         SubElement(result_elem, 'Bucket').text = req.container_name
         SubElement(result_elem, 'Key').text = req.object_name
-        SubElement(result_elem, 'ETag').text = resp.etag
+        SubElement(result_elem, 'ETag').text = '"%s-N"' % resp.etag
 
         resp.body = tostring(result_elem)
         resp.status = 200

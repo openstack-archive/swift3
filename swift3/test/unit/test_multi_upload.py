@@ -628,7 +628,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
                                      'Date': self.get_date_header(), },
                             body=xml)
         status, headers, body = self.call_swift3(req)
-        fromstring(body, 'CompleteMultipartUploadResult')
+        elem = fromstring(body, 'CompleteMultipartUploadResult')
+        self.assertEqual(elem.find('ETag').text, '"object etag-N"')
         self.assertEquals(status.split()[0], '200')
 
         _, _, headers = self.swift.calls_with_headers[-2]

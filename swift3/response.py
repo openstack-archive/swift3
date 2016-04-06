@@ -78,10 +78,6 @@ class Response(ResponseBase, swob.Response):
     def __init__(self, *args, **kwargs):
         swob.Response.__init__(self, *args, **kwargs)
 
-        if self.etag:
-            # add double quotes to the etag header
-            self.etag = self.etag
-
         sw_sysmeta_headers = swob.HeaderKeyDict()
         sw_headers = swob.HeaderKeyDict()
         headers = HeaderKeyDict()
@@ -111,7 +107,24 @@ class Response(ResponseBase, swob.Response):
                 # for delete slo
                 self.is_slo = config_true_value(val)
 
+        if self.is_slo and 'etag' in headers:
+            # Multipart uploads in AWS have ETags like
+            #   <MD5(part_etag1 || ... || part_etagN)>-<number of parts>
+            # Many AWS clients use the presence of a '-' to decide whether
+            # to attempt client-side download validation, so tack on a '-N'.
+            # ('N' because we don't actually know how many parts there are.)
+
+            # FIXME: Consider storing the AWS-style etag in ... content type?
+            # Wherever it ends up, it needs to be accessible during container
+            # listings
+            headers['etag'] += '-N'
+
         self.headers = headers
+
+        if self.etag:
+            # add double quotes to the etag header
+            self.etag = self.etag
+
         # Used for pure swift header handling at the request layer
         self.sw_headers = sw_headers
         self.sysmeta_headers = sw_sysmeta_headers
