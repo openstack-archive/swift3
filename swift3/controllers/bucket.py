@@ -185,7 +185,16 @@ class BucketController(Controller):
                 SubElement(contents, 'Key').text = o['name']
                 SubElement(contents, 'LastModified').text = \
                     o['last_modified'][:-3] + 'Z'
-                SubElement(contents, 'ETag').text = '"%s"' % o['hash']
+                if 's3_etag' in o:
+                    # MUs may already be in the right format
+                    etag = o['s3_etag']
+                elif o['hash'].startswith('"') and o['hash'].startswith('"'):
+                    # Following https://review.openstack.org/#/c/337960/,
+                    # SLOs may be in something *close* to the right format
+                    etag = o['hash'][:-1] + '-N"'
+                else:
+                    etag = '"%s"' % o['hash']
+                SubElement(contents, 'ETag').text = etag
                 SubElement(contents, 'Size').text = str(o['bytes'])
                 if fetch_owner or not is_v2:
                     owner = SubElement(contents, 'Owner')

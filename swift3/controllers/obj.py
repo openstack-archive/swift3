@@ -17,9 +17,9 @@ import sys
 
 from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT, HTTP_NO_CONTENT
 from swift.common.swob import Range, content_range_header_value
-from swift.common.utils import public
+from swift.common.utils import public, list_from_csv, csv_append
 
-from swift3.utils import S3Timestamp
+from swift3.utils import S3Timestamp, sysmeta_header
 from swift3.controllers.base import Controller
 from swift3.response import S3NotImplemented, InvalidRange, NoSuchKey, \
     InvalidArgument
@@ -63,6 +63,24 @@ class ObjectController(Controller):
         return resp
 
     def GETorHEAD(self, req):
+        had_match = False
+        for match_header in ('if-match', 'if-none-match'):
+            if match_header not in req.headers:
+                continue
+            had_match = True
+            for value in list_from_csv(req.headers[match_header]):
+                if value.startswith('"') and value.endswith('"'):
+                    value = value[1:-1]
+                if value.endswith('-N'):
+                    # Deal with fake S3-like etags for SLOs uploaded via Swift
+                    req.headers[match_header] += ', ' + value[:-2]
+
+        if had_match:
+            # Update where to look (inlined from request_helpers)
+            existing = req.headers.get("X-Backend-Etag-Is-At")
+            req.headers["X-Backend-Etag-Is-At"] = csv_append(
+                existing, sysmeta_header('object', 'etag'))
+
         resp = req.get_response(self.app)
 
         if req.method == 'HEAD':
