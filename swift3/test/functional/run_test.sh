@@ -107,15 +107,53 @@ _start proxy coverage run --branch --include=../../*  --omit=./* \
     ./run_daemon.py proxy 8080 conf/proxy-server.conf -v
 
 # run tests
-nosetests -v ./
-rvalue=$?
+if [ -z "$CEPH_TESTS" ]; then
+    nosetests -v ./
+    rvalue=$?
+
+    # show report
+    coverage report
+    coverage html
+else
+    pushd ${TEST_DIR}
+    git clone https://github.com/swiftstack/s3compat.git
+    popd
+    pushd ${TEST_DIR}/s3compat
+    git submodule update --init
+    pip install -r requirements.txt -r ceph-tests/requirements.txt
+    cat << EOF > config/ceph-s3.cfg
+[DEFAULT]
+host = localhost
+port = 8080
+is_secure = no
+num_retries = 1
+
+[s3 main]
+user_id = test:tester
+display_name = test:tester
+email = test.tester@example.com
+access_key = test:tester
+secret_key = testing
+
+[s3 alt]
+user_id = test:tester2
+display_name = test:tester2
+email = test.tester2@example.com
+access_key = test:tester2
+secret_key = testing2
+EOF
+
+    ./bin/run_ceph_tests.py
+    rvalue=$?
+
+    # show report
+    ./bin/get_ceph_test_attributes.py
+    ./bin/report.py --detailed output/ceph-s3.out.yaml --detailedformat console output/ceph-s3.out.xml
+    popd
+fi
 
 # cleanup
 kill -HUP $proxy_pid $account_pid $container_pid $object_pid $keystone_pid
-
-# show report
 sleep 3
-coverage report
-coverage html
 
 exit $rvalue
