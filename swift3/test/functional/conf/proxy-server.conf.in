@@ -24,6 +24,8 @@ user_test_tester2 = testing2
 use = egg:swift3#swift3
 s3_acl = %S3ACL%
 location = US
+dns_compliant_bucket_names = false
+check_bucket_owner = true
 
 [filter:catch_errors]
 use = egg:swift#catch_errors
