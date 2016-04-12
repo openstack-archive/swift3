@@ -108,16 +108,83 @@ _start proxy coverage run --branch --include=../../*  --omit=./* \
     ./run_daemon.py proxy 8080 conf/proxy-server.conf -v
 
 # run tests
-nosetests -v ./
-rvalue=$?
+if [ -z "$CEPH_TESTS" ]; then
+    nosetests -v ./
+    rvalue=$?
+
+    # show report
+    coverage report
+    coverage html
+else
+    pushd ${TEST_DIR}
+    git clone https://github.com/swiftstack/s3compat.git
+    popd
+    pushd ${TEST_DIR}/s3compat
+    git submodule update --init
+    pip install -r requirements.txt -r ceph-tests/requirements.txt
+    if [ "$AUTH" == "keystone" ]; then
+        cat << EOF > config/ceph-s3.cfg
+[DEFAULT]
+host = localhost
+port = 8080
+is_secure = no
+
+[s3 main]
+user_id = $ADMIN_ACCESS_KEY
+display_name = $ADMIN_ACCESS_KEY
+email = $ADMIN_ACCESS_KEY
+access_key = $ADMIN_ACCESS_KEY
+secret_key = $ADMIN_SECRET_KEY
+
+[s3 alt]
+user_id = $TESTER_ACCESS_KEY
+display_name = $TESTER_ACCESS_KEY
+email = $TESTER_ACCESS_KEY
+access_key = $TESTER_ACCESS_KEY
+secret_key = $TESTER_SECRET_KEY
+EOF
+    else
+        cat << EOF > config/ceph-s3.cfg
+[DEFAULT]
+host = localhost
+port = 8080
+is_secure = no
+
+[s3 main]
+user_id = test:tester
+display_name = test:tester
+email = test:tester
+access_key = test:tester
+secret_key = testing
+
+[s3 alt]
+user_id = test:tester2
+display_name = test:tester2
+email = test:tester2
+access_key = test:tester2
+secret_key = testing2
+EOF
+    fi
+
+    ./bin/run_ceph_tests.py
+    rvalue=$?
+
+    # show report
+    ./bin/get_ceph_test_attributes.py
+    ./bin/report.py --detailed output/ceph-s3.out.yaml \
+        --known-failures "${CONF_DIR}/ceph-known-failures-${AUTH}.yaml" \
+        --detailedformat console output/ceph-s3.out.xml  | \
+        tee "${LOG_DEST:-${TEST_DIR}/log}/ceph-s3-summary.log"
+    cp output/ceph-s3.out.xml "${LOG_DEST:-${TEST_DIR}/log}/ceph-s3-details.xml"
+    popd
+fi
 
 # cleanup
 kill -HUP $proxy_pid $account_pid $container_pid $object_pid
-kill -TERM $keystone_pid
+if [ -n "$keystone_pid" ]; then
+    kill -TERM $keystone_pid
+fi
 
-# show report
 sleep 3
-coverage report
-coverage html
 
 exit $rvalue
