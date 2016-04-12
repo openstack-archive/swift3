@@ -38,6 +38,8 @@ fi
 for server in keystone swift proxy-server object-server container-server account-server; do
     sed -e "s#%MIDDLEWARE%#${MIDDLEWARE}#g" \
 	-e "s#%S3ACL%#${S3ACL}#g" \
+	-e "s#%DNS_BUCKET_NAMES%#${DNS_BUCKET_NAMES}#g" \
+	-e "s#%CHECK_BUCKET_OWNER%#${CHECK_BUCKET_OWNER}#g" \
 	-e "s#%USER%#`whoami`#g" \
 	-e "s#%TEST_DIR%#${TEST_DIR}#g" \
 	-e "s#%CONF_DIR%#${CONF_DIR}#g" \
@@ -50,6 +52,12 @@ if [ "$AUTH" == 'keystone' ]; then
     . ./setup_keystone
 fi
 
+sed \
+-e "s#%ADMIN_ACCESS_KEY%#${ADMIN_ACCESS_KEY:-test:tester}#g" \
+-e "s#%ADMIN_SECRET_KEY%#${ADMIN_SECRET_KEY:-testing}#g" \
+-e "s#%TESTER_ACCESS_KEY%#${TESTER_ACCESS_KEY:-test:tester2}#g" \
+-e "s#%TESTER_SECRET_KEY%#${TESTER_SECRET_KEY:-testing2}#g" \
+conf/ceph-s3.conf.in > conf/ceph-s3.conf
 
 # build ring
 cd ${TEST_DIR}/etc/
@@ -108,16 +116,48 @@ _start proxy coverage run --branch --include=../../*  --omit=./* \
     ./run_daemon.py proxy 8080 conf/proxy-server.conf -v
 
 # run tests
-nosetests -v ./
-rvalue=$?
+if [ -z "$CEPH_TESTS" ]; then
+    nosetests -v ./
+    rvalue=$?
+
+    # show report
+    coverage report
+    coverage html
+else
+    pushd ${TEST_DIR}
+    git clone https://github.com/swiftstack/s3compat.git
+    popd
+    pushd ${TEST_DIR}/s3compat
+    git submodule update --init
+
+    # ceph/s3-tests has some rather ancient requirements,
+    # so drop into another virtualenv
+    virtualenv venv
+    . venv/bin/activate
+    pip install -r requirements.txt -r ceph-tests/requirements.txt
+
+    S3TEST_CONF="${CONF_DIR}/ceph-s3.conf" ./bin/run_ceph_tests.py
+
+    # show report
+    ./bin/get_ceph_test_attributes.py
+    ./bin/report.py --detailed output/ceph-s3.out.yaml \
+        --known-failures "${CONF_DIR}/ceph-known-failures-${AUTH}.yaml" \
+        --detailedformat console output/ceph-s3.out.xml  | \
+        tee "${LOG_DEST:-${TEST_DIR}/log}/ceph-s3-summary.log"
+
+    # the report's exit code indicates NEW_FAILUREs / UNEXPECTED_PASSes
+    rvalue=${PIPESTATUS[0]}
+
+    cp output/ceph-s3.out.xml "${LOG_DEST:-${TEST_DIR}/log}/ceph-s3-details.xml"
+    popd
+fi
 
 # cleanup
 kill -HUP $proxy_pid $account_pid $container_pid $object_pid
-kill -TERM $keystone_pid
+if [ -n "$keystone_pid" ]; then
+    kill -TERM $keystone_pid
+fi
 
-# show report
 sleep 3
-coverage report
-coverage html
 
 exit $rvalue
