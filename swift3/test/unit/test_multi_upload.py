@@ -31,6 +31,7 @@ from swift3.test.unit.test_s3_acl import s3acl
 from swift3.cfg import CONF
 from swift3.utils import sysmeta_header
 from swift3.request import MAX_32BIT_INT
+from swift3.controllers.multi_upload import get_entity_too_small_message
 
 xml = '<CompleteMultipartUpload>' \
     '<Part>' \
@@ -634,18 +635,21 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEquals(headers.get('X-Object-Meta-Foo'), 'bar')
         self.assertEquals(headers.get('Content-Type'), 'baz/quux')
 
-    def test_object_multipart_upload_too_small(self):
-        msgs = [
-            # pre-2.6.0 swift
-            'Each segment, except the last, must be at least 1234 bytes.',
-            # swift 2.6.0
-            'Index 0: too small; each segment, except the last, must be '
-            'at least 1234 bytes.',
-            # swift 2.7.0+
-            'Index 0: too small; each segment must be at least 1 byte.',
+    def test_object_multipart_upload_complete_segment_too_small(self):
+        msg_bodies = [
+            (get_entity_too_small_message('2.5.0'),
+             # pre-2.6.0 swift
+             'Each segment, except the last, must be at least 1234 bytes.'),
+            (get_entity_too_small_message('2.6.0'),
+             # swift 2.6.0
+             'Index 0: too small; each segment, except the last, must be '
+             'at least 1234 bytes.'),
+            (get_entity_too_small_message('2.7.0'),
+             # swift 2.7.0+
+             'Index 0: too small; each segment must be at least 1 byte.'),
         ]
 
-        for msg in msgs:
+        for msg, resp_body in msg_bodies:
             req = Request.blank(
                 '/bucket/object?uploadId=X',
                 environ={'REQUEST_METHOD': 'POST'},
@@ -654,10 +658,26 @@ class TestSwift3MultiUpload(Swift3TestCase):
                 body=xml)
 
             self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
-                                swob.HTTPBadRequest, {}, msg)
-            status, headers, body = self.call_swift3(req)
+                                swob.HTTPBadRequest, {}, resp_body)
+            with patch('swift3.controllers.multi_upload.ENTITY_TOO_SMALL_MSG',
+                       msg):
+                status, headers, body = self.call_swift3(req)
             self.assertEquals(status.split()[0], '400')
             self.assertEquals(self._get_error_code(body), 'EntityTooSmall')
+
+    def test_get_entity_too_small_message(self):
+        msg_map = [
+            ('2.5.0',
+             'Each segment, except the last, must be at least '),
+            ('2.6.0',
+             'too small; each segment, except the last, must be at least '),
+            ('2.7.0',
+             'too small; each segment must be at least 1 byte'),
+        ]
+
+        for version, expected in msg_map:
+            message = get_entity_too_small_message(version)
+            self.assertEqual(expected, message)
 
     def test_object_multipart_upload_complete_single_zero_length_segment(self):
         segment_bucket = '/v1/AUTH_test/empty-bucket+segments'

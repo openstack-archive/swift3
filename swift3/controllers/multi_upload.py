@@ -46,6 +46,7 @@ import os
 import re
 import sys
 
+import swift
 from swift.common.swob import Range
 from swift.common.utils import json
 from swift.common.db import utf8encode
@@ -61,6 +62,29 @@ from swift3.utils import LOGGER, unique_id, MULTIUPLOAD_SUFFIX, S3Timestamp
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
 from swift3.cfg import CONF
+
+from distutils.version import StrictVersion
+
+
+def get_entity_too_small_message(swift_version):
+    # The reason why we need this is the error response message was changed
+    # among the release
+
+    # expected major.miner.rev(.build) version expression
+    major, minor, rev = swift_version.split('.', 3)[:3]
+    swift_version = StrictVersion('.'.join([major, minor, rev]))
+    if swift_version < StrictVersion('2.6.0'):
+        return 'Each segment, except the last, must be at least '
+    elif swift_version == StrictVersion('2.6.0'):
+        # see https://github.com/openstack/swift/commit/c0866ce
+        return 'too small; each segment, except the last, must be at least '
+    else:
+        # Swift > 2.6.0
+        # see https://github.com/openstack/swift/commit/7f636a5
+        return 'too small; each segment must be at least 1 byte'
+
+
+ENTITY_TOO_SMALL_MSG = get_entity_too_small_message(swift.__version__)
 
 DEFAULT_MAX_PARTS_LISTING = 1000
 DEFAULT_MAX_UPLOADS = 1000
@@ -578,14 +602,8 @@ class UploadController(Controller):
                                         headers=headers)
         except BadSwiftRequest as e:
             msg = str(e)
-            msg_pre_260 = 'Each segment, except the last, must be at least '
-            # see https://github.com/openstack/swift/commit/c0866ce
-            msg_260 = ('too small; each segment, except the last, must be '
-                       'at least ')
-            # see https://github.com/openstack/swift/commit/7f636a5
-            msg_post_260 = 'too small; each segment must be at least 1 byte'
-            if msg.startswith(msg_pre_260) or \
-                    msg_260 in msg or msg_post_260 in msg:
+
+            if ENTITY_TOO_SMALL_MSG in msg:
                 # FIXME: AWS S3 allows a smaller object than 5 MB if there is
                 # only one part.  Use a COPY request to copy the part object
                 # from the segments container instead.
