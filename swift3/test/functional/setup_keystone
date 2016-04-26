@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set -e
+
 export OS_AUTH_URL=http://localhost:35357/v2.0
 export OS_TENANT_NAME=admin
 export OS_USERNAME=admin
@@ -75,7 +77,10 @@ _setup_keystone()
 {
     rm -f ${TEST_DIR}/keystone.db 2>&1
 
-    keystone-all --config-file conf/keystone.conf --debug > ${TEST_DIR}/log/keystone.log 2>&1 &
+    local log_file="${LOG_DEST:-${TEST_DIR}/log}/keystone.log"
+    mkdir -p "$(dirname "${log_file}")"
+
+    keystone-all --config-file conf/keystone.conf --debug > "${log_file}" 2>&1 &
     export keystone_pid=$!
 
     keystone-manage --config-file conf/keystone.conf --debug db_sync
@@ -85,3 +90,5 @@ _setup_keystone()
 }
 
 _setup_keystone
+
+set +e
