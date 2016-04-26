@@ -56,11 +56,20 @@ class TestSwift3Service(Swift3FunctionalTestCase):
             self.assertTrue(b.find('Name').text in req_buckets)
             self.assertTrue(b.find('CreationDate') is not None)
 
-    def test_service_error(self):
+    def test_service_error_signature_not_match(self):
         auth_error_conn = Connection(aws_secret_key='invalid')
         status, headers, body = auth_error_conn.make_request('GET')
         self.assertEquals(get_error_code(body), 'SignatureDoesNotMatch')
         self.assertEquals(headers['content-type'], 'application/xml')
+
+    def test_service_error_no_date_header(self):
+        # Without x-amz-date/Date header, that makes 403 forbidden
+        status, headers, body = self.conn.make_request(
+            'GET', headers={'Date': '', 'x-amz-date': ''})
+        self.assertEqual(status, 403)
+        self.assertEqual(get_error_code(body), 'AccessDenied')
+        self.assertIn('AWS authentication requires a valid Date '
+                      'or x-amz-date header', body)
 
 if __name__ == '__main__':
     unittest.main()
