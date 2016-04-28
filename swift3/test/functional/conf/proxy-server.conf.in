@@ -47,7 +47,7 @@ use = egg:swift#gatekeeper
 use = egg:swift#memcache
 
 [filter:s3token]
-paste.filter_factory = keystonemiddleware.s3_token:filter_factory
+use = egg:swift3#s3_token
 auth_host = localhost
 auth_port = 35357
 auth_protocol = http
