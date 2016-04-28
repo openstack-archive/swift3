@@ -69,7 +69,7 @@ Note:
 You also need to add the following if you use keystone (adjust port, host, protocol configurations for your environment):
 
     [filter:s3token]
-    paste.filter_factory = keystonemiddleware.s3_token:filter_factory
+    use = egg:swift3#s3token
     auth_port = 35357
     auth_host = 127.0.0.1
     auth_protocol = http

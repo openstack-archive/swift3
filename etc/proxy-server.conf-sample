@@ -141,7 +141,7 @@ use = egg:swift#memcache
 
 [filter:s3token]
 # See swift manual for more details.
-paste.filter_factory = keystonemiddleware.s3_token:filter_factory
+use = egg:swift3#s3token
 
 # Prefix that will be prepended to the tenant to form the account
 reseller_prefix = AUTH_
