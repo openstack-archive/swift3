@@ -1,2 +1,3 @@
 swift>=2.1.0
 lxml
+requests!=2.9.0,>=2.8.1 # Apache-2.0
