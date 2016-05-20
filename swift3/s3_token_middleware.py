@@ -66,7 +66,12 @@ class S3Token(object):
                 "configuration options was deprecated in the Newton release "
                 "in favor of auth_uri. These options may be removed in a "
                 "future release.")
-            auth_host = conf.get('auth_host')
+            auth_host = conf.get('auth_host', '')
+            if ':' in auth_host and not auth_host.startswith('['):
+                # Note(timburke) it is an IPv6 address, so it needs to be
+                # wrapped with '[]' to generate a valid IPv6 URL, based on
+                # http://www.ietf.org/rfc/rfc2732.txt
+                auth_host = '[%s]' % auth_host
             auth_port = int(conf.get('auth_port', 35357))
             auth_protocol = conf.get('auth_protocol', 'https')
 
