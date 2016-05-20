@@ -57,7 +57,7 @@ If you use keystone:
         pipeline = catch_errors cache swift3 s3token authtoken keystoneauth slo proxy-server
 
 Note:
- * The s3token and authtoken filters require the keystonemiddleware package.
+ * The authtoken filter requires the keystonemiddleware package.
  * Swift3 explicitly checks that keystoneauth is in the pipeline.  You must use this name
    in the pipeline statement and in [filter:keystoneauth] section header.
 
@@ -69,10 +69,8 @@ Note:
 You also need to add the following if you use keystone (adjust port, host, protocol configurations for your environment):
 
     [filter:s3token]
-    paste.filter_factory = keystonemiddleware.s3_token:filter_factory
-    auth_port = 35357
-    auth_host = 127.0.0.1
-    auth_protocol = http
+    use = egg:swift3#s3token
+    auth_uri = http://127.0.0.1:35357/
 
 
 4) Swift3 config options:
