@@ -16,6 +16,7 @@
 import re
 import uuid
 import base64
+import socket
 import time
 
 
@@ -99,6 +100,19 @@ def check_path_header(req, name, length, error_msg):
         raise HTTPPreconditionFailed(
             request=req,
             body=error_msg)
+
+
+def is_valid_ipv6(ip):
+    # FIXME: replace with swift.common.ring.utils is_valid_ipv6
+    #        when swift3 supports swift 2.3 or later
+    """
+    Returns True if the provided ip is a valid IPv6-address
+    """
+    try:
+        socket.inet_pton(socket.AF_INET6, ip)
+    except socket.error:  # not a valid IPv6 address
+        return False
+    return True
 
 
 def validate_bucket_name(name):
