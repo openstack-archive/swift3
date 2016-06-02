@@ -41,6 +41,19 @@ class BucketController(Controller):
         container = req.container_name + MULTIUPLOAD_SUFFIX
         marker = ''
         seg = ''
+
+        try:
+            resp = req.get_response(self.app, 'HEAD')
+            if int(resp.sw_headers['X-Container-Object-Count']) > 0:
+                raise BucketNotEmpty()
+            # FIXME: This extra HEAD saves unexpected segment deletion
+            # but if a complete multipart upload happen while cleanup
+            # segment container below, completed object may be missing its
+            # segments unfortunately. To be safer, it might be good
+            # to handle if the segments can be deleted for each object.
+        except NoSuchBucket:
+            pass
+
         try:
             while True:
                 # delete all segments
@@ -187,9 +200,9 @@ class BucketController(Controller):
         """
         Handle DELETE Bucket request
         """
-        resp = req.get_response(self.app)
         if CONF.allow_multipart_uploads:
             self._delete_segments_bucket(req)
+        resp = req.get_response(self.app)
         return resp
 
     def POST(self, req):

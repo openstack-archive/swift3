@@ -160,12 +160,23 @@ class BucketAclHandler(BaseAclHandler):
     def DELETE(self, app):
         if self.container.endswith(MULTIUPLOAD_SUFFIX):
             # anyways, delete multiupload container doesn't need acls
+            # because it depends on GET segment container result for
+            # cleanup
             pass
         else:
             return self._handle_acl(app, 'DELETE')
 
+    def HEAD(self, app):
+        if self.method == 'DELETE':
+            return self._handle_acl(app, 'DELETE')
+        else:
+            return self._handle_acl(app, 'HEAD')
+
     def GET(self, app):
-        if self.method != 'DELETE':
+        if self.method == 'DELETE' and \
+                self.container.endswith(MULTIUPLOAD_SUFFIX):
+            pass
+        else:
             return self._handle_acl(app, 'GET')
 
     def PUT(self, app):
