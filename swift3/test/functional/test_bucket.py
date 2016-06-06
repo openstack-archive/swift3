@@ -57,6 +57,29 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
             finally:
                 resp.close()
 
+        url = self.conn.generate_url('GET', bucket, expires_in=2 ** 32)
+        if os.environ.get('S3_USE_SIGV4') == 'True':
+            # Fails for same reason as above
+            # resp = requests.get(url)
+            # try:
+            #     # Expiration date is too far in the future
+            #     self.assertEqual(resp.status_code, 400)
+            #     self.assertIn(
+            #         'X-Amz-Expires must be less than 604800 seconds',
+            #         resp.content)
+            # finally:
+            #     resp.close()
+            pass
+        else:
+            resp = requests.get(url)
+            try:
+                # Expiration date is too far in the future
+                self.assertEqual(resp.status_code, 403)
+                self.assertIn('Invalid date (should be seconds since epoch)',
+                              resp.content)
+            finally:
+                resp.close()
+
         # GET Bucket (Without Object)
         status, headers, body = self.conn.make_request('GET', bucket)
         self.assertEquals(status, 200)

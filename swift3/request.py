@@ -46,7 +46,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
     MalformedXML, InvalidRequest, RequestTimeout, InvalidBucketName, \
-    BadDigest, AuthorizationHeaderMalformed
+    BadDigest, AuthorizationHeaderMalformed, AuthorizationQueryParametersError
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.utils import utf8encode, LOGGER, check_path_header, S3Timestamp, \
     mktime
@@ -95,8 +95,6 @@ def _header_acl_property(resource):
 class SigV4Mixin(object):
     """
     A request class mixin to provide S3 signature v4 functionality
-
-    :param req_cls: a Request class (Request or S3AclRequest or child classes)
     """
 
     @property
@@ -139,9 +137,13 @@ class SigV4Mixin(object):
         """
         :param now: a S3Timestamp instance
         """
-        expires = self.params['X-Amz-Expires']
-        if int(self.timestamp) + int(expires) < S3Timestamp.now():
+        expires = int(self.params['X-Amz-Expires'])
+        if expires < 0 or int(self.timestamp) + expires < S3Timestamp.now():
             raise AccessDenied('Request has expired')
+        if expires > 604800:
+            raise AuthorizationQueryParametersError(
+                'X-Amz-Expires must be less than a week (in seconds); that '
+                'is, the given X-Amz-Expires must be less than 604800 seconds')
 
     def _parse_query_authentication(self):
         """
@@ -288,7 +290,7 @@ class SigV4Mixin(object):
 
         # 5. Add signed headers into canonical request like
         # content-type;host;x-amz-date
-        cr.append(';'.join(sorted(n for n in headers_to_sign)))
+        cr.append(';'.join(sorted(headers_to_sign)))
 
         # 6. Add payload string at the tail
         if 'X-Amz-Credential' in self.params:
@@ -505,6 +507,11 @@ class Request(swob.Request):
 
         if S3Timestamp.now() > ex:
             raise AccessDenied('Request has expired')
+
+        if ex >= 2 ** 31:
+            raise AccessDenied(
+                'Invalid date (should be seconds since epoch): %s' %
+                self.params['Expires'])
 
     def _validate_dates(self):
         if self._is_query_auth:
