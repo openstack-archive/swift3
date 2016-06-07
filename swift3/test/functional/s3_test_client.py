@@ -107,6 +107,17 @@ class Connection(object):
                                    retry_handler=None)
         return response.status, dict(response.getheaders()), response.read()
 
+    def generate_url_and_headers(self, method, bucket='', obj='',
+                                 expires_in=3600):
+        url = self.conn.generate_url(expires_in, method, bucket, obj)
+        if os.environ.get('S3_USE_SIGV4') == "True":
+            # V4 signatures are known-broken in boto, but we can work around it
+            if url.startswith('https://'):
+                url = 'http://' + url[8:]
+            return url, {'Host': '%(host)s:%(port)d:%(port)d' % {
+                'host': self.host, 'port': self.port}}
+        return url, {}
+
 
 def get_admin_connection():
     """
