@@ -16,6 +16,8 @@
 import unittest
 import os
 
+import requests
+
 from swift3.test.functional.s3_test_client import Connection
 from swift3.test.functional.utils import get_error_code
 from swift3.etree import fromstring, tostring, Element, SubElement
@@ -43,7 +45,19 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         self.assertEquals(headers['location'], '/' + bucket)
         self.assertEquals(headers['content-length'], '0')
 
-        # GET Bucket(Without Object)
+        # Fails for sigv4 because of doubled-up ports.
+        # submitted https://github.com/boto/boto/pull/3513
+        if os.environ.get('S3_USE_SIGV4') != 'True':
+            # GET Bucket (with pre-signed URL)
+            url = self.conn.generate_url('GET', bucket)
+            resp = requests.get(url)
+            try:
+                self.assertEqual(resp.status_code, 200)
+                resp.content  # Read it all
+            finally:
+                resp.close()
+
+        # GET Bucket (Without Object)
         status, headers, body = self.conn.make_request('GET', bucket)
         self.assertEquals(status, 200)
 
