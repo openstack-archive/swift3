@@ -57,8 +57,10 @@ class S3Token(object):
         self._logger = logging.getLogger(conf.get('log_name', __name__))
         self._logger.debug('Starting the %s component', PROTOCOL_NAME)
         self._reseller_prefix = conf.get('reseller_prefix', 'AUTH_')
-        # where to find the auth service (we use this to validate tokens)
+        self._delay_auth_decision = config_true_value(
+            conf.get('delay_auth_decision'))
 
+        # where to find the auth service (we use this to validate tokens)
         self._request_uri = conf.get('auth_uri')
         if not self._request_uri:
             self._logger.warning(
@@ -153,9 +155,15 @@ class S3Token(object):
         try:
             access, signature = auth_header.split(' ')[-1].rsplit(':', 1)
         except ValueError:
-            msg = 'You have an invalid Authorization header: %s'
-            self._logger.debug(msg, auth_header)
-            return self._deny_request('InvalidURI')(environ, start_response)
+            if self._delay_auth_decision:
+                self._logger.debug('Invalid Authorization header: %s - '
+                                   'deferring reject downstream', auth_header)
+                return self._app(environ, start_response)
+            else:
+                self._logger.debug('Invalid Authorization header: %s - '
+                                   'rejecting request', auth_header)
+                return self._deny_request('InvalidURI')(
+                    environ, start_response)
 
         # NOTE(chmou): This is to handle the special case with nova
         # when we have the option s3_affix_tenant. We will force it to
@@ -191,9 +199,14 @@ class S3Token(object):
             resp = self._json_request(creds_json)
         except ServiceError as e:
             resp = e.args[0]  # NB: swob.Response, not requests.Response
-            msg = 'Received error, exiting middleware with error: %s'
-            self._logger.debug(msg, resp.status_int)
-            return resp(environ, start_response)
+            if self._delay_auth_decision:
+                msg = 'Received error, deferring rejection based on error: %s'
+                self._logger.debug(msg, resp.status)
+                return self._app(environ, start_response)
+            else:
+                msg = 'Received error, rejecting request with error: %s'
+                self._logger.debug(msg, resp.status)
+                return resp(environ, start_response)
 
         self._logger.debug('Keystone Reply: Status: %d, Output: %s',
                            resp.status_code, resp.content)
@@ -203,9 +216,17 @@ class S3Token(object):
             token_id = str(identity_info['access']['token']['id'])
             tenant = identity_info['access']['token']['tenant']
         except (ValueError, KeyError):
-            error = 'Error on keystone reply: %d %s'
-            self._logger.debug(error, resp.status_code, resp.content)
-            return self._deny_request('InvalidURI')(environ, start_response)
+            if self._delay_auth_decision:
+                error = ('Error on keystone reply: %d %s - '
+                         'deferring rejection downstream')
+                self._logger.debug(error, resp.status_code, resp.content)
+                return self._app(environ, start_response)
+            else:
+                error = ('Error on keystone reply: %d %s - '
+                         'rejecting request')
+                self._logger.debug(error, resp.status_code, resp.content)
+                return self._deny_request('InvalidURI')(
+                    environ, start_response)
 
         req.headers['X-Auth-Token'] = token_id
         tenant_to_connect = force_tenant or tenant['id']
