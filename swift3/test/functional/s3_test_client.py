@@ -107,6 +107,12 @@ class Connection(object):
                                    retry_handler=None)
         return response.status, dict(response.getheaders()), response.read()
 
+    def generate_url(self, method, bucket='', obj='', expires_in=3600):
+        if os.environ.get('S3_USE_SIGV4') == "True":
+            raise RuntimeError('v4 presigned URLs are known-broken in boto')
+
+        return self.conn.generate_url(expires_in, method, bucket, obj)
+
 
 def get_admin_connection():
     """
