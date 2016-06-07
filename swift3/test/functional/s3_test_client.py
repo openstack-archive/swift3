@@ -107,6 +107,22 @@ class Connection(object):
                                    retry_handler=None)
         return response.status, dict(response.getheaders()), response.read()
 
+    def generate_url(self, method, bucket='', obj='', expires_in=3600):
+        if os.environ.get('S3_USE_SIGV4') == "True":
+            url = self.conn.generate_url_sigv4(expires_in, method, bucket, obj)
+            if url.startswith('https:'):
+                # For some reason, is_secure isn't respected.
+                # Submitted https://github.com/boto/boto/pull/3553
+                url = 'http:' + url[6:]
+        else:
+            url = self.conn.generate_url(expires_in, method, bucket, obj)
+            # boto's sigv2 doesn't include a port in the url
+            bad_start = 'http://localhost/'
+            if url.startswith(bad_start):
+                url = 'http://localhost:8080/' + url[len(bad_start):]
+
+        return url
+
 
 def get_admin_connection():
     """

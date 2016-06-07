@@ -452,8 +452,9 @@ class Request(swob.Request):
         try:
             access = self.params['AWSAccessKeyId']
             expires = self.params['Expires']
-            # TODO: can we remove this logic here?
-            # self.headers['Date'] = expires
+            # NOTE: this looks weird, but ensures that the expiration
+            # will appear in the correct place in the StringToSign
+            self.headers['Date'] = expires
             sig = self.params['Signature']
         except KeyError:
             raise AccessDenied()
