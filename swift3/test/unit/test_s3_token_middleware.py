@@ -255,6 +255,48 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         self.assertEqual('Either auth_uri or auth_host required',
                          cm.exception.message)
 
+    @mock.patch.object(requests, 'post')
+    def test_http_timeout(self, MOCK_REQUEST):
+        self.middleware = s3_token.filter_factory({
+            'http_timeout': '2',
+            'auth_uri': 'http://example.com',
+        })(FakeApp())
+
+        MOCK_REQUEST.return_value = TestResponse({
+            'status_code': 201,
+            'text': json.dumps(GOOD_RESPONSE)})
+
+        req = Request.blank('/v1/AUTH_cfa/c/o')
+        req.headers['Authorization'] = 'AWS access:signature'
+        req.headers['X-Storage-Token'] = 'token'
+        req.get_response(self.middleware)
+
+        self.assertTrue(MOCK_REQUEST.called)
+        mock_args, mock_kwargs = MOCK_REQUEST.call_args
+        self.assertEqual(mock_kwargs['timeout'], 2)
+
+    def test_http_timeout_option(self):
+        good_values = ['1', '5.3', '10']
+        for val in good_values:
+            middleware = s3_token.filter_factory({
+                'http_timeout': val,
+                'auth_uri': 'http://example.com',
+            })(FakeApp())
+            self.assertEqual(float(val), middleware._timeout)
+
+        bad_values = ['1, 4', '-3', '100', 'foo']
+        for val in bad_values:
+            with self.assertRaises(ValueError):
+                s3_token.filter_factory({
+                    'http_timeout': val,
+                    'auth_uri': 'http://example.com',
+                })(FakeApp())
+
+        # default is 10 seconds
+        middleware = s3_token.filter_factory({
+            'auth_uri': 'http://example.com'})(FakeApp())
+        self.assertEqual(10, middleware._timeout)
+
     def test_unicode_path(self):
         url = u'/v1/AUTH_cfa/c/euro\u20ac'.encode('utf8')
         req = Request.blank(urllib.parse.quote(url))
