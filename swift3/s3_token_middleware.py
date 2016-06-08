@@ -56,6 +56,9 @@ class S3Token(object):
         self._app = app
         self._logger = logging.getLogger(conf.get('log_name', __name__))
         self._logger.debug('Starting the %s component', PROTOCOL_NAME)
+        self._timeout = float(conf.get('http_timeout', '10'))
+        if not (0 <= self._timeout <= 60):
+            raise ValueError('http_timeout must be between 0 and 60 seconds')
         self._reseller_prefix = conf.get('reseller_prefix', 'AUTH_')
         # where to find the auth service (we use this to validate tokens)
 
@@ -109,7 +112,8 @@ class S3Token(object):
         try:
             response = requests.post('%s/v2.0/s3tokens' % self._request_uri,
                                      headers=headers, data=creds_json,
-                                     verify=self._verify)
+                                     verify=self._verify,
+                                     timeout=self._timeout)
         except requests.exceptions.RequestException as e:
             self._logger.info('HTTP connection exception: %s', e)
             resp = self._deny_request('InvalidURI')
