@@ -149,6 +149,9 @@ reseller_prefix = AUTH_
 # Keystone server details
 auth_uri = http://keystonehost:35357/
 
+# Connect/read timeout to use when communicating with Keystone
+http_timeout = 10.0
+
 # SSL-related options
 #insecure = False
 #certfile =
