@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from urllib import quote
+from swift.common.utils import public
 
 from swift3.controllers.base import Controller
 from swift3.response import HTTPOk
@@ -31,19 +32,21 @@ class S3AclController(Controller):
 
     Those APIs are logged as ACL operations in the S3 server log.
     """
+    @public
     def GET(self, req):
         """
         Handles GET Bucket acl and GET Object acl.
         """
         resp = req.get_response(self.app)
-        acl = getattr(resp, '%s_acl' %
-                      ('object' if req.is_object_request else 'bucket'))
+
+        acl = resp.object_acl if req.is_object_request else resp.bucket_acl
 
         resp = HTTPOk()
         resp.body = tostring(acl.elem())
 
         return resp
 
+    @public
     def PUT(self, req):
         """
         Handles PUT Bucket acl and PUT Object acl.

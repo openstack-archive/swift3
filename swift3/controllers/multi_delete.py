@@ -15,6 +15,8 @@
 
 import sys
 
+from swift.common.utils import public
+
 from swift3.controllers.base import Controller, bucket_operation
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
@@ -44,6 +46,7 @@ class MultiObjectDeleteController(Controller):
 
         return tostring(elem)
 
+    @public
     @bucket_operation
     def POST(self, req):
         """

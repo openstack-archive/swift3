@@ -100,7 +100,11 @@ class Swift3Middleware(object):
 
         controller = req.controller(self.app)
         if hasattr(controller, req.method):
-            res = getattr(controller, req.method)(req)
+            handler = getattr(controller, req.method)
+            if not getattr(handler, 'publicly_accessible', False):
+                raise MethodNotAllowed(req.method,
+                                       req.controller.resource_type())
+            res = handler(req)
         else:
             raise MethodNotAllowed(req.method,
                                    req.controller.resource_type())
