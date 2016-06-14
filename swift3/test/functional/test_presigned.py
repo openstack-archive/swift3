@@ -90,6 +90,18 @@ class TestSwift3PresignedUrls(Swift3FunctionalTestCase):
         resp = requests.delete(url)
         self.assertEqual(resp.status_code, 204)
 
+    def test_expiration(self):
+        bucket = 'test-bucket'
+
+        # Expiration date is too far in the future
+        url = self.conn.generate_url('GET', bucket, expires_in=2 ** 32)
+        resp = requests.get(url)
+        self.assertEqual(resp.status_code, 403)
+        self.assertEquals(get_error_code(resp.content),
+                          'AccessDenied')
+        self.assertIn('Invalid date (should be seconds since epoch)',
+                      get_error_message(resp.content))
+
     def test_object(self):
         bucket = 'test-bucket'
         obj = 'object'
