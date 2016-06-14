@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from swift.common.utils import public
+
 from swift3.controllers.base import Controller, bucket_operation
 from swift3.etree import Element, tostring
 from swift3.response import HTTPOk, S3NotImplemented
@@ -27,6 +29,7 @@ class VersioningController(Controller):
 
     Those APIs are logged as VERSIONING operations in the S3 server log.
     """
+    @public
     @bucket_operation
     def GET(self, req):
         """
@@ -40,6 +43,7 @@ class VersioningController(Controller):
 
         return HTTPOk(body=body, content_type="text/plain")
 
+    @public
     @bucket_operation
     def PUT(self, req):
         """

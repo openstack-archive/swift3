@@ -59,6 +59,15 @@ class TestSwift3Middleware(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEquals(self._get_error_code(body), 'MethodNotAllowed')
 
+    def test_bad_method_but_method_exists_in_controller(self):
+        req = Request.blank(
+            '/bucket',
+            environ={'REQUEST_METHOD': '_delete_segments_bucket'},
+            headers={'Authorization': 'AWS test:tester:hmac',
+                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        self.assertEquals(self._get_error_code(body), 'MethodNotAllowed')
+
     def test_path_info_encode(self):
         bucket_name = 'b%75cket'
         object_name = 'ob%6aect:1'

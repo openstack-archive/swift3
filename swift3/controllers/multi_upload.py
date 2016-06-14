@@ -47,7 +47,7 @@ import re
 import sys
 
 from swift.common.swob import Range
-from swift.common.utils import json
+from swift.common.utils import json, public
 from swift.common.db import utf8encode
 
 from six.moves.urllib.parse import urlparse  # pylint: disable=F0401
@@ -95,6 +95,7 @@ class PartController(Controller):
 
     Those APIs are logged as PART operations in the S3 server log.
     """
+    @public
     @object_operation
     @check_container_existence
     def PUT(self, req):
@@ -171,6 +172,7 @@ class UploadsController(Controller):
 
     Those APIs are logged as UPLOADS operations in the S3 server log.
     """
+    @public
     @bucket_operation(err_resp=InvalidRequest,
                       err_msg="Key is not expected for the GET method "
                               "?uploads subresource")
@@ -319,6 +321,7 @@ class UploadsController(Controller):
 
         return HTTPOk(body=body, content_type='application/xml')
 
+    @public
     @object_operation
     @check_container_existence
     def POST(self, req):
@@ -359,6 +362,7 @@ class UploadController(Controller):
 
     Those APIs are logged as UPLOAD operations in the S3 server log.
     """
+    @public
     @object_operation
     @check_container_existence
     def GET(self, req):
@@ -453,6 +457,7 @@ class UploadController(Controller):
 
         return HTTPOk(body=body, content_type='application/xml')
 
+    @public
     @object_operation
     @check_container_existence
     def DELETE(self, req):
@@ -489,6 +494,7 @@ class UploadController(Controller):
 
         return HTTPNoContent()
 
+    @public
     @object_operation
     @check_container_existence
     def POST(self, req):

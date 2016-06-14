@@ -15,6 +15,7 @@
 
 from swift.common.http import HTTP_OK
 from swift.common.middleware.acl import parse_acl, referrer_allowed
+from swift.common.utils import public
 
 from swift3.exception import ACLError
 from swift3.controllers.base import Controller
@@ -82,6 +83,7 @@ class AclController(Controller):
 
     Those APIs are logged as ACL operations in the S3 server log.
     """
+    @public
     def GET(self, req):
         """
         Handles GET Bucket acl and GET Object acl.
@@ -90,6 +92,7 @@ class AclController(Controller):
 
         return get_acl(req.user_id, resp.headers)
 
+    @public
     def PUT(self, req):
         """
         Handles PUT Bucket acl and PUT Object acl.

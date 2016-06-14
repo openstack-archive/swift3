@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from swift.common.utils import public
+
 from swift3.controllers.base import Controller, bucket_operation
 from swift3.etree import Element, tostring
 from swift3.response import HTTPOk, S3NotImplemented, NoLoggingStatusForKey
@@ -27,6 +29,7 @@ class LoggingStatusController(Controller):
 
     Those APIs are logged as LOGGING_STATUS operations in the S3 server log.
     """
+    @public
     @bucket_operation(err_resp=NoLoggingStatusForKey)
     def GET(self, req):
         """
@@ -40,6 +43,7 @@ class LoggingStatusController(Controller):
 
         return HTTPOk(body=body, content_type='application/xml')
 
+    @public
     @bucket_operation(err_resp=NoLoggingStatusForKey)
     def PUT(self, req):
         """

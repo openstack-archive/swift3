@@ -17,6 +17,7 @@ import sys
 
 from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT, HTTP_NO_CONTENT
 from swift.common.swob import Range, content_range_header_value
+from swift.common.utils import public
 
 from swift3.utils import S3Timestamp
 from swift3.controllers.base import Controller
@@ -75,6 +76,7 @@ class ObjectController(Controller):
 
         return resp
 
+    @public
     def HEAD(self, req):
         """
         Handle HEAD Object request
@@ -87,12 +89,14 @@ class ObjectController(Controller):
 
         return resp
 
+    @public
     def GET(self, req):
         """
         Handle GET Object request
         """
         return self.GETorHEAD(req)
 
+    @public
     def PUT(self, req):
         """
         Handle PUT Object and PUT Object (Copy) request
@@ -120,9 +124,11 @@ class ObjectController(Controller):
         resp.status = HTTP_OK
         return resp
 
+    @public
     def POST(self, req):
         raise S3NotImplemented()
 
+    @public
     def DELETE(self, req):
         """
         Handle DELETE Object request

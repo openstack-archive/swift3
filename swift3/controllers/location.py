@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from swift.common.utils import public
+
 from swift3.controllers.base import Controller, bucket_operation
 from swift3.etree import Element, tostring
 from swift3.response import HTTPOk
@@ -24,6 +26,7 @@ class LocationController(Controller):
     Handles GET Bucket location, which is logged as a LOCATION operation in the
     S3 server log.
     """
+    @public
     @bucket_operation
     def GET(self, req):
         """

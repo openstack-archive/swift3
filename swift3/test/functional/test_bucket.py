@@ -314,6 +314,16 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         status, headers, body = self.conn.make_request('DELETE', 'bucket')
         self.assertEquals(get_error_code(body), 'NoSuchBucket')
 
+    def test_bucket_invalid_method_error(self):
+        # non existed verb in the controller
+        status, headers, body = \
+            self.conn.make_request('GETPUT', 'bucket')
+        self.assertEquals(get_error_code(body), 'MethodNotAllowed')
+        # the method exists in the controller but deny as MethodNotAllowed
+        status, headers, body = \
+            self.conn.make_request('_delete_segments_bucket', 'bucket')
+        self.assertEquals(get_error_code(body), 'MethodNotAllowed')
+
 
 @unittest.skipIf(os.environ['AUTH'] == 'tempauth',
                  'v4 is supported only in keystone')

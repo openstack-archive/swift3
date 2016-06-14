@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from swift.common.utils import json
+from swift.common.utils import json, public
 
 from swift3.controllers.base import Controller
 from swift3.etree import Element, SubElement, tostring
@@ -26,6 +26,7 @@ class ServiceController(Controller):
     """
     Handles account level requests.
     """
+    @public
     def GET(self, req):
         """
         Handle GET Service request

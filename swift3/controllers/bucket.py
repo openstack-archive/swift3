@@ -16,7 +16,7 @@
 import sys
 
 from swift.common.http import HTTP_OK
-from swift.common.utils import json
+from swift.common.utils import json, public
 
 from swift3.controllers.base import Controller
 from swift3.etree import Element, SubElement, tostring, fromstring, \
@@ -79,6 +79,7 @@ class BucketController(Controller):
         except (BucketNotEmpty, InternalError):
             raise ServiceUnavailable()
 
+    @public
     def HEAD(self, req):
         """
         Handle HEAD Bucket (Get Metadata) request
@@ -87,6 +88,7 @@ class BucketController(Controller):
 
         return HTTPOk(headers=resp.headers)
 
+    @public
     def GET(self, req):
         """
         Handle GET Bucket (List Objects) request
@@ -168,6 +170,7 @@ class BucketController(Controller):
 
         return HTTPOk(body=body, content_type='application/xml')
 
+    @public
     def PUT(self, req):
         """
         Handle PUT Bucket request
@@ -196,6 +199,7 @@ class BucketController(Controller):
 
         return resp
 
+    @public
     def DELETE(self, req):
         """
         Handle DELETE Bucket request
@@ -205,6 +209,7 @@ class BucketController(Controller):
         resp = req.get_response(self.app)
         return resp
 
+    @public
     def POST(self, req):
         """
         Handle POST Bucket request
