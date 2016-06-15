@@ -19,8 +19,8 @@ from hashlib import sha256
 import md5
 import re
 import six
+from six.moves.urllib.parse import quote, unquote, parse_qsl
 import string
-from urllib import quote, unquote
 
 from swift.common.utils import split_path
 from swift.common import swob
@@ -646,13 +646,30 @@ class Request(swob.Request):
 
         :returns: the source HEAD response
         """
-        if 'X-Amz-Copy-Source' not in self.headers:
+        try:
+            src_path = self.headers['X-Amz-Copy-Source']
+        except KeyError:
             return None
 
-        src_path = unquote(self.headers['X-Amz-Copy-Source'])
-        src_path = src_path if src_path.startswith('/') else \
-            ('/' + src_path)
+        if '?' in src_path:
+            src_path, qs = src_path.split('?', 1)
+            query = parse_qsl(qs, True)
+            if not query:
+                pass  # ignore it
+            elif len(query) > 1 or query[0][0] != 'versionId':
+                raise InvalidArgument('X-Amz-Copy-Source',
+                                      self.headers['X-Amz-Copy-Source'],
+                                      'Unsupported copy source parameter.')
+            elif query[0][1] != 'null':
+                # TODO: once we support versioning, we'll need to translate
+                # src_path to the proper location in the versions container
+                raise S3NotImplemented('Versioning is not yet supported')
+            self.headers['X-Amz-Copy-Source'] = src_path
+
+        src_path = unquote(src_path)
+        src_path = src_path if src_path.startswith('/') else ('/' + src_path)
         src_bucket, src_obj = split_path(src_path, 0, 2, True)
+
         headers = swob.HeaderKeyDict()
         headers.update(self._copy_source_headers())
 
