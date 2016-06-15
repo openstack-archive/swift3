@@ -395,6 +395,28 @@ class TestSwift3Obj(Swift3TestCase):
         code = self._test_method_error(
             'PUT', '/bucket/object',
             swob.HTTPCreated,
+            {'X-Amz-Copy-Source': '/bucket/src_obj?foo=bar'})
+        self.assertEquals(code, 'InvalidArgument')
+        # adding other query paramerters will cause an error
+        code = self._test_method_error(
+            'PUT', '/bucket/object',
+            swob.HTTPCreated,
+            {'X-Amz-Copy-Source': '/bucket/src_obj?versionId=foo&bar=baz'})
+        self.assertEquals(code, 'InvalidArgument')
+        # ...even versionId appears in the last
+        code = self._test_method_error(
+            'PUT', '/bucket/object',
+            swob.HTTPCreated,
+            {'X-Amz-Copy-Source': '/bucket/src_obj?bar=baz&versionId=foo'})
+        self.assertEquals(code, 'InvalidArgument')
+        code = self._test_method_error(
+            'PUT', '/bucket/object',
+            swob.HTTPCreated,
+            {'X-Amz-Copy-Source': '/bucket/src_obj?versionId=foo'})
+        self.assertEquals(code, 'NotImplemented')
+        code = self._test_method_error(
+            'PUT', '/bucket/object',
+            swob.HTTPCreated,
             {'X-Amz-Copy-Source': '/src_bucket/src_object',
              'X-Amz-Copy-Source-Range': 'bytes=0-0'})
         self.assertEquals(code, 'InvalidArgument')
@@ -516,6 +538,26 @@ class TestSwift3Obj(Swift3TestCase):
         status, headers, body = self._test_object_PUT_copy(
             swob.HTTPOk, put_header={'Date': date_header},
             timestamp=timestamp)
+        self.assertEquals(status.split()[0], '200')
+        self.assertEquals(headers['Content-Type'], 'application/xml')
+        self.assertTrue(headers.get('etag') is None)
+        self.assertTrue(headers.get('x-amz-meta-something') is None)
+        elem = fromstring(body, 'CopyObjectResult')
+        self.assertEquals(elem.find('LastModified').text, last_modified)
+        self.assertEquals(elem.find('ETag').text, '"%s"' % self.etag)
+
+        _, _, headers = self.swift.calls_with_headers[-1]
+        self.assertEquals(headers['X-Copy-From'], '/some/source')
+        self.assertEquals(headers['Content-Length'], '0')
+
+    @s3acl
+    def test_object_PUT_copy_null_version(self):
+        date_header = self.get_date_header()
+        timestamp = mktime(date_header)
+        last_modified = S3Timestamp(timestamp).s3xmlformat
+        status, headers, body = self._test_object_PUT_copy(
+            swob.HTTPOk, src_path='/some/source?versionId=null',
+            put_header={'Date': date_header}, timestamp=timestamp)
         self.assertEquals(status.split()[0], '200')
         self.assertEquals(headers['Content-Type'], 'application/xml')
         self.assertTrue(headers.get('etag') is None)
