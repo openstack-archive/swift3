@@ -13,19 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
-import uuid
 import base64
+import calendar
+import email.utils
+import re
 import socket
 import time
+from urllib import unquote
+import uuid
 
 from swift.common.utils import get_logger
-import email.utils
 
 # Need for check_path_header
 from swift.common import utils
 from swift.common.swob import HTTPPreconditionFailed
-from urllib import unquote
 
 from swift3.cfg import CONF
 
@@ -186,14 +187,17 @@ def mktime(timestamp_str, time_format='%Y-%m-%dT%H:%M:%S'):
     :param time_format: a string of format to parse in (b) process
     :return : a float instance in epoch time
     """
-    try:
-        epoch_time = email.utils.mktime_tz(
-            email.utils.parsedate_tz(timestamp_str))
-    except TypeError:
+    time_tuple = email.utils.parsedate_tz(timestamp_str)
+    if time_tuple is None:
         time_tuple = time.strptime(timestamp_str, time_format)
-
         # add timezone info as utc (no time difference)
         time_tuple += (0, )
-        epoch_time = email.utils.mktime_tz(time_tuple)
+
+    # Yes, email.utils has a mktime_tz function. Prior to Python 2.7.4,
+    # however, it would first convert to local time then adjust for the
+    # timezone (see http://bugs.python.org/issue14653). This would cause
+    # issues on some platforms if the system timezone was not UTC, so
+    # inline the fix.
+    epoch_time = calendar.timegm(time_tuple) - time_tuple[9]
 
     return epoch_time
