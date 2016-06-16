@@ -13,10 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import time
 import unittest
 import mock
 
-from swift3 import utils
+from swift3 import utils, request
 
 strs = [
     ('Owner', 'owner'),
@@ -97,6 +99,38 @@ class TestSwift3Utils(unittest.TestCase):
         ts = utils.S3Timestamp(1.9)
         self.assertEqual(expected, ts.s3xmlformat)
 
+    def test_mktime(self):
+        date_headers = [
+            'Thu, 01 Jan 1970 00:00:00 -0000',
+            'Thu, 01 Jan 1970 00:00:00 GMT',
+            'Thu, 01 Jan 1970 00:00:00 UTC',
+            'Thu, 01 Jan 1970 08:00:00 +0800',
+            'Wed, 31 Dec 1969 16:00:00 -0800',
+            'Wed, 31 Dec 1969 16:00:00 PST',
+        ]
+        for header in date_headers:
+            ts = utils.mktime(header)
+            self.assertEqual(0, ts, 'Got %r for header %s' % (ts, header))
+
+        # Last-Modified response style
+        self.assertEqual(0, utils.mktime('1970-01-01T00:00:00'))
+
+        # X-Amz-Date style
+        self.assertEqual(0, utils.mktime('19700101T000000Z',
+                                         request.SIGV4_X_AMZ_DATE_FORMAT))
+
+    def test_mktime_weird_tz(self):
+        orig_tz = os.environ.get('TZ', '')
+        try:
+            os.environ['TZ'] = 'EST+05EDT,M4.1.0,M10.5.0'
+            time.tzset()
+            os.environ['TZ'] = '+0000'
+            # No tzset! Simulating what Swift would do.
+            self.assertNotEqual(0, time.timezone)
+            self.test_mktime()
+        finally:
+            os.environ['TZ'] = orig_tz
+            time.tzset()
 
 if __name__ == '__main__':
     unittest.main()
