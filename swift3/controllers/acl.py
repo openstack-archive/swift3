@@ -20,7 +20,7 @@ from swift.common.utils import public
 from swift3.exception import ACLError
 from swift3.controllers.base import Controller
 from swift3.response import HTTPOk, S3NotImplemented, MalformedACLError, \
-    UnexpectedContent
+    UnexpectedContent, MissingSecurityHeader
 from swift3.etree import Element, SubElement, tostring
 from swift3.acl_utils import swift_acl_translate, XMLNS_XSI
 
@@ -106,6 +106,8 @@ class AclController(Controller):
             if 'HTTP_X_AMZ_ACL' in req.environ and xml:
                 # S3 doesn't allow to give ACL with both ACL header and body.
                 raise UnexpectedContent()
+            elif 'HTTP_X_AMZ_ACL' not in req.environ and not xml:
+                raise MissingSecurityHeader(missing_header_name='x-amz-acl')
             elif xml and 'HTTP_X_AMZ_ACL' not in req.environ:
                 # We very likely have an XML-based ACL request.
                 try:

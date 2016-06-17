@@ -14,10 +14,11 @@
 # limitations under the License.
 
 import base64
+from hashlib import md5
+from mock import patch
 import os
 import time
 import unittest
-from mock import patch
 from urllib import quote
 
 from swift.common import swob
@@ -25,6 +26,7 @@ from swift.common.swob import Request
 from swift.common.utils import json
 
 from swift3.test.unit import Swift3TestCase
+from swift3.test.unit.helpers import UnreadableInput
 from swift3.etree import fromstring, tostring
 from swift3.subresource import Owner, Grant, User, ACL, encode_acl, \
     decode_acl, ACLPublicRead
@@ -1608,6 +1610,39 @@ class TestSwift3MultiUpload(Swift3TestCase):
         put_headers = self.swift.calls_with_headers[-1][2]
         self.assertEqual('bytes=0-9', put_headers['Range'])
         self.assertEqual('/src_bucket/src_obj', put_headers['X-Copy-From'])
+
+    def _test_no_body(self, use_content_length=False,
+                      use_transfer_encoding=False, string_to_md5=''):
+        content_md5 = md5(string_to_md5).digest().encode('base64').strip()
+        with UnreadableInput(self) as fake_input:
+            req = Request.blank(
+                '/bucket/object?uploadId=X',
+                environ={
+                    'REQUEST_METHOD': 'POST',
+                    'wsgi.input': fake_input},
+                headers={
+                    'Authorization': 'AWS test:tester:hmac',
+                    'Date': self.get_date_header(),
+                    'Content-MD5': content_md5},
+                body='')
+            if not use_content_length:
+                req.environ.pop('CONTENT_LENGTH')
+            if use_transfer_encoding:
+                req.environ['HTTP_TRANSFER_ENCODING'] = 'chunked'
+            status, headers, body = self.call_swift3(req)
+        self.assertEqual(status, '400 Bad Request')
+        self.assertEqual(self._get_error_code(body), 'InvalidRequest')
+        self.assertEqual(self._get_error_message(body),
+                         'You must specify at least one part')
+
+    @s3acl
+    def test_object_multi_upload_empty_body(self):
+        self._test_no_body()
+        self._test_no_body(string_to_md5='test')
+        self._test_no_body(use_content_length=True)
+        self._test_no_body(use_content_length=True, string_to_md5='test')
+        self._test_no_body(use_transfer_encoding=True)
+        self._test_no_body(use_transfer_encoding=True, string_to_md5='test')
 
 
 class TestSwift3MultiUploadNonUTC(TestSwift3MultiUpload):
