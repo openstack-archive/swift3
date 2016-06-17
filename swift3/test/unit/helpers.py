@@ -150,3 +150,26 @@ class FakeSwift(object):
                     headers.update({key: value})
 
         self._responses[(method, path)] = (response_class, headers, body)
+
+
+class UnreadableInput(object):
+    # Some clients will send neither a Content-Length nor a Transfer-Encoding
+    # header, which will cause (some versions of?) eventlet to bomb out on
+    # reads. This class helps us simulate that behavior.
+    def __init__(self, test_case):
+        self.calls = 0
+        self.test_case = test_case
+
+    def read(self, *a, **kw):
+        self.calls += 1
+        # Calling wsgi.input.read with neither a Content-Length nor
+        # a Transfer-Encoding header will raise TypeError (See
+        # https://bugs.launchpad.net/swift3/+bug/1593870 in detail)
+        # This unreadable class emulates the behavior
+        raise TypeError
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.test_case.assertEqual(0, self.calls)
