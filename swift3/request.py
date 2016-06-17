@@ -682,7 +682,7 @@ class Request(swob.Request):
         """
         raise AttributeError("No attribute 'body'")
 
-    def xml(self, max_length, check_md5=False):
+    def xml(self, max_length):
         """
         Similar to swob.Request.body, but it checks the content length before
         creating a body string.
@@ -697,11 +697,13 @@ class Request(swob.Request):
         if self.message_length() > max_length:
             raise MalformedXML()
 
-        # Limit the read similar to how SLO handles manifests
-        body = self.body_file.read(max_length)
-
-        if check_md5:
-            self.check_md5(body)
+        if te or self.message_length():
+            # Limit the read similar to how SLO handles manifests
+            body = self.body_file.read(max_length)
+        else:
+            # No (or zero) Content-Length provided, and not chunked transfer;
+            # no body. Assume zero-length, and enforce a required body below.
+            return None
 
         return body
 

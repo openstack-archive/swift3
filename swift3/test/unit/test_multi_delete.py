@@ -22,6 +22,7 @@ from swift.common import swob
 from swift.common.swob import Request
 
 from swift3.test.unit import Swift3TestCase
+from swift3.test.unit.helpers import UnreadableInput
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.cfg import CONF
 from swift3.test.unit.test_s3_acl import s3acl
@@ -77,11 +78,10 @@ class TestSwift3MultiDelete(Swift3TestCase):
         req = Request.blank('/bucket?delete',
                             environ={'REQUEST_METHOD': 'POST'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Content-Type': 'multipart/form-data',
                                      'Date': self.get_date_header(),
                                      'Content-MD5': content_md5},
                             body=body)
-        req.date = datetime.now()
-        req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
         self.assertEqual(status.split()[0], '200')
 
@@ -248,6 +248,37 @@ class TestSwift3MultiDelete(Swift3TestCase):
         self.assertEqual(status.split()[0], '200')
         elem = fromstring(body)
         self.assertEqual(len(elem.findall('Deleted')), len(self.keys))
+
+    def _test_no_body(self, use_content_length=False,
+                      use_transfer_encoding=False, string_to_md5=''):
+        content_md5 = md5(string_to_md5).digest().encode('base64').strip()
+        with UnreadableInput(self) as fake_input:
+            req = Request.blank(
+                '/bucket?delete',
+                environ={
+                    'REQUEST_METHOD': 'POST',
+                    'wsgi.input': fake_input},
+                headers={
+                    'Authorization': 'AWS test:tester:hmac',
+                    'Date': self.get_date_header(),
+                    'Content-MD5': content_md5},
+                body='')
+            if not use_content_length:
+                req.environ.pop('CONTENT_LENGTH')
+            if use_transfer_encoding:
+                req.environ['HTTP_TRANSFER_ENCODING'] = 'chunked'
+            status, headers, body = self.call_swift3(req)
+        self.assertEqual(status, '400 Bad Request')
+        self.assertEqual(self._get_error_code(body), 'MissingRequestBodyError')
+
+    @s3acl
+    def test_object_multi_DELETE_empty_body(self):
+        self._test_no_body()
+        self._test_no_body(string_to_md5='test')
+        self._test_no_body(use_content_length=True)
+        self._test_no_body(use_content_length=True, string_to_md5='test')
+        self._test_no_body(use_transfer_encoding=True)
+        self._test_no_body(use_transfer_encoding=True, string_to_md5='test')
 
 if __name__ == '__main__':
     unittest.main()
