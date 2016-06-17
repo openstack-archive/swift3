@@ -533,6 +533,9 @@ class UploadController(Controller):
         previous_number = 0
         try:
             xml = req.xml(MAX_COMPLETE_UPLOAD_BODY_SIZE)
+            if not xml:
+                raise InvalidRequest(msg='You must specify at least one part')
+
             complete_elem = fromstring(xml, 'CompleteMultipartUpload')
             for part_elem in complete_elem.iterchildren('Part'):
                 part_number = int(part_elem.find('./PartNumber').text)
