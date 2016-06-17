@@ -15,10 +15,12 @@
 
 import unittest
 from cStringIO import StringIO
+from hashlib import md5
 
 from swift.common.swob import Request, HTTPAccepted
 
 from swift3.test.unit import Swift3TestCase
+from swift3.test.unit.helpers import UnreadableInput
 from swift3.etree import fromstring, tostring, Element, SubElement, XMLNS_XSI
 from swift3.test.unit.test_s3_acl import s3acl
 import mock
@@ -124,6 +126,40 @@ class TestSwift3Acl(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEqual(self._get_error_code(body),
                          'UnexpectedContent')
+
+    def _test_put_no_body(self, use_content_length=False,
+                          use_transfer_encoding=False, string_to_md5=''):
+        content_md5 = md5(string_to_md5).digest().encode('base64').strip()
+        with UnreadableInput(self) as fake_input:
+            req = Request.blank(
+                '/bucket?acl',
+                environ={
+                    'REQUEST_METHOD': 'PUT',
+                    'wsgi.input': fake_input},
+                headers={
+                    'Authorization': 'AWS test:tester:hmac',
+                    'Date': self.get_date_header(),
+                    'Content-MD5': content_md5},
+                body='')
+            if not use_content_length:
+                req.environ.pop('CONTENT_LENGTH')
+            if use_transfer_encoding:
+                req.environ['HTTP_TRANSFER_ENCODING'] = 'chunked'
+            status, headers, body = self.call_swift3(req)
+        self.assertEqual(status, '400 Bad Request')
+        self.assertEqual(self._get_error_code(body), 'MissingSecurityHeader')
+        self.assertEqual(self._get_error_message(body),
+                         'Your request was missing a required header.')
+        self.assertIn('<MissingHeaderName>x-amz-acl</MissingHeaderName>', body)
+
+    @s3acl
+    def test_bucket_fails_with_neither_acl_header_nor_xml_PUT(self):
+        self._test_put_no_body()
+        self._test_put_no_body(string_to_md5='test')
+        self._test_put_no_body(use_content_length=True)
+        self._test_put_no_body(use_content_length=True, string_to_md5='test')
+        self._test_put_no_body(use_transfer_encoding=True)
+        self._test_put_no_body(use_transfer_encoding=True, string_to_md5='zz')
 
     def test_object_acl_GET(self):
         req = Request.blank('/bucket/object?acl',

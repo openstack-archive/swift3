@@ -20,7 +20,7 @@ from swift.common.utils import public
 from swift3.exception import ACLError
 from swift3.controllers.base import Controller
 from swift3.response import HTTPOk, S3NotImplemented, MalformedACLError, \
-    UnexpectedContent
+    UnexpectedContent, MissingSecurityHeader
 from swift3.etree import Element, SubElement, tostring
 from swift3.acl_utils import swift_acl_translate, XMLNS_XSI
 
@@ -103,18 +103,24 @@ class AclController(Controller):
         else:
             # Handle Bucket ACL
             xml = req.xml(MAX_ACL_BODY_SIZE)
-            if 'HTTP_X_AMZ_ACL' in req.environ and xml:
+            if all(['HTTP_X_AMZ_ACL' in req.environ, xml]):
                 # S3 doesn't allow to give ACL with both ACL header and body.
                 raise UnexpectedContent()
-            elif xml and 'HTTP_X_AMZ_ACL' not in req.environ:
-                # We very likely have an XML-based ACL request.
-                try:
-                    translated_acl = swift_acl_translate(xml, xml=True)
-                except ACLError:
-                    raise MalformedACLError()
+            elif not any(['HTTP_X_AMZ_ACL' in req.environ, xml]):
+                # Both canned ACL header and xml body are missing
+                raise MissingSecurityHeader(missing_header_name='x-amz-acl')
+            else:
+                # correct ACL exists in the request
+                if xml:
+                    # We very likely have an XML-based ACL request.
+                    # let's try to translate to the request header
+                    try:
+                        translated_acl = swift_acl_translate(xml, xml=True)
+                    except ACLError:
+                        raise MalformedACLError()
 
-                for header, acl in translated_acl:
-                    req.headers[header] = acl
+                    for header, acl in translated_acl:
+                        req.headers[header] = acl
 
             resp = req.get_response(self.app, 'POST')
             resp.status = HTTP_OK
