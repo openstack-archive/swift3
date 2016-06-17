@@ -349,8 +349,9 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
-        self.assertEquals(headers['Location'], '/bucket')
+        self.assertEqual(body, '')
+        self.assertEqual(status.split()[0], '200')
+        self.assertEqual(headers['Location'], '/bucket')
 
         # Apparently some clients will include a chunked transfer-encoding
         # even with no body
@@ -360,8 +361,29 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'Date': self.get_date_header(),
                                      'Transfer-Encoding': 'chunked'})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200')
-        self.assertEquals(headers['Location'], '/bucket')
+        self.assertEqual(body, '')
+        self.assertEqual(status.split()[0], '200')
+        self.assertEqual(headers['Location'], '/bucket')
+
+        # And others will send neither a Content-Length nor a Transfer-Encoding
+        # header, which will cause (some versions of?) eventlet to bomb out on
+        # reads.
+        class unreadable(object):
+            def __init__(self, test_case):
+                self.test_case = test_case
+
+            def read(self, *a, **kw):
+                self.test_case.fail("wsgi.input shouldn't be called!")
+
+        req = Request.blank('/bucket',
+                            environ={'REQUEST_METHOD': 'PUT',
+                                     'wsgi.input': unreadable(self)},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(body, '')
+        self.assertEqual(status.split()[0], '200')
+        self.assertEqual(headers['Location'], '/bucket')
 
     @s3acl
     def test_bucket_PUT_with_location(self):
