@@ -61,8 +61,7 @@ def get_acl(headers, body, bucket_owner, object_owner=None):
     if acl is None:
         # Get acl from request body if possible.
         if not body:
-            msg = 'Your request was missing a required header'
-            raise MissingSecurityHeader(msg, missing_header_name='x-amz-acl')
+            raise MissingSecurityHeader(missing_header_name='x-amz-acl')
         try:
             elem = fromstring(body, ACL.root_tag)
             acl = ACL.from_elem(elem)
