@@ -1,0 +1,29 @@
+# This is a cross-platform list tracking distribution packages needed by tests;
+# see http://docs.openstack.org/infra/bindep/ for additional information.
+
+build-essential [platform:dpkg]
+language-pack-en [platform:ubuntu]
+liberasurecode-dev [platform:dpkg]
+liberasurecode-devel [platform:rpm]
+libffi-dev [platform:dpkg]
+libffi-devel [platform:rpm]
+libsqlite3-dev [platform:dpkg]
+libuuid-devel [platform:rpm]
+libxml2-dev [platform:dpkg]
+libxml2-devel [platform:rpm]
+libxml2-utils [platform:dpkg]
+libxslt-devel [platform:rpm]
+libxslt1-dev [platform:dpkg]
+locales [platform:debian]
+memcached
+python-dev [platform:dpkg]
+python-devel [platform:rpm]
+python-lxml
+python3-all [platform:dpkg !platform:ubuntu-precise]
+python3-all-dev [platform:dpkg !platform:ubuntu-precise]
+python3-devel [platform:fedora]
+python34-devel [platform:centos]
+sqlite [platform:rpm]
+sqlite-devel [platform:rpm]
+sqlite3 [platform:dpkg]
+uuid-dev [platform:dpkg]
