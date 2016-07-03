@@ -196,7 +196,7 @@ class TestSwift3Bucket(Swift3TestCase):
         _, path = self.swift.calls[-1]
         _, query_string = path.split('?')
         args = dict(cgi.parse_qsl(query_string))
-        self.assert_(args['limit'] == '6')
+        self.assertEqual(args['limit'], '6')
 
         req = Request.blank('/%s?max-keys=5000' % bucket_name,
                             environ={'REQUEST_METHOD': 'GET'},
@@ -483,7 +483,7 @@ class TestSwift3Bucket(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '503')
+        self.assertEqual(status.split()[0], '503')
         called = [(method, path) for method, path, _ in
                   self.swift.calls_with_headers]
         # Don't delete original bucket when error occured in segment container

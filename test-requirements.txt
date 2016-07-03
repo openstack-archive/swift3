@@ -1,4 +1,4 @@
-hacking
+hacking>=0.11.0,<0.12 # Apache-2.0
 sphinx
 nose
 openstack.nose_plugin

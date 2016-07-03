@@ -644,10 +644,10 @@ class TestSwift3MultiUpload(Swift3TestCase):
                             body=xml)
         status, headers, body = self.call_swift3(req)
         fromstring(body, 'CompleteMultipartUploadResult')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
         _, _, headers = self.swift.calls_with_headers[-2]
-        self.assertEquals(headers.get('X-Object-Meta-Foo'), 'bar')
+        self.assertEqual(headers.get('X-Object-Meta-Foo'), 'bar')
 
     def test_object_multipart_upload_complete_segment_too_small(self):
         msgs = [
@@ -671,8 +671,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
             self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
                                 swob.HTTPBadRequest, {}, msg)
             status, headers, body = self.call_swift3(req)
-            self.assertEquals(status.split()[0], '400')
-            self.assertEquals(self._get_error_code(body), 'EntityTooSmall')
+            self.assertEqual(status.split()[0], '400')
+            self.assertEqual(self._get_error_code(body), 'EntityTooSmall')
 
     def test_object_multipart_upload_complete_single_zero_length_segment(self):
         segment_bucket = '/v1/AUTH_test/empty-bucket+segments'
@@ -713,7 +713,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
                             body=xml)
         status, headers, body = self.call_swift3(req)
         fromstring(body, 'CompleteMultipartUploadResult')
-        self.assertEquals(status.split()[0], '200')
+        self.assertEqual(status.split()[0], '200')
 
         self.assertEqual(self.swift.calls, [
             ('HEAD', '/v1/AUTH_test/empty-bucket'),
@@ -726,8 +726,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
             ('DELETE', '/v1/AUTH_test/empty-bucket+segments/object/X'),
         ])
         _, _, put_headers = self.swift.calls_with_headers[-3]
-        self.assertEquals(put_headers.get('X-Object-Meta-Foo'), 'bar')
-        self.assertEquals(put_headers.get('Content-Type'), 'baz/quux')
+        self.assertEqual(put_headers.get('X-Object-Meta-Foo'), 'bar')
+        self.assertEqual(put_headers.get('Content-Type'), 'baz/quux')
 
     def test_object_multipart_upload_complete_double_zero_length_segment(self):
         segment_bucket = '/v1/AUTH_test/empty-bucket+segments'
@@ -769,8 +769,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
                                      'Date': self.get_date_header(), },
                             body=xml)
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'EntityTooSmall')
-        self.assertEquals(status.split()[0], '400')
+        self.assertEqual(self._get_error_code(body), 'EntityTooSmall')
+        self.assertEqual(status.split()[0], '400')
 
         self.assertEqual(self.swift.calls, [
             ('HEAD', '/v1/AUTH_test/empty-bucket'),
@@ -1480,11 +1480,11 @@ class TestSwift3MultiUpload(Swift3TestCase):
         status, header, body = self._test_copy_for_s3acl(
             account, src_headers={'Content-Length': '10'}, put_header=header)
 
-        self.assertEquals(status.split()[0], '400')
+        self.assertEqual(status.split()[0], '400')
         self.assertIn('Range specified is not valid for '
                       'source object of size: 10', body)
 
-        self.assertEquals([
+        self.assertEqual([
             ('HEAD', '/v1/AUTH_test/bucket'),
             ('HEAD', '/v1/AUTH_test/bucket+segments/object/X'),
             ('HEAD', '/v1/AUTH_test/src_bucket/src_obj'),
@@ -1497,13 +1497,13 @@ class TestSwift3MultiUpload(Swift3TestCase):
         status, header, body = \
             self._test_copy_for_s3acl(account, put_header=header)
 
-        self.assertEquals(status.split()[0], '400', body)
+        self.assertEqual(status.split()[0], '400', body)
 
         header = {'X-Amz-Copy-Source-Range': 'asdf'}
         status, header, body = \
             self._test_copy_for_s3acl(account, put_header=header)
 
-        self.assertEquals(status.split()[0], '400', body)
+        self.assertEqual(status.split()[0], '400', body)
 
     def test_upload_part_copy_range(self):
         account = 'test:tester'
@@ -1512,17 +1512,17 @@ class TestSwift3MultiUpload(Swift3TestCase):
         status, header, body = self._test_copy_for_s3acl(
             account, src_headers={'Content-Length': '20'}, put_header=header)
 
-        self.assertEquals(status.split()[0], '200', body)
+        self.assertEqual(status.split()[0], '200', body)
 
-        self.assertEquals([
+        self.assertEqual([
             ('HEAD', '/v1/AUTH_test/bucket'),
             ('HEAD', '/v1/AUTH_test/bucket+segments/object/X'),
             ('HEAD', '/v1/AUTH_test/src_bucket/src_obj'),
             ('PUT', '/v1/AUTH_test/bucket+segments/object/X/1'),
         ], self.swift.calls)
         put_headers = self.swift.calls_with_headers[-1][2]
-        self.assertEquals('bytes=0-9', put_headers['Range'])
-        self.assertEquals('/src_bucket/src_obj', put_headers['X-Copy-From'])
+        self.assertEqual('bytes=0-9', put_headers['Range'])
+        self.assertEqual('/src_bucket/src_obj', put_headers['X-Copy-From'])
 
 
 class TestSwift3MultiUploadNonUTC(TestSwift3MultiUpload):
