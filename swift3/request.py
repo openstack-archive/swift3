@@ -15,8 +15,7 @@
 
 import base64
 from email.header import Header
-from hashlib import sha256
-import md5
+from hashlib import sha256, md5
 import re
 import six
 import string
@@ -644,7 +643,7 @@ class Request(swob.Request):
             raise InvalidRequest('Missing required header for this request: '
                                  'Content-MD5')
 
-        digest = md5.new(body).digest().encode('base64').strip()
+        digest = md5(body).digest().encode('base64').strip()
         if self.environ['HTTP_CONTENT_MD5'] != digest:
             raise BadDigest(content_md5=self.environ['HTTP_CONTENT_MD5'])
 

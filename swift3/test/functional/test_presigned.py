@@ -31,7 +31,7 @@ class TestSwift3PresignedUrls(Swift3FunctionalTestCase):
 
         # GET Bucket (Without Object)
         status, _junk, _junk = self.conn.make_request('PUT', bucket)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
 
         url, headers = self.conn.generate_url_and_headers('GET', bucket)
         resp = requests.get(url, headers=headers)
@@ -43,14 +43,14 @@ class TestSwift3PresignedUrls(Swift3FunctionalTestCase):
                          str(len(resp.content)))
 
         elem = fromstring(resp.content, 'ListBucketResult')
-        self.assertEquals(elem.find('Name').text, bucket)
-        self.assertEquals(elem.find('Prefix').text, None)
-        self.assertEquals(elem.find('Marker').text, None)
-        self.assertEquals(elem.find('MaxKeys').text,
-                          str(CONF.max_bucket_listing))
-        self.assertEquals(elem.find('IsTruncated').text, 'false')
+        self.assertEqual(elem.find('Name').text, bucket)
+        self.assertEqual(elem.find('Prefix').text, None)
+        self.assertEqual(elem.find('Marker').text, None)
+        self.assertEqual(elem.find('MaxKeys').text,
+                         str(CONF.max_bucket_listing))
+        self.assertEqual(elem.find('IsTruncated').text, 'false')
         objects = elem.findall('./Contents')
-        self.assertEquals(list(objects), [])
+        self.assertEqual(list(objects), [])
 
         # GET Bucket (With Object)
         for obj in req_objects:
@@ -68,14 +68,14 @@ class TestSwift3PresignedUrls(Swift3FunctionalTestCase):
                          str(len(resp.content)))
 
         elem = fromstring(resp.content, 'ListBucketResult')
-        self.assertEquals(elem.find('Name').text, bucket)
-        self.assertEquals(elem.find('Prefix').text, None)
-        self.assertEquals(elem.find('Marker').text, None)
-        self.assertEquals(elem.find('MaxKeys').text,
-                          str(CONF.max_bucket_listing))
-        self.assertEquals(elem.find('IsTruncated').text, 'false')
+        self.assertEqual(elem.find('Name').text, bucket)
+        self.assertEqual(elem.find('Prefix').text, None)
+        self.assertEqual(elem.find('Marker').text, None)
+        self.assertEqual(elem.find('MaxKeys').text,
+                         str(CONF.max_bucket_listing))
+        self.assertEqual(elem.find('IsTruncated').text, 'false')
         resp_objects = elem.findall('./Contents')
-        self.assertEquals(len(list(resp_objects)), 2)
+        self.assertEqual(len(list(resp_objects)), 2)
         for o in resp_objects:
             self.assertIn(o.find('Key').text, req_objects)
             self.assertIsNotNone(o.find('LastModified').text)
@@ -160,7 +160,7 @@ class TestSwift3PresignedUrls(Swift3FunctionalTestCase):
         obj = 'object'
 
         status, _junk, _junk = self.conn.make_request('PUT', bucket)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
 
         # HEAD/missing object
         head_url, headers = self.conn.generate_url_and_headers(
@@ -173,8 +173,8 @@ class TestSwift3PresignedUrls(Swift3FunctionalTestCase):
         resp = requests.get(head_url)
         self.assertEqual(resp.status_code, 403,
                          'Got %d %s' % (resp.status_code, resp.content))
-        self.assertEquals(get_error_code(resp.content),
-                          'SignatureDoesNotMatch')
+        self.assertEqual(get_error_code(resp.content),
+                         'SignatureDoesNotMatch')
 
         # PUT empty object
         put_url, headers = self.conn.generate_url_and_headers(
@@ -210,7 +210,7 @@ class TestSwift3PresignedUrls(Swift3FunctionalTestCase):
 
         # Final cleanup
         status, _junk, _junk = self.conn.make_request('DELETE', bucket)
-        self.assertEquals(status, 204)
+        self.assertEqual(status, 204)
 
 
 @unittest.skipIf(os.environ['AUTH'] == 'tempauth',

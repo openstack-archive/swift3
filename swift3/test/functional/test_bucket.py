@@ -318,11 +318,11 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         # non existed verb in the controller
         status, headers, body = \
             self.conn.make_request('GETPUT', 'bucket')
-        self.assertEquals(get_error_code(body), 'MethodNotAllowed')
+        self.assertEqual(get_error_code(body), 'MethodNotAllowed')
         # the method exists in the controller but deny as MethodNotAllowed
         status, headers, body = \
             self.conn.make_request('_delete_segments_bucket', 'bucket')
-        self.assertEquals(get_error_code(body), 'MethodNotAllowed')
+        self.assertEqual(get_error_code(body), 'MethodNotAllowed')
 
 
 @unittest.skipIf(os.environ['AUTH'] == 'tempauth',
