@@ -472,7 +472,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('POST', bucket, keys[0], body=xml,
                                    query=query)
-        self.assertEquals(get_error_code(body), 'EntityTooSmall')
+        self.assertEqual(get_error_code(body), 'EntityTooSmall')
 
         # invalid credentials
         auth_error_conn = Connection(aws_secret_key='invalid')
@@ -557,22 +557,22 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         # Initiate Multipart Upload
         for expected_key, (status, headers, body) in \
                 izip(keys, results_generator):
-            self.assertEquals(status, 200)
+            self.assertEqual(status, 200)
             self.assertCommonResponseHeaders(headers)
             self.assertTrue('content-type' in headers)
-            self.assertEquals(headers['content-type'], 'application/xml')
+            self.assertEqual(headers['content-type'], 'application/xml')
             self.assertTrue('content-length' in headers)
-            self.assertEquals(headers['content-length'], str(len(body)))
+            self.assertEqual(headers['content-length'], str(len(body)))
             elem = fromstring(body, 'InitiateMultipartUploadResult')
-            self.assertEquals(elem.find('Bucket').text, bucket)
+            self.assertEqual(elem.find('Bucket').text, bucket)
             key = elem.find('Key').text
-            self.assertEquals(expected_key, key)
+            self.assertEqual(expected_key, key)
             upload_id = elem.find('UploadId').text
             self.assertTrue(upload_id is not None)
             self.assertTrue((key, upload_id) not in uploads)
             uploads.append((key, upload_id))
 
-        self.assertEquals(len(uploads), len(keys))  # sanity
+        self.assertEqual(len(uploads), len(keys))  # sanity
 
         # Upload Part Copy Range
         key, upload_id = uploads[0]
@@ -591,19 +591,19 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         status, headers, body, resp_etag = \
             self._upload_part_copy(src_bucket, src_obj, bucket,
                                    key, upload_id, 1, src_range)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
         self.assertCommonResponseHeaders(headers)
         self.assertTrue('content-type' in headers)
-        self.assertEquals(headers['content-type'], 'application/xml')
+        self.assertEqual(headers['content-type'], 'application/xml')
         self.assertTrue('content-length' in headers)
-        self.assertEquals(headers['content-length'], str(len(body)))
+        self.assertEqual(headers['content-length'], str(len(body)))
         self.assertTrue('etag' not in headers)
         elem = fromstring(body, 'CopyPartResult')
 
         last_modified = elem.find('LastModified').text
         self.assertTrue(last_modified is not None)
 
-        self.assertEquals(resp_etag, etag)
+        self.assertEqual(resp_etag, etag)
 
         # Check last-modified timestamp
         key, upload_id = uploads[0]
@@ -616,7 +616,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         # FIXME: COPY result drops mili/microseconds but GET doesn't
         last_modified_gets = [p.find('LastModified').text
                               for p in elem.iterfind('Part')]
-        self.assertEquals(
+        self.assertEqual(
             last_modified_gets[0].rsplit('.', 1)[0],
             last_modified.rsplit('.', 1)[0],
             '%r != %r' % (last_modified_gets[0], last_modified))
@@ -631,12 +631,12 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
             self.conn.make_request('DELETE', bucket, key, query=query)
 
         # sanities
-        self.assertEquals(status, 204)
+        self.assertEqual(status, 204)
         self.assertCommonResponseHeaders(headers)
         self.assertTrue('content-type' in headers)
-        self.assertEquals(headers['content-type'], 'text/html; charset=UTF-8')
+        self.assertEqual(headers['content-type'], 'text/html; charset=UTF-8')
         self.assertTrue('content-length' in headers)
-        self.assertEquals(headers['content-length'], '0')
+        self.assertEqual(headers['content-length'], '0')
 
 
 @unittest.skipIf(os.environ['AUTH'] == 'tempauth',
@@ -665,23 +665,23 @@ class TestSwift3MultiUploadSigV4(TestSwift3MultiUpload):
         # Initiate Multipart Upload
         for expected_key, (status, _, body) in \
                 izip(keys, results_generator):
-            self.assertEquals(status, 200)  # sanity
+            self.assertEqual(status, 200)  # sanity
             elem = fromstring(body, 'InitiateMultipartUploadResult')
             key = elem.find('Key').text
-            self.assertEquals(expected_key, key)  # sanity
+            self.assertEqual(expected_key, key)  # sanity
             upload_id = elem.find('UploadId').text
             self.assertTrue(upload_id is not None)  # sanity
             self.assertTrue((key, upload_id) not in uploads)
             uploads.append((key, upload_id))
 
-        self.assertEquals(len(uploads), len(keys))  # sanity
+        self.assertEqual(len(uploads), len(keys))  # sanity
 
         # Upload Part
         key, upload_id = uploads[0]
         content = 'a' * MIN_SEGMENT_SIZE
         status, headers, body = \
             self._upload_part(bucket, key, upload_id, content)
-        self.assertEquals(status, 200)
+        self.assertEqual(status, 200)
 
         # Complete Multipart Upload
         key, upload_id = uploads[0]
@@ -689,24 +689,24 @@ class TestSwift3MultiUploadSigV4(TestSwift3MultiUpload):
         xml = self._gen_comp_xml(etags)
         status, headers, body = \
             self._complete_multi_upload(bucket, key, upload_id, xml)
-        self.assertEquals(status, 200)  # sanity
+        self.assertEqual(status, 200)  # sanity
 
         # GET multipart object
         status, headers, body = \
             self.conn.make_request('GET', bucket, key)
-        self.assertEquals(status, 200)  # sanity
-        self.assertEquals(content, body)  # sanity
+        self.assertEqual(status, 200)  # sanity
+        self.assertEqual(content, body)  # sanity
 
         # DELETE bucket while the object existing
         status, headers, body = \
             self.conn.make_request('DELETE', bucket)
-        self.assertEquals(status, 409)  # sanity
+        self.assertEqual(status, 409)  # sanity
 
         # The object must still be there.
         status, headers, body = \
             self.conn.make_request('GET', bucket, key)
-        self.assertEquals(status, 200)  # sanity
-        self.assertEquals(content, body)  # sanity
+        self.assertEqual(status, 200)  # sanity
+        self.assertEqual(content, body)  # sanity
 
 
 if __name__ == '__main__':

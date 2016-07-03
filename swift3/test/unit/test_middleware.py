@@ -20,7 +20,6 @@ from datetime import datetime
 import hashlib
 import base64
 from urllib import unquote, quote
-from md5 import md5
 
 from swift.common import swob, utils
 from swift.common.swob import Request
@@ -66,7 +65,7 @@ class TestSwift3Middleware(Swift3TestCase):
             headers={'Authorization': 'AWS test:tester:hmac',
                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'MethodNotAllowed')
+        self.assertEqual(self._get_error_code(body), 'MethodNotAllowed')
 
     def test_path_info_encode(self):
         bucket_name = 'b%75cket'
@@ -234,7 +233,7 @@ class TestSwift3Middleware(Swift3TestCase):
         req.headers['Date'] = datetime.utcnow()
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     def test_signed_urls_v4(self):
         req = Request.blank(
@@ -250,9 +249,9 @@ class TestSwift3Middleware(Swift3TestCase):
             environ={'REQUEST_METHOD': 'GET'})
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200', body)
+        self.assertEqual(status.split()[0], '200', body)
         for _, _, headers in self.swift.calls_with_headers:
-            self.assertEquals('AWS test:tester:X', headers['Authorization'])
+            self.assertEqual('AWS test:tester:X', headers['Authorization'])
             self.assertIn('X-Auth-Token', headers)
 
     def test_signed_urls_v4_missing_x_amz_date(self):
@@ -265,7 +264,7 @@ class TestSwift3Middleware(Swift3TestCase):
                             environ={'REQUEST_METHOD': 'GET'})
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     def test_signed_urls_v4_invalid_algorithm(self):
         req = Request.blank('/bucket/object'
@@ -279,7 +278,7 @@ class TestSwift3Middleware(Swift3TestCase):
                             environ={'REQUEST_METHOD': 'GET'})
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'InvalidArgument')
+        self.assertEqual(self._get_error_code(body), 'InvalidArgument')
 
     def test_signed_urls_v4_missing_signed_headers(self):
         req = Request.blank('/bucket/object'
@@ -292,8 +291,8 @@ class TestSwift3Middleware(Swift3TestCase):
                             environ={'REQUEST_METHOD': 'GET'})
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body),
-                          'AuthorizationHeaderMalformed')
+        self.assertEqual(self._get_error_code(body),
+                         'AuthorizationHeaderMalformed')
 
     def test_signed_urls_v4_invalid_credentials(self):
         req = Request.blank('/bucket/object'
@@ -307,7 +306,7 @@ class TestSwift3Middleware(Swift3TestCase):
                             environ={'REQUEST_METHOD': 'GET'})
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     def test_signed_urls_v4_missing_signature(self):
         req = Request.blank('/bucket/object'
@@ -320,7 +319,7 @@ class TestSwift3Middleware(Swift3TestCase):
                             environ={'REQUEST_METHOD': 'GET'})
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     def test_bucket_virtual_hosted_style(self):
         req = Request.blank('/',
@@ -380,7 +379,7 @@ class TestSwift3Middleware(Swift3TestCase):
         self.assertEqual(self._get_error_code(body), 'InvalidDigest')
 
     def test_object_create_bad_md5_too_short(self):
-        too_short_digest = md5('hey').hexdigest()[:-1]
+        too_short_digest = hashlib.md5('hey').hexdigest()[:-1]
         md5_str = too_short_digest.encode('base64').strip()
         req = Request.blank(
             '/bucket/object',
@@ -392,7 +391,7 @@ class TestSwift3Middleware(Swift3TestCase):
         self.assertEqual(self._get_error_code(body), 'InvalidDigest')
 
     def test_object_create_bad_md5_too_long(self):
-        too_long_digest = md5('hey').hexdigest() + 'suffix'
+        too_long_digest = hashlib.md5('hey').hexdigest() + 'suffix'
         md5_str = too_long_digest.encode('base64').strip()
         req = Request.blank(
             '/bucket/object',
@@ -579,9 +578,9 @@ class TestSwift3Middleware(Swift3TestCase):
         req = Request.blank('/bucket/object', environ=environ, headers=headers)
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '200', body)
+        self.assertEqual(status.split()[0], '200', body)
         for _, _, headers in self.swift.calls_with_headers:
-            self.assertEquals('AWS test:tester:X', headers['Authorization'])
+            self.assertEqual('AWS test:tester:X', headers['Authorization'])
             self.assertIn('X-Auth-Token', headers)
 
     def test_signature_v4_no_date(self):
@@ -597,8 +596,8 @@ class TestSwift3Middleware(Swift3TestCase):
         req = Request.blank('/bucket/object', environ=environ, headers=headers)
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '403')
-        self.assertEquals(self._get_error_code(body), 'AccessDenied')
+        self.assertEqual(status.split()[0], '403')
+        self.assertEqual(self._get_error_code(body), 'AccessDenied')
 
     def test_signature_v4_no_payload(self):
         environ = {
@@ -613,9 +612,9 @@ class TestSwift3Middleware(Swift3TestCase):
         req = Request.blank('/bucket/object', environ=environ, headers=headers)
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '400')
-        self.assertEquals(self._get_error_code(body), 'InvalidRequest')
-        self.assertEquals(
+        self.assertEqual(status.split()[0], '400')
+        self.assertEqual(self._get_error_code(body), 'InvalidRequest')
+        self.assertEqual(
             self._get_error_message(body),
             'Missing required header for this request: x-amz-content-sha256')
 
@@ -631,8 +630,8 @@ class TestSwift3Middleware(Swift3TestCase):
                                 headers=headers)
             req.content_type = 'text/plain'
             status, headers, body = self.call_swift3(req)
-            self.assertEquals(self._get_error_code(body), error)
-            self.assertEquals(self._get_error_message(body), msg)
+            self.assertEqual(self._get_error_code(body), error)
+            self.assertEqual(self._get_error_message(body), msg)
 
         auth_str = ('AWS4-HMAC-SHA256 '
                     'SignedHeaders=host;x-amz-date,'
@@ -676,7 +675,7 @@ class TestSwift3Middleware(Swift3TestCase):
         def verify(hash_val, path, environ):
             s = canonical_string(path, environ)
             s = s.split('\n')[3]
-            self.assertEquals(hash_val, s)
+            self.assertEqual(hash_val, s)
 
         # all next data got from aws4_testsuite from Amazon
         # http://docs.aws.amazon.com/general/latest/gr/samples
@@ -812,7 +811,7 @@ class TestSwift3Middleware(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         # FIXME: should this failed as 400 or pass via query auth?
         # for now, 403 forbbiden for safety
-        self.assertEquals(status.split()[0], '403', body)
+        self.assertEqual(status.split()[0], '403', body)
 
         # But if we are missing Signature in query param
         req = Request.blank('/bucket/object'
@@ -823,7 +822,7 @@ class TestSwift3Middleware(Swift3TestCase):
                             headers=headers)
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
-        self.assertEquals(status.split()[0], '403', body)
+        self.assertEqual(status.split()[0], '403', body)
 
 
 if __name__ == '__main__':
