@@ -21,7 +21,7 @@ import requests
 from swift3.etree import fromstring
 from swift3.cfg import CONF
 from swift3.test.functional import Swift3FunctionalTestCase
-from swift3.test.functional.utils import get_error_code
+from swift3.test.functional.utils import get_error_code, get_error_msg
 
 
 class TestSwift3PresignedUrls(Swift3FunctionalTestCase):
@@ -95,6 +95,65 @@ class TestSwift3PresignedUrls(Swift3FunctionalTestCase):
         resp = requests.delete(url, headers=headers)
         self.assertEqual(resp.status_code, 204,
                          'Got %d %s' % (resp.status_code, resp.content))
+
+    def test_expiration_limits(self):
+        if os.environ.get('S3_USE_SIGV4'):
+            self._test_expiration_limits_v4()
+        else:
+            self._test_expiration_limits_v2()
+
+    def _test_expiration_limits_v2(self):
+        bucket = 'test-bucket'
+
+        # Expiration date is too far in the future
+        url, headers = self.conn.generate_url_and_headers(
+            'GET', bucket, expires_in=2 ** 32)
+        resp = requests.get(url, headers=headers)
+        self.assertEqual(resp.status_code, 403,
+                         'Got %d %s' % (resp.status_code, resp.content))
+        self.assertEqual(get_error_code(resp.content),
+                         'AccessDenied')
+        self.assertIn('Invalid date (should be seconds since epoch)',
+                      get_error_msg(resp.content))
+
+    def _test_expiration_limits_v4(self):
+        bucket = 'test-bucket'
+
+        # Expiration is negative
+        url, headers = self.conn.generate_url_and_headers(
+            'GET', bucket, expires_in=-1)
+        resp = requests.get(url, headers=headers)
+        self.assertEqual(resp.status_code, 400,
+                         'Got %d %s' % (resp.status_code, resp.content))
+        self.assertEqual(get_error_code(resp.content),
+                         'AuthorizationQueryParametersError')
+        self.assertIn('X-Amz-Expires must be non-negative',
+                      get_error_msg(resp.content))
+
+        # Expiration date is too far in the future
+        for exp in (7 * 24 * 60 * 60 + 1,
+                    2 ** 63 - 1):
+            url, headers = self.conn.generate_url_and_headers(
+                'GET', bucket, expires_in=exp)
+            resp = requests.get(url, headers=headers)
+            self.assertEqual(resp.status_code, 400,
+                             'Got %d %s' % (resp.status_code, resp.content))
+            self.assertEqual(get_error_code(resp.content),
+                             'AuthorizationQueryParametersError')
+            self.assertIn('X-Amz-Expires must be less than 604800 seconds',
+                          get_error_msg(resp.content))
+
+        # Expiration date is *way* too far in the future, or isn't a number
+        for exp in (2 ** 63, 'foo'):
+            url, headers = self.conn.generate_url_and_headers(
+                'GET', bucket, expires_in=2 ** 63)
+            resp = requests.get(url, headers=headers)
+            self.assertEqual(resp.status_code, 400,
+                             'Got %d %s' % (resp.status_code, resp.content))
+            self.assertEqual(get_error_code(resp.content),
+                             'AuthorizationQueryParametersError')
+            self.assertEqual('X-Amz-Expires should be a number',
+                             get_error_msg(resp.content))
 
     def test_object(self):
         bucket = 'test-bucket'
