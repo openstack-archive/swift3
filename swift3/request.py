@@ -135,7 +135,10 @@ class SigV4Mixin(object):
 
     def _validate_expire_param(self):
         """
-        :param now: a S3Timestamp instance
+        Validate X-Amz-Expires in query parameter
+        :raises: AccessDenied
+        :raises: AuthorizationQueryParametersError
+        :raises: AccessDenined
         """
         err = None
         try:
@@ -506,7 +509,8 @@ class Request(swob.Request):
 
     def _validate_expire_param(self):
         """
-        Validate Expire param
+        Validate Expires in query parameters
+        :raises: AccessDenied
         """
         # Expires header is a float since epoch
         try:
@@ -523,6 +527,11 @@ class Request(swob.Request):
                 self.params['Expires'])
 
     def _validate_dates(self):
+        """
+        Validate Date/X-Amz-Date headers for signature v2
+        :raises: AccessDenied
+        :raises: RequestTimeTooSkewed
+        """
         if self._is_query_auth:
             self._validate_expire_param()
             # TODO: make sure the case if timestamp param in query
