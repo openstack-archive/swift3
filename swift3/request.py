@@ -452,8 +452,6 @@ class Request(swob.Request):
         try:
             access = self.params['AWSAccessKeyId']
             expires = self.params['Expires']
-            # TODO: can we remove this logic here?
-            # self.headers['Date'] = expires
             sig = self.params['Signature']
         except KeyError:
             raise AccessDenied()
@@ -699,10 +697,17 @@ class Request(swob.Request):
                                   if key.lower().startswith('x-amz-'))):
             amz_headers[amz_header] = self.headers[amz_header]
 
-        if 'x-amz-date' in amz_headers:
-            buf += "\n"
-        elif 'Date' in self.headers:
-            buf += "%s\n" % self.headers['Date']
+        if self._is_header_auth:
+            if 'x-amz-date' in amz_headers:
+                buf += "\n"
+            elif 'Date' in self.headers:
+                buf += "%s\n" % self.headers['Date']
+        elif self._is_query_auth:
+            buf += "%s\n" % self.params['Expires']
+        else:
+            # Should have already raised NotS3Request in _parse_auth_info,
+            # but as a sanity check...
+            raise AccessDenied()
 
         for k in sorted(key.lower() for key in amz_headers):
             buf += "%s:%s\n" % (k, amz_headers[k])
