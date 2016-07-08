@@ -189,7 +189,7 @@ class BucketController(Controller):
                 raise exc_type, exc_value, exc_traceback
 
             if location != CONF.location:
-                # Swift3 cannot support multiple reagions now.
+                # Swift3 cannot support multiple regions currently.
                 raise InvalidLocationConstraint()
 
         resp = req.get_response(self.app)

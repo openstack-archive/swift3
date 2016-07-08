@@ -810,7 +810,7 @@ class TestSwift3Middleware(Swift3TestCase):
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
         # FIXME: should this failed as 400 or pass via query auth?
-        # for now, 403 forbbiden for safety
+        # for now, 403 forbidden for safety
         self.assertEqual(status.split()[0], '403', body)
 
         # But if we are missing Signature in query param

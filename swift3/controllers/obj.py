@@ -32,7 +32,7 @@ class ObjectController(Controller):
     def _gen_head_range_resp(self, req_range, resp):
         """
         Swift doesn't handle Range header for HEAD requests.
-        So, this mothod generates HEAD range response from HEAD response.
+        So, this method generates HEAD range response from HEAD response.
         S3 return HEAD range response, if the value of range satisfies the
         conditions which are described in the following document.
         - http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35

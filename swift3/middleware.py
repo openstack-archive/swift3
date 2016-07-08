@@ -67,7 +67,7 @@ from swift.common.utils import get_logger, register_swift_info
 
 
 class Swift3Middleware(object):
-    """Swift3 S3 compatibility midleware"""
+    """Swift3 S3 compatibility middleware"""
     def __init__(self, app, conf, *args, **kwargs):
         self.app = app
         self.slo_enabled = conf['allow_multipart_uploads']
@@ -132,7 +132,7 @@ class Swift3Middleware(object):
             self.slo_enabled = False
             LOGGER.warning('swift3 middleware requires SLO middleware '
                            'to support multi-part upload, please add it '
-                           'in pipline')
+                           'in pipeline')
 
         if not conf.auth_pipeline_check:
             LOGGER.debug('Skip pipeline auth check.')

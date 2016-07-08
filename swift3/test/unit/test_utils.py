@@ -87,13 +87,13 @@ class TestSwift3Utils(unittest.TestCase):
         # integer
         ts = utils.S3Timestamp(1)
         self.assertEqual(expected, ts.s3xmlformat)
-        # miliseconds unit should be floored
+        # milliseconds unit should be floored
         ts = utils.S3Timestamp(1.1)
         self.assertEqual(expected, ts.s3xmlformat)
         # float (microseconds) should be floored too
         ts = utils.S3Timestamp(1.000001)
         self.assertEqual(expected, ts.s3xmlformat)
-        # Bigger float (miliseconds) should be floored too
+        # Bigger float (milliseconds) should be floored too
         ts = utils.S3Timestamp(1.9)
         self.assertEqual(expected, ts.s3xmlformat)
 

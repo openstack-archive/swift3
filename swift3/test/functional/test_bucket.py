@@ -51,7 +51,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         self.assertTrue(headers['content-type'] is not None)
         self.assertEqual(headers['content-length'], str(len(body)))
         # TODO; requires consideration
-        # self.assertEquasl(headers['transfer-encoding'], 'chunked')
+        # self.assertEqual(headers['transfer-encoding'], 'chunked')
 
         elem = fromstring(body, 'ListBucketResult')
         self.assertEqual(elem.find('Name').text, bucket)
@@ -100,7 +100,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         self.assertTrue(headers['content-type'] is not None)
         self.assertEqual(headers['content-length'], str(len(body)))
         # TODO; requires consideration
-        # self.assertEquasl(headers['transfer-encoding'], 'chunked')
+        # self.assertEqual(headers['transfer-encoding'], 'chunked')
 
         # DELETE Bucket
         for obj in req_objects:
@@ -289,17 +289,17 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('HEAD', 'bucket+invalid')
         self.assertEqual(status, 400)
-        self.assertEqual(body, '')  # sanifty
+        self.assertEqual(body, '')  # sanity
 
         auth_error_conn = Connection(aws_secret_key='invalid')
         status, headers, body = \
             auth_error_conn.make_request('HEAD', 'bucket')
         self.assertEqual(status, 403)
-        self.assertEqual(body, '')  # sanifty
+        self.assertEqual(body, '')  # sanity
 
         status, headers, body = self.conn.make_request('HEAD', 'nothing')
         self.assertEqual(status, 404)
-        self.assertEqual(body, '')  # sanifty
+        self.assertEqual(body, '')  # sanity
 
     def test_delete_bucket_error(self):
         status, headers, body = \

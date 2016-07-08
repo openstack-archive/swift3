@@ -91,7 +91,7 @@ class TestSwift3Bucket(Swift3TestCase):
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEqual(status.split()[0], '404')
-        self.assertEqual(body, '')  # sanifty
+        self.assertEqual(body, '')  # sanity
 
     def test_bucket_HEAD_slash(self):
         req = Request.blank('/junk/',
@@ -470,7 +470,7 @@ class TestSwift3Bucket(Swift3TestCase):
 
     @s3acl
     def test_bucket_DELETE_error_while_segment_bucket_delete(self):
-        # An error occured while deleting segment objects
+        # An error occurred while deleting segment objects
         self.swift.register('DELETE', '/v1/AUTH_test/bucket+segments/lily',
                             swob.HTTPServiceUnavailable, {}, json.dumps([]))
         # overwrite default HEAD to return x-container-object-count
@@ -486,7 +486,7 @@ class TestSwift3Bucket(Swift3TestCase):
         self.assertEqual(status.split()[0], '503')
         called = [(method, path) for method, path, _ in
                   self.swift.calls_with_headers]
-        # Don't delete original bucket when error occured in segment container
+        # Don't delete original bucket when error occurred in segment container
         self.assertNotIn(('DELETE', '/v1/AUTH_test/bucket'), called)
 
     def _test_bucket_for_s3acl(self, method, account):

@@ -38,7 +38,7 @@ class ServiceController(Controller):
         containers = filter(
             lambda item: validate_bucket_name(item['name']), containers)
 
-        # we don't keep the creation time of a backet (s3cmd doesn't
+        # we don't keep the creation time of a bucket (s3cmd doesn't
         # work without that) so we use something bogus.
         elem = Element('ListAllMyBucketsResult')
 
