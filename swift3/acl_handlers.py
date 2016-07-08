@@ -116,7 +116,7 @@ class BaseAclHandler(object):
         """
         General acl handling method.
         This method expects to call Request._get_response() in outside of
-        this method so that this method returns resonse only when sw_method
+        this method so that this method returns response only when sw_method
         is HEAD.
         """
 
@@ -278,7 +278,7 @@ class MultiUploadAclHandler(BaseAclHandler):
     """
     MultiUpload stuff requires acl checking just once for BASE container
     so that MultiUploadAclHandler extends BaseAclHandler to check acl only
-    when the verb defined. We should define tThe verb as the first step to
+    when the verb defined. We should define the verb as the first step to
     request to backend Swift at incoming request.
 
     Basic Rules:

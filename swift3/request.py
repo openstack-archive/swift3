@@ -390,7 +390,7 @@ class Request(swob.Request):
         if not self._timestamp:
             try:
                 if self._is_query_auth and 'Timestamp' in self.params:
-                    # If Timestamp speciied in query, it should be prior
+                    # If Timestamp specified in query, it should be prior
                     # to any Date header (is this right?)
                     timestamp = mktime(
                         self.params['Timestamp'], SIGV2_TIMESTAMP_FORMAT)
@@ -1206,7 +1206,7 @@ class S3AclRequest(Request):
             self, container, obj, headers)
         resp = acl_handler.handle_acl(app, method)
 
-        # possible to skip recalling get_resposne_acl if resp is not
+        # possible to skip recalling get_response_acl if resp is not
         # None (e.g. HEAD)
         if resp:
             return resp

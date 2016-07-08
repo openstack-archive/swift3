@@ -34,7 +34,7 @@ class TestSwift3Service(Swift3FunctionalTestCase):
         self.assertCommonResponseHeaders(headers)
         self.assertTrue(headers['content-type'] is not None)
         # TODO; requires consideration
-        # self.assertEquasl(headers['transfer-encoding'], 'chunked')
+        # self.assertEqual(headers['transfer-encoding'], 'chunked')
 
         elem = fromstring(body, 'ListAllMyBucketsResult')
         buckets = elem.findall('./Buckets/Bucket')

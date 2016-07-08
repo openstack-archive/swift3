@@ -100,7 +100,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.assertEqual(status, 200)
         elem = fromstring(body, 'ListBucketResult')
 
-        # FIXME: COPY result drops mili/microseconds but GET doesn't
+        # FIXME: COPY result drops milli/microseconds but GET doesn't
         self.assertEqual(
             elem.find('Contents').find("LastModified").text.rsplit('.', 1)[0],
             last_modified_xml.rsplit('.', 1)[0])
@@ -207,19 +207,19 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         status, headers, body = \
             auth_error_conn.make_request('HEAD', self.bucket, obj)
         self.assertEqual(status, 403)
-        self.assertEqual(body, '')  # sanifty
+        self.assertEqual(body, '')  # sanity
         self.assertEqual(headers['content-type'], 'application/xml')
 
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, 'invalid')
         self.assertEqual(status, 404)
-        self.assertEqual(body, '')  # sanifty
+        self.assertEqual(body, '')  # sanity
         self.assertEqual(headers['content-type'], 'application/xml')
 
         status, headers, body = \
             self.conn.make_request('HEAD', 'invalid', obj)
         self.assertEqual(status, 404)
-        self.assertEqual(body, '')  # sanifty
+        self.assertEqual(body, '')  # sanity
         self.assertEqual(headers['content-type'], 'application/xml')
 
     def test_delete_object_error(self):

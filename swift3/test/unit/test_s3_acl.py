@@ -48,7 +48,7 @@ def s3acl(func=None, s3acl_only=False):
 
         def call_func(failing_point=''):
             try:
-                # For maintainancibility, we patch 204 status for every
+                # For maintainability, we patch 204 status for every
                 # get_container_info. if you want, we can rewrite the
                 # statement easily with nested decorator like as:
                 #

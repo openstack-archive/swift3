@@ -186,7 +186,7 @@ class Grantee(object):
         elif type == 'emailAddress':
             raise S3NotImplemented()
         elif type == 'uri':
-            # retrun a subclass instance of Group class
+            # return a subclass instance of Group class
             subclass = get_group_subclass_from_uri(value)
             return subclass()
         else:

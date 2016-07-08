@@ -202,7 +202,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
 
         elem = fromstring(body, 'ListPartsResult')
 
-        # FIXME: COPY result drops mili/microseconds but GET doesn't
+        # FIXME: COPY result drops milli/microseconds but GET doesn't
         last_modified_gets = [p.find('LastModified').text
                               for p in elem.iterfind('Part')]
         self.assertEqual(
@@ -248,7 +248,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
             self.assertTrue(last_modified is not None)
             # TODO: sanity check
             #       (kota_) How do we check the sanity?
-            #       the last-modified header drops mili-seconds info
+            #       the last-modified header drops milli-seconds info
             #       by the constraint of the format.
             #       For now, we can do either the format check or round check
             # last_modified_from_xml = mktime(last_modified)
@@ -501,7 +501,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
                                    query=query)
         self.assertEqual(get_error_code(body), 'MalformedXML')
 
-        # with ivalid etag in xml
+        # with invalid etag in xml
         invalid_etag = 'invalid'
         xml = self._gen_comp_xml([invalid_etag])
         status, headers, body = \
@@ -613,7 +613,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
 
         elem = fromstring(body, 'ListPartsResult')
 
-        # FIXME: COPY result drops mili/microseconds but GET doesn't
+        # FIXME: COPY result drops milli/microseconds but GET doesn't
         last_modified_gets = [p.find('LastModified').text
                               for p in elem.iterfind('Part')]
         self.assertEqual(
@@ -630,7 +630,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         status, headers, body = \
             self.conn.make_request('DELETE', bucket, key, query=query)
 
-        # sanities
+        # sanity checks
         self.assertEqual(status, 204)
         self.assertCommonResponseHeaders(headers)
         self.assertTrue('content-type' in headers)

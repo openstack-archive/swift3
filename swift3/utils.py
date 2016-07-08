@@ -161,13 +161,13 @@ def mktime(timestamp_str, time_format='%Y-%m-%dT%H:%M:%S'):
     mktime creates a float instance in epoch time really like as time.mktime
 
     the difference from time.mktime is allowing to 2 formats string for the
-    argumtent for the S3 testing usage.
+    argument for the S3 testing usage.
     TODO: support
 
     :param timestamp_str: a string of timestamp formatted as
                           (a) RFC2822 (e.g. date header)
                           (b) %Y-%m-%dT%H:%M:%S (e.g. copy result)
-    :param time_format: a string of format to parase in (b) process
+    :param time_format: a string of format to parse in (b) process
     :return : a float instance in epoch time
     """
     try:

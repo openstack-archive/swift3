@@ -255,7 +255,7 @@ class UploadsController(Controller):
             return obj_dict
 
         # uploads is a list consists of dict, {key, upload_id, last_modified}
-        # Note that pattern matcher willd drop whole segments objects like as
+        # Note that pattern matcher will drop whole segments objects like as
         # object_name/upload_id/1.
         pattern = re.compile('/[0-9]+$')
         uploads = [object_to_upload(obj) for obj in objects if

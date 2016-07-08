@@ -97,7 +97,7 @@ class Connection(object):
         :param body: a string of data binary sent to S3 as a request body
         :param query: a string of HTTP query argument
 
-        :returns: a tuple of (int(status_code), headers dict, resposne body)
+        :returns: a tuple of (int(status_code), headers dict, response body)
         """
         response = \
             self.conn.make_request(method, bucket=bucket, key=obj,
