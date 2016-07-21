@@ -783,7 +783,7 @@ class TestSwift3Middleware(Swift3TestCase):
             'HTTP_AUTHORIZATION': (
                 'AWS4-HMAC-SHA256 '
                 'Credential=AKIDEXAMPLE/20110909/us-east-1/host/aws4_request, '
-                'SignedHeaders=date;host;content-type, Signature=X'),
+                'SignedHeaders=content-type;date;host, Signature=X'),
             'HTTP_HOST': 'host.foo.com',
             'HTTP_X_AMZ_CONTENT_SHA256':
                 '3ba8907e7a252327488df390ed517c45'
@@ -800,7 +800,7 @@ class TestSwift3Middleware(Swift3TestCase):
             'HTTP_AUTHORIZATION': (
                 'AWS4-HMAC-SHA256 '
                 'Credential=AKIDEXAMPLE/20110909/us-east-1/host/aws4_request, '
-                'SignedHeaders=date;host;content-type, Signature=X'),
+                'SignedHeaders=content-type;date;host, Signature=X'),
             'HTTP_HOST': 'host.foo.com',
             'HTTP_X_AMZ_CONTENT_SHA256':
                 '3ba8907e7a252327488df390ed517c45'
