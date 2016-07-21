@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import base64
+from collections import defaultdict
 from email.header import Header
 from hashlib import sha256, md5
 import re
@@ -235,9 +236,18 @@ class SigV4Mixin(object):
 
         :return : dict of headers to sign, the keys are all lower case
         """
-        headers_lower_dict = dict(
-            (k.lower().strip(), ' '.join((v or '').strip().split()))
-            for (k, v) in six.iteritems(self.headers))
+        if 'headers_raw' in self.environ:  # eventlet >= 0.19.0
+            # See https://github.com/eventlet/eventlet/commit/67ec999
+            headers_lower_dict = defaultdict(list)
+            for key, value in self.environ['headers_raw']:
+                headers_lower_dict[key.lower().strip()].append(
+                    ' '.join(value.strip().split()))
+            headers_lower_dict = {k: ','.join(v)
+                                  for k, v in headers_lower_dict.items()}
+        else:  # mostly-functional fallback
+            headers_lower_dict = dict(
+                (k.lower().strip(), ' '.join((v or '').strip().split()))
+                for (k, v) in six.iteritems(self.headers))
 
         if 'host' in headers_lower_dict and re.match(
                 'Boto/2.[0-9].[0-2]',
@@ -249,7 +259,7 @@ class SigV4Mixin(object):
                 headers_lower_dict['host'].split(':')[0]
 
         headers_to_sign = [
-            (key, value) for key, value in headers_lower_dict.items()
+            (key, value) for key, value in sorted(headers_lower_dict.items())
             if key in self._signed_headers]
 
         if len(headers_to_sign) != len(self._signed_headers):
@@ -260,7 +270,7 @@ class SigV4Mixin(object):
             # process.
             raise SignatureDoesNotMatch()
 
-        return dict(headers_to_sign)
+        return headers_to_sign
 
     def _string_to_sign(self):
         """
@@ -298,13 +308,12 @@ class SigV4Mixin(object):
         # host:iam.amazonaws.com
         # x-amz-date:20150830T123600Z
         headers_to_sign = self._headers_to_sign()
-        cr.append('\n'.join(
-            ['%s:%s' % (key, value) for key, value in
-             sorted(headers_to_sign.items())]) + '\n')
+        cr.append(''.join('%s:%s\n' % (key, value)
+                          for key, value in headers_to_sign))
 
         # 5. Add signed headers into canonical request like
         # content-type;host;x-amz-date
-        cr.append(';'.join(sorted(headers_to_sign)))
+        cr.append(';'.join(k for k, v in headers_to_sign))
 
         # 6. Add payload string at the tail
         if 'X-Amz-Credential' in self.params:
@@ -714,15 +723,24 @@ class Request(swob.Request):
         """
         Create 'StringToSign' value in Amazon terminology for v2.
         """
-        amz_headers = {}
-
         buf = "%s\n%s\n%s\n" % (self.method,
                                 self.headers.get('Content-MD5', ''),
                                 self.headers.get('Content-Type') or '')
 
-        for amz_header in sorted((key.lower() for key in self.headers
-                                  if key.lower().startswith('x-amz-'))):
-            amz_headers[amz_header] = self.headers[amz_header]
+        if 'headers_raw' in self.environ:  # eventlet >= 0.19.0
+            # See https://github.com/eventlet/eventlet/commit/67ec999
+            amz_headers = defaultdict(list)
+            for key, value in self.environ['headers_raw']:
+                key = key.lower()
+                if not key.startswith('x-amz-'):
+                    continue
+                amz_headers[key.strip()].append(value.strip())
+            amz_headers = dict((key, ','.join(value))
+                               for key, value in amz_headers.items())
+        else:  # mostly-functional fallback
+            amz_headers = dict((key.lower(), value)
+                               for key, value in self.headers.items()
+                               if key.lower().startswith('x-amz-'))
 
         if self._is_header_auth:
             if 'x-amz-date' in amz_headers:
@@ -736,8 +754,8 @@ class Request(swob.Request):
             # but as a sanity check...
             raise AccessDenied()
 
-        for k in sorted(key.lower() for key in amz_headers):
-            buf += "%s:%s\n" % (k, amz_headers[k])
+        for key, value in sorted(amz_headers.items()):
+            buf += "%s:%s\n" % (key, value)
 
         path = self._canonical_uri()
         if self.query_string:
@@ -822,15 +840,48 @@ class Request(swob.Request):
 
         env = self.environ.copy()
 
-        for key in self.environ:
-            if key.startswith('HTTP_X_AMZ_META_'):
-                if not(set(env[key]).issubset(string.printable)):
-                    env[key] = Header(env[key], 'UTF-8').encode()
-                    if env[key].startswith('=?utf-8?q?'):
-                        env[key] = '=?UTF-8?Q?' + env[key][10:]
-                    elif env[key].startswith('=?utf-8?b?'):
-                        env[key] = '=?UTF-8?B?' + env[key][10:]
-                env['HTTP_X_OBJECT_META_' + key[16:]] = env[key]
+        def sanitize(value):
+            if set(value).issubset(string.printable):
+                return value
+
+            value = Header(value, 'UTF-8').encode()
+            if value.startswith('=?utf-8?q?'):
+                return '=?UTF-8?Q?' + value[10:]
+            elif value.startswith('=?utf-8?b?'):
+                return '=?UTF-8?B?' + value[10:]
+            else:
+                return value
+
+        if 'headers_raw' in env:  # eventlet >= 0.19.0
+            # See https://github.com/eventlet/eventlet/commit/67ec999
+            for key, value in env['headers_raw']:
+                if not key.lower().startswith('x-amz-meta-'):
+                    continue
+                # AWS ignores user-defined headers with these characters
+                if any(c in key for c in ' "),/;<=>?@[\\]{}'):
+                    # NB: apparently, '(' *is* allowed
+                    continue
+                # Note that this may have already been deleted, e.g. if the
+                # client sent multiple headers with the same name, or both
+                # x-amz-meta-foo-bar and x-amz-meta-foo_bar
+                env.pop('HTTP_' + key.replace('-', '_').upper(), None)
+                # Need to preserve underscores. Since we know '=' can't be
+                # present, quoted-printable seems appropriate.
+                key = key.replace('_', '=5F').replace('-', '_').upper()
+                key = 'HTTP_X_OBJECT_META_' + key[11:]
+                if key in env:
+                    env[key] += ',' + sanitize(value)
+                else:
+                    env[key] = sanitize(value)
+        else:  # mostly-functional fallback
+            for key in self.environ:
+                if not key.startswith('HTTP_X_AMZ_META_'):
+                    continue
+                # AWS ignores user-defined headers with these characters
+                if any(c in key for c in ' "),/;<=>?@[\\]{}'):
+                    # NB: apparently, '(' *is* allowed
+                    continue
+                env['HTTP_X_OBJECT_META_' + key[16:]] = sanitize(env[key])
                 del env[key]
 
         if 'HTTP_X_AMZ_COPY_SOURCE' in env:

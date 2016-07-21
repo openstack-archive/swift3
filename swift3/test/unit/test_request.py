@@ -389,8 +389,8 @@ class TestRequest(Swift3TestCase):
             'Authorization':
                 'AWS4-HMAC-SHA256 '
                 'Credential=test/20130524/US/s3/aws4_request, '
-                'SignedHeaders=host;%s,'
-                'Signature=X' % included_header,
+                'SignedHeaders=%s,'
+                'Signature=X' % ';'.join(sorted(['host', included_header])),
             'X-Amz-Content-SHA256': '0123456789'}
 
         headers.update(date_header)
@@ -506,11 +506,10 @@ class TestRequest(Swift3TestCase):
         sigv4_req = SigV4Request(req.environ)
 
         headers_to_sign = sigv4_req._headers_to_sign()
-        self.assertEqual(['host', 'x-amz-content-sha256', 'x-amz-date'],
-                         sorted(headers_to_sign.keys()))
-        self.assertEqual(headers_to_sign['host'], 'localhost:80')
-        self.assertEqual(headers_to_sign['x-amz-date'], x_amz_date)
-        self.assertEqual(headers_to_sign['x-amz-content-sha256'], '0123456789')
+        self.assertEqual(headers_to_sign, [
+            ('host', 'localhost:80'),
+            ('x-amz-content-sha256', '0123456789'),
+            ('x-amz-date', x_amz_date)])
 
         # no x-amz-date
         headers = {
@@ -526,10 +525,9 @@ class TestRequest(Swift3TestCase):
         sigv4_req = SigV4Request(req.environ)
 
         headers_to_sign = sigv4_req._headers_to_sign()
-        self.assertEqual(['host', 'x-amz-content-sha256'],
-                         sorted(headers_to_sign.keys()))
-        self.assertEqual(headers_to_sign['host'], 'localhost:80')
-        self.assertEqual(headers_to_sign['x-amz-content-sha256'], '0123456789')
+        self.assertEqual(headers_to_sign, [
+            ('host', 'localhost:80'),
+            ('x-amz-content-sha256', '0123456789')])
 
         # SignedHeaders says, host and x-amz-date included but there is not
         # X-Amz-Date header
