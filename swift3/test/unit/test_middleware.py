@@ -163,6 +163,19 @@ class TestSwift3Middleware(Swift3TestCase):
         self.assertEqual(str1, str2)
         self.assertEqual(str2, str3)
 
+        # Note that boto does not do proper stripping (as of 2.42.0).
+        # These were determined by examining the StringToSignBytes element of
+        # resulting SignatureDoesNotMatch errors from AWS.
+        str1 = canonical_string('/', {'Content-Type': 'text/plain',
+                                      'Content-MD5': '##'})
+        str2 = canonical_string('/', {'Content-Type': '\x01\x02text/plain',
+                                      'Content-MD5': '\x1f ##'})
+        str3 = canonical_string('/', {'Content-Type': 'text/plain \x10',
+                                      'Content-MD5': '##\x18'})
+
+        self.assertEqual(str1, str2)
+        self.assertEqual(str2, str3)
+
     def test_signed_urls_expired(self):
         expire = '1000000000'
         req = Request.blank('/bucket/object?Signature=X&Expires=%s&'
@@ -652,7 +665,7 @@ class TestSwift3Middleware(Swift3TestCase):
         test(auth_str, 'AccessDenied', 'Access Denied.')
 
     def test_canonical_string_v4(self):
-        def canonical_string(path, environ):
+        def _get_req(path, environ):
             if '?' in path:
                 path, query_string = path.split('?', 1)
             else:
@@ -663,17 +676,28 @@ class TestSwift3Middleware(Swift3TestCase):
                 'PATH_INFO': path,
                 'QUERY_STRING': query_string,
                 'HTTP_DATE': 'Mon, 09 Sep 2011 23:36:00 GMT',
-                'HTTP_X_AMZ_CONTENT_SHA256': (
+                'HTTP_X_AMZ_CONTENT_SHA256':
                     'e3b0c44298fc1c149afbf4c8996fb924'
-                    '27ae41e4649b934ca495991b7852b855')
+                    '27ae41e4649b934ca495991b7852b855',
+                'HTTP_AUTHORIZATION':
+                    'AWS4-HMAC-SHA256 '
+                    'Credential=X:Y/dt/reg/host/blah, '
+                    'SignedHeaders=content-md5;content-type;date, '
+                    'Signature=x',
             }
             env.update(environ)
             with patch('swift3.request.Request._validate_headers'):
                 req = SigV4Request(env)
-            return req._string_to_sign()
+            return req
+
+        def string_to_sign(path, environ):
+            return _get_req(path, environ)._string_to_sign()
+
+        def canonical_string(path, environ):
+            return _get_req(path, environ)._canonical_request()
 
         def verify(hash_val, path, environ):
-            s = canonical_string(path, environ)
+            s = string_to_sign(path, environ)
             s = s.split('\n')[3]
             self.assertEqual(hash_val, s)
 
@@ -786,6 +810,19 @@ class TestSwift3Middleware(Swift3TestCase):
         verify('4c5c6e4b52fb5fb947a8733982a8a5a6'
                '1b14f04345cbfe6e739236c76dd48f74',
                '/', env)
+
+        # Note that boto does not do proper stripping (as of 2.42.0).
+        # These were determined by examining the StringToSignBytes element of
+        # resulting SignatureDoesNotMatch errors from AWS.
+        str1 = canonical_string('/', {'CONTENT_TYPE': 'text/plain',
+                                      'HTTP_CONTENT_MD5': '##'})
+        str2 = canonical_string('/', {'CONTENT_TYPE': '\x01\x02text/plain',
+                                      'HTTP_CONTENT_MD5': '\x1f ##'})
+        str3 = canonical_string('/', {'CONTENT_TYPE': 'text/plain \x10',
+                                      'HTTP_CONTENT_MD5': '##\x18'})
+
+        self.assertEqual(str1, str2)
+        self.assertEqual(str2, str3)
 
     def test_mixture_param_v4(self):
         # now we have an Authorization header
