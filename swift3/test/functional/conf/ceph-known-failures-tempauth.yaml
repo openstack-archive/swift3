@@ -3,13 +3,9 @@ ceph_s3:
   <nose.suite.ContextSuite context=test_routing_generator>:setup: {status: KNOWN}
   s3tests.functional.test_headers.test_bucket_create_bad_authorization_invalid_aws2: {status: KNOWN}
   s3tests.functional.test_headers.test_bucket_create_bad_authorization_none: {status: KNOWN}
-  s3tests.functional.test_headers.test_bucket_create_bad_contentlength_empty: {status: KNOWN}
   s3tests.functional.test_headers.test_object_create_bad_authorization_invalid_aws2: {status: KNOWN}
   s3tests.functional.test_headers.test_object_create_bad_authorization_none: {status: KNOWN}
-  s3tests.functional.test_headers.test_object_create_bad_contentlength_empty: {status: KNOWN}
-  s3tests.functional.test_headers.test_object_create_bad_contenttype_unreadable: {status: KNOWN}
   s3tests.functional.test_headers.test_object_create_bad_date_after_end_aws2: {status: KNOWN}
-  s3tests.functional.test_headers.test_object_create_bad_md5_unreadable: {status: KNOWN}
   s3tests.functional.test_s3.test_100_continue: {status: KNOWN}
   s3tests.functional.test_s3.test_atomic_conditional_write_1mb: {status: KNOWN}
   s3tests.functional.test_s3.test_atomic_dual_conditional_write_1mb: {status: KNOWN}
