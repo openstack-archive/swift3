@@ -73,6 +73,12 @@ SIGV2_TIMESTAMP_FORMAT = '%Y-%m-%dT%H:%M:%S'
 SIGV4_X_AMZ_DATE_FORMAT = '%Y%m%dT%H%M%SZ'
 
 
+def _header_strip(value):
+    # S3 seems to strip *all* control characters
+    return _header_strip.re.sub('', value)
+_header_strip.re = re.compile('^[\x00-\x20]*|[\x00-\x20]*$')
+
+
 def _header_acl_property(resource):
     """
     Set and retrieve the acl in self.headers
@@ -236,7 +242,7 @@ class SigV4Mixin(object):
         :return : dict of headers to sign, the keys are all lower case
         """
         headers_lower_dict = dict(
-            (k.lower().strip(), ' '.join((v or '').strip().split()))
+            (k.lower().strip(), ' '.join(_header_strip(v or '').split()))
             for (k, v) in six.iteritems(self.headers))
 
         if 'host' in headers_lower_dict and re.match(
@@ -262,13 +268,7 @@ class SigV4Mixin(object):
 
         return dict(headers_to_sign)
 
-    def _string_to_sign(self):
-        """
-        Create 'StringToSign' value in Amazon terminology for v4.
-        """
-        scope = (self.timestamp.amz_date_format.split('T')[0] +
-                 '/' + CONF.location + '/s3/aws4_request')
-
+    def _canonical_request(self):
         # prepare 'canonical_request'
         # Example requests are like following:
         #
@@ -317,12 +317,19 @@ class SigV4Mixin(object):
         else:
             hashed_payload = self.headers['X-Amz-Content-SHA256']
         cr.append(hashed_payload)
-        canonical_request = '\n'.join(cr)
+        return '\n'.join(cr).encode('utf-8')
+
+    def _string_to_sign(self):
+        """
+        Create 'StringToSign' value in Amazon terminology for v4.
+        """
+        scope = (self.timestamp.amz_date_format.split('T')[0] +
+                 '/' + CONF.location + '/s3/aws4_request')
 
         return ('AWS4-HMAC-SHA256' + '\n'
                 + self.timestamp.amz_date_format + '\n'
                 + scope + '\n'
-                + sha256(canonical_request.encode('utf-8')).hexdigest())
+                + sha256(self._canonical_request()).hexdigest())
 
 
 def get_request_class(env):
@@ -565,8 +572,8 @@ class Request(swob.Request):
 
         self._validate_dates()
 
-        if 'Content-MD5' in self.headers:
-            value = self.headers['Content-MD5']
+        value = _header_strip(self.headers.get('Content-MD5', ''))
+        if value:
             if not re.match('^[A-Za-z0-9+/]+={0,2}$', value):
                 # Non-base64-alphabet characters in value.
                 raise InvalidDigest(content_md5=value)
@@ -716,9 +723,9 @@ class Request(swob.Request):
         """
         amz_headers = {}
 
-        buf = "%s\n%s\n%s\n" % (self.method,
-                                self.headers.get('Content-MD5', ''),
-                                self.headers.get('Content-Type') or '')
+        buf = [self.method,
+               _header_strip(self.headers.get('Content-MD5', '')),
+               _header_strip(self.headers.get('Content-Type') or '')]
 
         for amz_header in sorted((key.lower() for key in self.headers
                                   if key.lower().startswith('x-amz-'))):
@@ -726,32 +733,33 @@ class Request(swob.Request):
 
         if self._is_header_auth:
             if 'x-amz-date' in amz_headers:
-                buf += "\n"
+                buf.append('')
             elif 'Date' in self.headers:
-                buf += "%s\n" % self.headers['Date']
+                buf.append(self.headers['Date'])
         elif self._is_query_auth:
-            buf += "%s\n" % self.params['Expires']
+            buf.append(self.params['Expires'])
         else:
             # Should have already raised NotS3Request in _parse_auth_info,
             # but as a sanity check...
             raise AccessDenied()
 
         for k in sorted(key.lower() for key in amz_headers):
-            buf += "%s:%s\n" % (k, amz_headers[k])
+            buf.append("%s:%s" % (k, amz_headers[k]))
 
         path = self._canonical_uri()
         if self.query_string:
             path += '?' + self.query_string
+        params = []
         if '?' in path:
             path, args = path.split('?', 1)
-            params = []
             for key, value in sorted(self.params.items()):
                 if key in ALLOWED_SUB_RESOURCES:
                     params.append('%s=%s' % (key, value) if value else key)
-            if params:
-                return '%s%s?%s' % (buf, path, '&'.join(params))
-
-        return buf + path
+        if params:
+            buf.append('%s?%s' % (path, '&'.join(params)))
+        else:
+            buf.append(path)
+        return '\n'.join(buf)
 
     @property
     def controller_name(self):
