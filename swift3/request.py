@@ -262,6 +262,12 @@ class SigV4Mixin(object):
 
         return dict(headers_to_sign)
 
+    def _canonical_uri(self):
+        """
+        It won't require bucket name in canonical_uri for v4.
+        """
+        return self.environ.get('RAW_PATH_INFO', self.path)
+
     def _string_to_sign(self):
         """
         Create 'StringToSign' value in Amazon terminology for v4.
@@ -705,6 +711,9 @@ class Request(swob.Request):
         return src_resp
 
     def _canonical_uri(self):
+        """
+        Require bucket name in canonical_uri for v2 in virtual hosted-style.
+        """
         raw_path_info = self.environ.get('RAW_PATH_INFO', self.path)
         if self.bucket_in_host:
             raw_path_info = '/' + self.bucket_in_host + raw_path_info
