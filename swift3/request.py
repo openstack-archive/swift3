@@ -287,7 +287,7 @@ class SigV4Mixin(object):
         cr = [self.method.upper()]
 
         # 2. Add path like: /
-        path = self._canonical_uri()
+        path = self._canonical_uri(with_bucket=False)
         cr.append(path)
 
         # 3. Add query like: Action=ListUsers&Version=2010-05-08
@@ -704,9 +704,9 @@ class Request(swob.Request):
                                  "attributes.")
         return src_resp
 
-    def _canonical_uri(self):
+    def _canonical_uri(self, with_bucket=True):
         raw_path_info = self.environ.get('RAW_PATH_INFO', self.path)
-        if self.bucket_in_host:
+        if self.bucket_in_host and with_bucket:
             raw_path_info = '/' + self.bucket_in_host + raw_path_info
         return raw_path_info
 
