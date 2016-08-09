@@ -547,6 +547,99 @@ class TestRequest(Swift3TestCase):
             sigv4_req = SigV4Request(req.environ)
             sigv4_req._headers_to_sign()
 
+    def test_canonical_uri_sigv2(self):
+        environ = {
+            'HTTP_HOST': 'bucket1.s3.test.com',
+            'REQUEST_METHOD': 'GET'}
+
+        headers = {'Authorization': 'AWS test:tester:hmac',
+                   'X-Amz-Date': self.get_date_header()}
+
+        # Virtual hosted-style
+        with patch('swift3.cfg.CONF.storage_domain', 's3.test.com'):
+            req = Request.blank('/', environ=environ, headers=headers)
+            sigv2_req = S3_Request(req.environ)
+            uri = sigv2_req._canonical_uri()
+            self.assertEqual(uri, '/bucket1/')
+            self.assertEqual(req.environ['PATH_INFO'], '/')
+
+            req = Request.blank('/obj1', environ=environ, headers=headers)
+            sigv2_req = S3_Request(req.environ)
+            uri = sigv2_req._canonical_uri()
+            self.assertEqual(uri, '/bucket1/obj1')
+            self.assertEqual(req.environ['PATH_INFO'], '/obj1')
+
+        environ = {
+            'HTTP_HOST': 's3.test.com',
+            'REQUEST_METHOD': 'GET'}
+
+        # Path-style
+        with patch('swift3.cfg.CONF.storage_domain', ''):
+            req = Request.blank('/', environ=environ, headers=headers)
+            sigv2_req = S3_Request(req.environ)
+            uri = sigv2_req._canonical_uri()
+
+            self.assertEqual(uri, '/')
+            self.assertEqual(req.environ['PATH_INFO'], '/')
+
+            req = Request.blank('/bucket1/obj1', environ=environ, headers=headers)
+            sigv2_req = S3_Request(req.environ)
+            uri = sigv2_req._canonical_uri()
+            self.assertEqual(uri, '/bucket1/obj1')
+            self.assertEqual(req.environ['PATH_INFO'], '/bucket1/obj1')
+
+    def test_canonical_uri_sigv4(self):
+        environ = {
+            'HTTP_HOST': 'bucket.s3.test.com',
+            'REQUEST_METHOD': 'GET'}
+
+        # host and x-amz-date
+        x_amz_date = self.get_v4_amz_date_header()
+        headers = {
+            'Authorization':
+                'AWS4-HMAC-SHA256 '
+                'Credential=test/20130524/US/s3/aws4_request, '
+                'SignedHeaders=host;x-amz-content-sha256;x-amz-date,'
+                'Signature=X',
+            'X-Amz-Content-SHA256': '0123456789',
+            'Date': self.get_date_header(),
+            'X-Amz-Date': x_amz_date}
+
+        # Virtual hosted-style
+        with patch('swift3.cfg.CONF.storage_domain', 's3.test.com'):
+            req = Request.blank('/', environ=environ, headers=headers)
+            sigv4_req = SigV4Request(req.environ)
+            uri = sigv4_req._canonical_uri()
+
+            self.assertEqual(uri, '/')
+            self.assertEqual(req.environ['PATH_INFO'], '/')
+
+            req = Request.blank('/obj1', environ=environ, headers=headers)
+            sigv4_req = SigV4Request(req.environ)
+            uri = sigv4_req._canonical_uri()
+
+            self.assertEqual(uri, '/obj1')
+            self.assertEqual(req.environ['PATH_INFO'], '/obj1')
+
+        environ = {
+            'HTTP_HOST': 's3.test.com',
+            'REQUEST_METHOD': 'GET'}
+
+        # Path-style
+        with patch('swift3.cfg.CONF.storage_domain', ''):
+            req = Request.blank('/', environ=environ, headers=headers)
+            sigv4_req = SigV4Request(req.environ)
+            uri = sigv4_req._canonical_uri()
+
+            self.assertEqual(uri, '/')
+            self.assertEqual(req.environ['PATH_INFO'], '/')
+
+            req = Request.blank('/bucket/obj1', environ=environ, headers=headers)
+            sigv4_req = SigV4Request(req.environ)
+            uri = sigv4_req._canonical_uri()
+
+            self.assertEqual(uri, '/bucket/obj1')
+            self.assertEqual(req.environ['PATH_INFO'], '/bucket/obj1')
 
 if __name__ == '__main__':
     unittest.main()
