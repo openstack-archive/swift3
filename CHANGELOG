@@ -1,3 +1,29 @@
+Swift3 (1.11)
+
+    * Amazon S3 Signature V4 support
+      - To track newer authentication for Amazon Web service, Swift3 now supports
+        Signature V4 authentication since this version. Note that currently Signature
+        V4 is available only with keystone authentication and >=9.0.0 keystone is
+        required.
+
+    * s3_token middleware migrated from keystonemiddleware repository
+      - Since a discussion at OpenStack Austin Summit, the s3_token middleware has
+        been migrated from keystonemiddlware to maintain in swift3. To use the newest
+        maintained s3_token middleware, a few configuration change at proxy-server.conf
+        is needed.
+
+    * Fix unexpected HTTP verb runnable
+      - Older swift3 is able to run any methods implemented in the controllers via HTTP
+        verb. This fix limits them to the accepted method by hard coding for safe.
+
+    * Delete segments bucket when the original bucket is deleted
+      - To keep clean the swift environment, delete segment bucket and all segment objects
+        in the bucket for multipart upload when the original bucket is deleted
+
+    * swift3 version info available in /info
+
+    * Other minor bug fixes and various improvements
+
 Swift3 (1.10)
 
     * Supported Python minimum version bumped to 2.7
