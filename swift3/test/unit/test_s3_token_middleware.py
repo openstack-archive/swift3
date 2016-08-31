@@ -26,7 +26,7 @@ from six.moves import urllib
 
 from swift3 import s3_token_middleware as s3_token
 from swift.common.swob import Request, Response
-
+from swift.common.wsgi import ConfigFileError
 
 GOOD_RESPONSE = {'access': {'token': {'id': 'TOKEN_ID',
                                       'tenant': {'id': 'TENANT_ID'}}}}
@@ -189,8 +189,8 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
 
     @mock.patch.object(requests, 'post')
     def test_insecure(self, MOCK_REQUEST):
-        self.middleware = (
-            s3_token.filter_factory({'insecure': 'True'})(self.app))
+        self.middleware = s3_token.filter_factory(
+            {'insecure': 'True', 'auth_uri': 'http://example.com'})(self.app)
 
         text_return_value = json.dumps(GOOD_RESPONSE)
         MOCK_REQUEST.return_value = TestResponse({
@@ -212,19 +212,24 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         # Some non-secure values.
         true_values = ['true', 'True', '1', 'yes']
         for val in true_values:
-            config = {'insecure': val, 'certfile': 'false_ind'}
+            config = {'insecure': val,
+                      'certfile': 'false_ind',
+                      'auth_uri': 'http://example.com'}
             middleware = s3_token.filter_factory(config)(self.app)
             self.assertIs(False, middleware._verify)
 
         # Some "secure" values, including unexpected value.
         false_values = ['false', 'False', '0', 'no', 'someweirdvalue']
         for val in false_values:
-            config = {'insecure': val, 'certfile': 'false_ind'}
+            config = {'insecure': val,
+                      'certfile': 'false_ind',
+                      'auth_uri': 'http://example.com'}
             middleware = s3_token.filter_factory(config)(self.app)
             self.assertEqual('false_ind', middleware._verify)
 
         # Default is secure.
-        config = {'certfile': 'false_ind'}
+        config = {'certfile': 'false_ind',
+                  'auth_uri': 'http://example.com'}
         middleware = s3_token.filter_factory(config)(self.app)
         self.assertIs('false_ind', middleware._verify)
 
@@ -242,6 +247,13 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         config['auth_host'] = '[%s]' % ipv6_addr
         middleware = s3_token.filter_factory(config)(self.app)
         self.assertEqual(identity_uri, middleware._request_uri)
+
+        # ... with no config, we should get config error
+        del config['auth_host']
+        with self.assertRaises(ConfigFileError) as cm:
+            s3_token.filter_factory(config)(self.app)
+        self.assertEqual('Either auth_uri or auth_host required',
+                         cm.exception.message)
 
     def test_unicode_path(self):
         url = u'/v1/AUTH_cfa/c/euro\u20ac'.encode('utf8')
