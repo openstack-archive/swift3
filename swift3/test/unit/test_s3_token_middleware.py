@@ -93,9 +93,11 @@ class S3TokenMiddlewareTestBase(unittest.TestCase):
         self.time_patcher = mock.patch.object(time, 'time', lambda: 1234)
         self.time_patcher.start()
 
+        self.app = FakeApp()
         self.conf = {
             'auth_uri': self.TEST_AUTH_URI,
         }
+        self.middleware = s3_token.S3Token(self.app, self.conf)
 
         self.requests_mock = rm_fixture.Fixture()
         self.requests_mock.setUp()
@@ -115,7 +117,6 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
 
     def setUp(self):
         super(S3TokenMiddlewareTestGood, self).setUp()
-        self.middleware = s3_token.S3Token(FakeApp(), self.conf)
 
         self.requests_mock.post(self.TEST_URL,
                                 status_code=201,
@@ -160,7 +161,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         self.middleware = (
             s3_token.filter_factory({'auth_protocol': 'http',
                                      'auth_host': host,
-                                     'auth_port': port})(FakeApp()))
+                                     'auth_port': port})(self.app))
         req = Request.blank('/v1/AUTH_cfa/c/o')
         req.headers['Authorization'] = 'AWS access:signature'
         req.headers['X-Storage-Token'] = 'token'
@@ -170,7 +171,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
 
     def test_authorized_trailing_slash(self):
         self.middleware = s3_token.filter_factory({
-            'auth_uri': self.TEST_AUTH_URI + '/'})(FakeApp())
+            'auth_uri': self.TEST_AUTH_URI + '/'})(self.app)
         req = Request.blank('/v1/AUTH_cfa/c/o')
         req.headers['Authorization'] = 'AWS access:signature'
         req.headers['X-Storage-Token'] = 'token'
@@ -189,7 +190,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
     @mock.patch.object(requests, 'post')
     def test_insecure(self, MOCK_REQUEST):
         self.middleware = (
-            s3_token.filter_factory({'insecure': 'True'})(FakeApp()))
+            s3_token.filter_factory({'insecure': 'True'})(self.app))
 
         text_return_value = json.dumps(GOOD_RESPONSE)
         MOCK_REQUEST.return_value = TestResponse({
@@ -212,20 +213,35 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         true_values = ['true', 'True', '1', 'yes']
         for val in true_values:
             config = {'insecure': val, 'certfile': 'false_ind'}
-            middleware = s3_token.filter_factory(config)(FakeApp())
+            middleware = s3_token.filter_factory(config)(self.app)
             self.assertIs(False, middleware._verify)
 
         # Some "secure" values, including unexpected value.
         false_values = ['false', 'False', '0', 'no', 'someweirdvalue']
         for val in false_values:
             config = {'insecure': val, 'certfile': 'false_ind'}
-            middleware = s3_token.filter_factory(config)(FakeApp())
+            middleware = s3_token.filter_factory(config)(self.app)
             self.assertEqual('false_ind', middleware._verify)
 
         # Default is secure.
         config = {'certfile': 'false_ind'}
-        middleware = s3_token.filter_factory(config)(FakeApp())
+        middleware = s3_token.filter_factory(config)(self.app)
         self.assertIs('false_ind', middleware._verify)
+
+    def test_ipv6_auth_host_option(self):
+        config = {}
+        ipv6_addr = '::FFFF:129.144.52.38'
+        identity_uri = 'https://[::FFFF:129.144.52.38]:35357'
+
+        # Raw IPv6 address should work
+        config['auth_host'] = ipv6_addr
+        middleware = s3_token.filter_factory(config)(self.app)
+        self.assertEqual(identity_uri, middleware._request_uri)
+
+        # ...as should workarounds already in use
+        config['auth_host'] = '[%s]' % ipv6_addr
+        middleware = s3_token.filter_factory(config)(self.app)
+        self.assertEqual(identity_uri, middleware._request_uri)
 
     def test_unicode_path(self):
         url = u'/v1/AUTH_cfa/c/euro\u20ac'.encode('utf8')
@@ -236,10 +252,6 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
 
 
 class S3TokenMiddlewareTestBad(S3TokenMiddlewareTestBase):
-    def setUp(self):
-        super(S3TokenMiddlewareTestBad, self).setUp()
-        self.middleware = s3_token.S3Token(FakeApp(), self.conf)
-
     def test_unauthorized_token(self):
         ret = {"error":
                {"message": "EC2 access key not found.",
