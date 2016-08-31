@@ -39,6 +39,7 @@ import six
 
 from swift.common.swob import Request, Response
 from swift.common.utils import config_true_value, split_path
+from swift.common.wsgi import ConfigFileError
 
 from swift3.utils import is_valid_ipv6
 
@@ -68,8 +69,10 @@ class S3Token(object):
                 "configuration options was deprecated in the Newton release "
                 "in favor of auth_uri. These options may be removed in a "
                 "future release.")
-            auth_host = conf.get('auth_host', '')
-            if is_valid_ipv6(auth_host):
+            auth_host = conf.get('auth_host')
+            if not auth_host:
+                raise ConfigFileError('Either auth_uri or auth_host required')
+            elif is_valid_ipv6(auth_host):
                 # Note(timburke) it is an IPv6 address, so it needs to be
                 # wrapped with '[]' to generate a valid IPv6 URL, based on
                 # http://www.ietf.org/rfc/rfc2732.txt
