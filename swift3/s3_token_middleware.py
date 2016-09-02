@@ -36,6 +36,7 @@ import logging
 
 import requests
 import six
+from six.moves import urllib
 
 from swift.common.swob import Request, Response
 from swift.common.utils import config_true_value, split_path
@@ -86,6 +87,16 @@ class S3Token(object):
             self._request_uri = '%s://%s:%s' % (auth_protocol, auth_host,
                                                 auth_port)
         self._request_uri = self._request_uri.rstrip('/')
+        parsed = urllib.parse.urlsplit(self._request_uri)
+        if not all(parsed[:2]):
+            raise ConfigFileError(
+                'Invalid auth_uri; must include scheme and host')
+        if parsed.scheme not in ('http', 'https'):
+            raise ConfigFileError(
+                'Invalid auth_uri; scheme must be http or https')
+        if any(parsed[-2:]) or '@' in parsed.netloc:
+            raise ConfigFileError('Invalid auth_uri; must not include '
+                                  'username, query, or fragment')
 
         # SSL
         insecure = config_true_value(conf.get('insecure'))
