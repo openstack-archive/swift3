@@ -255,6 +255,28 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         self.assertEqual('Either auth_uri or auth_host required',
                          cm.exception.message)
 
+    def test_bad_auth_uris(self):
+        for auth_uri in [
+                '/not/a/uri',
+                'http://',
+                '//example.com/path']:
+            with self.assertRaises(ConfigFileError) as cm:
+                s3_token.filter_factory({'auth_uri': auth_uri})(self.app)
+            self.assertEqual('Invalid auth_uri; must include scheme and host',
+                             cm.exception.message)
+        with self.assertRaises(ConfigFileError) as cm:
+            s3_token.filter_factory({'auth_uri': 'nonhttp://example.com'})(self.app)
+        self.assertEqual('Invalid auth_uri; scheme must be http or https',
+                         cm.exception.message)
+        for auth_uri in [
+                'http://user@example.com/',
+                'http://example.com/?with=query',
+                'http://example.com/#with-fragment']:
+            with self.assertRaises(ConfigFileError) as cm:
+                s3_token.filter_factory({'auth_uri': auth_uri})(self.app)
+            self.assertEqual('Invalid auth_uri; must not include username, '
+                             'query, or fragment', cm.exception.message)
+
     def test_unicode_path(self):
         url = u'/v1/AUTH_cfa/c/euro\u20ac'.encode('utf8')
         req = Request.blank(urllib.parse.quote(url))
