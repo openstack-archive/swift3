@@ -63,6 +63,8 @@ class Swift3TestCase(unittest.TestCase):
         self.swift = self.app.swift
         self.swift3 = Swift3Middleware(self.app, CONF)
 
+        self.swift.register('HEAD', '/v1/AUTH_test',
+                            swob.HTTPOk, {}, None)
         self.swift.register('HEAD', '/v1/AUTH_test/bucket',
                             swob.HTTPNoContent, {}, None)
         self.swift.register('PUT', '/v1/AUTH_test/bucket',
