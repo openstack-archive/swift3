@@ -260,7 +260,7 @@ class BucketAlreadyOwnedByYou(ErrorResponse):
 
 class BucketNotEmpty(ErrorResponse):
     _status = '409 Conflict'
-    _msg = 'The bucket you tried to delete is not empty.'
+    _msg = 'The bucket you tried to delete is not empty'
 
 
 class CredentialsNotSupported(ErrorResponse):
