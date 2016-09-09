@@ -1005,7 +1005,7 @@ class Request(swob.Request):
                     HTTP_PRECONDITION_FAILED: PreconditionFailed,
                 },
                 'DELETE': {
-                    HTTP_NOT_FOUND: (NoSuchKey, obj),
+                    HTTP_NOT_FOUND: (NoSuchBucket, container),
                 },
             }
 
@@ -1146,7 +1146,10 @@ class Request(swob.Request):
         if not CONF.allow_multipart_uploads:
             return None
         query = {'multipart-manifest': 'delete'}
-        resp = self.get_response(app, 'HEAD')
+        try:
+            resp = self.get_response(app, 'HEAD')
+        except NoSuchKey:
+            return None
         return query if resp.is_slo else None
 
 
