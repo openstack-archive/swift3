@@ -16,6 +16,7 @@
 import unittest
 from datetime import datetime
 from hashlib import md5
+import mock
 
 from six.moves import urllib
 from swift.common import swob
@@ -35,6 +36,12 @@ class TestSwift3MultiDelete(Swift3TestCase):
                             swob.HTTPOk, {}, None)
         self.swift.register('HEAD', '/v1/AUTH_test/bucket/Key2',
                             swob.HTTPNotFound, {}, None)
+        self.info_patcher = mock.patch('swift3.middleware.get_container_info',
+                                       return_value={'status': 200})
+        self.info_patcher.start()
+
+    def tearDown(self):
+        self.info_patcher.stop()
 
     @s3acl
     def test_object_multi_DELETE_to_object(self):

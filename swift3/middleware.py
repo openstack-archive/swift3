@@ -54,7 +54,11 @@ following for an SAIO setup::
 
 from paste.deploy import loadwsgi
 
-from swift.common.wsgi import PipelineWrapper, loadcontext
+from swift.common.http import is_success
+from swift.common.utils import closing_if_possible, get_logger, \
+    register_swift_info, split_path
+from swift.common.wsgi import PipelineWrapper, loadcontext, WSGIContext
+from swift.proxy.controllers.base import get_container_info
 
 from swift3 import __version__ as swift3_version
 from swift3.exception import NotS3Request
@@ -63,13 +67,44 @@ from swift3.response import ErrorResponse, InternalError, MethodNotAllowed, \
     ResponseBase
 from swift3.cfg import CONF
 from swift3.utils import LOGGER
-from swift.common.utils import get_logger, register_swift_info
+
+
+class MissingDeleteOk(object):
+    """Middlware to convert 404s on object deletions to 204s."""
+    def __init__(self, app):
+        self.app = app
+
+    def __call__(self, env, start_response):
+        ctx = WSGIContext(self.app)
+        app_iter = ctx._app_call(env)
+        try:
+            split_path(env['PATH_INFO'], 4, 4, True)
+        except ValueError:
+            pass  # not an object request; don't care
+        else:
+            if env['REQUEST_METHOD'] == 'DELETE' and \
+                    ctx._response_status[:3] == '404':
+                # Should be a cache hit
+                if is_success(get_container_info(
+                        env, self.app, swift_source='S3').get('status')):
+                    # Convert to a successful response
+                    ctx._response_status = '204 No Content'
+                    ctx._response_headers = [
+                        (h, '0' if h.lower() == 'content-length' else v)
+                        for h, v in ctx._response_headers]
+                    with closing_if_possible(app_iter):
+                        for chunk in app_iter:
+                            pass  # should be short; just drop it on the floor
+                    app_iter = ['']
+        start_response(ctx._response_status, ctx._response_headers)
+        return app_iter
 
 
 class Swift3Middleware(object):
     """Swift3 S3 compatibility middleware"""
     def __init__(self, app, conf, *args, **kwargs):
         self.app = app
+        self.s3_app = MissingDeleteOk(app)
         self.slo_enabled = conf['allow_multipart_uploads']
         self.check_pipeline(conf)
 
@@ -98,7 +133,7 @@ class Swift3Middleware(object):
         LOGGER.debug('Calling Swift3 Middleware')
         LOGGER.debug(req.__dict__)
 
-        controller = req.controller(self.app)
+        controller = req.controller(self.s3_app)
         if hasattr(controller, req.method):
             handler = getattr(controller, req.method)
             if not getattr(handler, 'publicly_accessible', False):

@@ -20,7 +20,7 @@ from swift.common.utils import public
 from swift3.controllers.base import Controller, bucket_operation
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
-from swift3.response import HTTPOk, S3NotImplemented, NoSuchKey, \
+from swift3.response import HTTPOk, S3NotImplemented, \
     ErrorResponse, MalformedXML, UserKeyMustBeSpecified, AccessDenied
 from swift3.cfg import CONF
 from swift3.utils import LOGGER
@@ -104,8 +104,6 @@ class MultiObjectDeleteController(Controller):
             try:
                 query = req.gen_multipart_manifest_delete_query(self.app)
                 req.get_response(self.app, method='DELETE', query=query)
-            except NoSuchKey:
-                pass
             except ErrorResponse as e:
                 error = SubElement(elem, 'Error')
                 SubElement(error, 'Key').text = key
