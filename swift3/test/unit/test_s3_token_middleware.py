@@ -62,8 +62,10 @@ class TestResponse(requests.Response):
 
 
 class FakeApp(object):
+    calls = 0
     """This represents a WSGI app protected by the auth_token middleware."""
     def __call__(self, env, start_response):
+        self.calls += 1
         resp = Response()
         resp.environ = env
         return resp(env, start_response)
@@ -149,6 +151,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         req.get_response(self.middleware)
         self.assertTrue(req.path.startswith('/v1/AUTH_TENANT_ID'))
         self.assertEqual(req.headers['X-Auth-Token'], 'TOKEN_ID')
+        self.assertEqual(1, self.middleware._app.calls)
 
     def test_authorized_http(self):
         protocol = 'http'
@@ -326,6 +329,7 @@ class S3TokenMiddlewareTestBad(S3TokenMiddlewareTestBase):
         self.assertEqual(
             resp.status_int,  # pylint: disable-msg=E1101
             s3_denied_req.status_int)  # pylint: disable-msg=E1101
+        self.assertEqual(0, self.middleware._app.calls)
 
     def test_bogus_authorization(self):
         req = Request.blank('/v1/AUTH_cfa/c/o')
@@ -338,6 +342,7 @@ class S3TokenMiddlewareTestBad(S3TokenMiddlewareTestBase):
         self.assertEqual(
             resp.status_int,  # pylint: disable-msg=E1101
             s3_invalid_req.status_int)  # pylint: disable-msg=E1101
+        self.assertEqual(0, self.middleware._app.calls)
 
     def test_fail_to_connect_to_keystone(self):
         with mock.patch.object(self.middleware, '_json_request') as o:
@@ -352,6 +357,7 @@ class S3TokenMiddlewareTestBad(S3TokenMiddlewareTestBase):
             self.assertEqual(
                 resp.status_int,  # pylint: disable-msg=E1101
                 s3_invalid_req.status_int)  # pylint: disable-msg=E1101
+            self.assertEqual(0, self.middleware._app.calls)
 
     def test_bad_reply(self):
         self.requests_mock.post(self.TEST_URL,
@@ -367,3 +373,68 @@ class S3TokenMiddlewareTestBad(S3TokenMiddlewareTestBase):
         self.assertEqual(
             resp.status_int,  # pylint: disable-msg=E1101
             s3_invalid_req.status_int)  # pylint: disable-msg=E1101
+        self.assertEqual(0, self.middleware._app.calls)
+
+
+class S3TokenMiddlewareTestDeferredAuth(S3TokenMiddlewareTestBase):
+    def setUp(self):
+        super(S3TokenMiddlewareTestDeferredAuth, self).setUp()
+        self.conf['delay_auth_decision'] = 'yes'
+        self.middleware = s3_token.S3Token(FakeApp(), self.conf)
+
+    def test_unauthorized_token(self):
+        ret = {"error":
+               {"message": "EC2 access key not found.",
+                "code": 401,
+                "title": "Unauthorized"}}
+        self.requests_mock.post(self.TEST_URL, status_code=403, json=ret)
+        req = Request.blank('/v1/AUTH_cfa/c/o')
+        req.headers['Authorization'] = 'AWS access:signature'
+        req.headers['X-Storage-Token'] = 'token'
+        resp = req.get_response(self.middleware)
+        self.assertEqual(
+            resp.status_int,  # pylint: disable-msg=E1101
+            200)
+        self.assertNotIn('X-Auth-Token', req.headers)
+        self.assertEqual(1, self.middleware._app.calls)
+
+    def test_bogus_authorization(self):
+        req = Request.blank('/v1/AUTH_cfa/c/o')
+        req.headers['Authorization'] = 'AWS badboy'
+        req.headers['X-Storage-Token'] = 'token'
+        resp = req.get_response(self.middleware)
+        self.assertEqual(
+            resp.status_int,  # pylint: disable-msg=E1101
+            200)
+        self.assertNotIn('X-Auth-Token', req.headers)
+        self.assertEqual(1, self.middleware._app.calls)
+
+    def test_fail_to_connect_to_keystone(self):
+        with mock.patch.object(self.middleware, '_json_request') as o:
+            s3_invalid_req = self.middleware._deny_request('InvalidURI')
+            o.side_effect = s3_token.ServiceError(s3_invalid_req)
+
+            req = Request.blank('/v1/AUTH_cfa/c/o')
+            req.headers['Authorization'] = 'AWS access:signature'
+            req.headers['X-Storage-Token'] = 'token'
+            resp = req.get_response(self.middleware)
+            self.assertEqual(
+                resp.status_int,  # pylint: disable-msg=E1101
+                200)
+        self.assertNotIn('X-Auth-Token', req.headers)
+        self.assertEqual(1, self.middleware._app.calls)
+
+    def test_bad_reply(self):
+        self.requests_mock.post(self.TEST_URL,
+                                status_code=201,
+                                text="<badreply>")
+
+        req = Request.blank('/v1/AUTH_cfa/c/o')
+        req.headers['Authorization'] = 'AWS access:signature'
+        req.headers['X-Storage-Token'] = 'token'
+        resp = req.get_response(self.middleware)
+        self.assertEqual(
+            resp.status_int,  # pylint: disable-msg=E1101
+            200)
+        self.assertNotIn('X-Auth-Token', req.headers)
+        self.assertEqual(1, self.middleware._app.calls)

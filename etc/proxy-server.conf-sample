@@ -146,6 +146,11 @@ use = egg:swift3#s3token
 # Prefix that will be prepended to the tenant to form the account
 reseller_prefix = AUTH_
 
+# By default, s3token will reject all invalid S3-style requests. Set this to
+# True to delegate that decision to downstream WSGI components. This may be
+# useful if there are multiple auth systems in the proxy pipeline.
+delay_auth_decision = False
+
 # Keystone server details
 auth_uri = http://keystonehost:35357/
 
