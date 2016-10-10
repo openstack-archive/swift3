@@ -233,20 +233,53 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         middleware = s3_token.filter_factory(config)(self.app)
         self.assertIs('false_ind', middleware._verify)
 
+    def test_partial_auth_uri(self):
+        for conf_val, expected in [
+                # if provided just host/scheme, tack on the default
+                # version/endpoint like before
+                ('https://example.com', 'https://example.com/v2.0/s3tokens'),
+                # if provided a version-specific URI, trust it
+                ('https://example.com:5000/v2.0/',
+                 'https://example.com:5000/v2.0/s3tokens'),
+                ('http://example.com/v3', 'http://example.com/v3/s3tokens'),
+                # if provided a complete s3tokens URI, trust it
+                ('https://example.com:5000/v2.0/s3tokens',
+                 'https://example.com:5000/v2.0/s3tokens'),
+                ('http://example.com/v3/s3tokens',
+                 'http://example.com/v3/s3tokens'),
+                # even try to allow for future versions
+                ('http://example.com/v4.2',
+                 'http://example.com/v4.2/s3tokens'),
+                ('http://example.com/v4.2/s3tokens',
+                 'http://example.com/v4.2/s3tokens'),
+                # keystone running under mod_wsgi often has a path prefix
+                ('https://example.com/identity',
+                 'https://example.com/identity/v2.0/s3tokens'),
+                # if, for some reason, they use the endpoint name, we should
+                # still populate version & endpoint
+                ('https://example.com/s3tokens',
+                 'https://example.com/s3tokens/v2.0/s3tokens'),
+                # this should almost certainly never happen
+                ('http://example.com/v7.0/s3tokens/butnotreally',
+                 'http://example.com/v7.0/s3tokens/butnotreally/s3tokens')]:
+            middleware = s3_token.filter_factory({
+                'auth_uri': conf_val})(self.app)
+            self.assertEqual(expected, middleware._request_uri)
+
     def test_ipv6_auth_host_option(self):
         config = {}
         ipv6_addr = '::FFFF:129.144.52.38'
-        identity_uri = 'https://[::FFFF:129.144.52.38]:35357'
+        request_uri = 'https://[::FFFF:129.144.52.38]:35357/v2.0/s3tokens'
 
         # Raw IPv6 address should work
         config['auth_host'] = ipv6_addr
         middleware = s3_token.filter_factory(config)(self.app)
-        self.assertEqual(identity_uri, middleware._request_uri)
+        self.assertEqual(request_uri, middleware._request_uri)
 
         # ...as should workarounds already in use
         config['auth_host'] = '[%s]' % ipv6_addr
         middleware = s3_token.filter_factory(config)(self.app)
-        self.assertEqual(identity_uri, middleware._request_uri)
+        self.assertEqual(request_uri, middleware._request_uri)
 
         # ... with no config, we should get config error
         del config['auth_host']

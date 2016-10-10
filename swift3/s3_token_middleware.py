@@ -97,6 +97,11 @@ class S3Token(object):
         if any(parsed[-2:]) or '@' in parsed.netloc:
             raise ConfigFileError('Invalid auth_uri; must not include '
                                   'username, query, or fragment')
+        if not any(p.startswith('v') and len(p) > 1 and p[1].isdigit()
+                   for p in parsed.path.split('/')):
+            self._request_uri += '/v2.0/s3tokens'
+        elif not parsed.path.endswith('/s3tokens'):
+            self._request_uri += '/s3tokens'
 
         # SSL
         insecure = config_true_value(conf.get('insecure'))
@@ -131,7 +136,7 @@ class S3Token(object):
     def _json_request(self, creds_json):
         headers = {'Content-Type': 'application/json'}
         try:
-            response = requests.post('%s/v2.0/s3tokens' % self._request_uri,
+            response = requests.post(self._request_uri,
                                      headers=headers, data=creds_json,
                                      verify=self._verify,
                                      timeout=self._timeout)
