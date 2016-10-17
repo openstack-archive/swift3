@@ -148,7 +148,7 @@ class S3Token(object):
             parts = split_path(req.path, 1, 4, True)
             version, account, container, obj = parts
         except ValueError:
-            msg = 'Not a path query, skipping.'
+            msg = 'Not a path query: %s, skipping.' % req.path
             self._logger.debug(msg)
             return self._app(environ, start_response)
 
