@@ -6,7 +6,7 @@ swift via the Amazon S3 API.
 
 Features
 -------
- - Support AWS Signature Version 2 (Version 4 is not ready)
+ - Support AWS Signature Version 2, 4 (Version 4 is ready for only keystone)
  - Support Services APIs (GET)
  - Support Bucket APIs (GET/PUT/DELETE/HEAD)
  - Support Object APIs (GET/PUT/DELETE/HEAD)
