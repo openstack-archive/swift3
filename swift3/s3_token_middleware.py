@@ -68,6 +68,9 @@ class S3Token(object):
         self._reseller_prefix = conf.get('reseller_prefix', 'AUTH_')
         self._delay_auth_decision = config_true_value(
             conf.get('delay_auth_decision'))
+        # TODO: need the default to v2 or v3 and more validation like
+        #       auth_token
+        self.auth_version = conf.get('auth_version', 'v2.0')
 
         # where to find the auth service (we use this to validate tokens)
         self._request_uri = conf.get('auth_uri')
@@ -88,14 +91,17 @@ class S3Token(object):
             auth_port = int(conf.get('auth_port', 35357))
             auth_protocol = conf.get('auth_protocol', 'https')
 
-            self._request_uri = '%s://%s:%s' % (auth_protocol, auth_host,
-                                                auth_port)
+            # set v2.0 path for old style configuration
+            self._request_uri = '%s://%s:%s/%s' % (auth_protocol, auth_host,
+                                                  auth_port, self.auth_version)
+
         self._request_uri = self._request_uri.rstrip('/')
         parsed = urlparse.urlparse(self._request_uri)
-        if not any(p.startswith('v') and len(p) > 1 and p[1].isdigit()
-                   for p in parsed.path.split('/')):
-            self._request_uri += '/v2.0/s3tokens'
-        elif not parsed.path.endswith('/s3tokens'):
+
+        if not parsed.path.endswith(self.auth_version):
+            self._request_uri += '/%s' % self.auth_version
+        if not self._request_uri.endswith('/s3tokens'):
+            # add /s3tokens path if it's not configured
             self._request_uri += '/s3tokens'
 
         # SSL

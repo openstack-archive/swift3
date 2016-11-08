@@ -236,30 +236,73 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         middleware = s3_token.filter_factory(config)(self.app)
         self.assertIs('false_ind', middleware._verify)
 
-    def test_partial_auth_uri(self):
-        for conf_val, expected in [
-                # if provided just host/scheme, tack on the default
-                # version/endpoint like before
-                ('https://example.com', 'https://example.com/v2.0/s3tokens'),
-                # if provided a version-specific URI, trust it
-                ('https://example.com:5000/v2.0/',
-                 'https://example.com:5000/v2.0/s3tokens'),
-                ('http://example.com/v3', 'http://example.com/v3/s3tokens'),
-                # even try to allow for future versions
-                ('http://example.com/v4.2',
-                 'http://example.com/v4.2/s3tokens'),
-                # keystone running under mod_wsgi often has a path prefix
-                ('https://example.com/identity',
-                 'https://example.com/identity/v2.0/s3tokens'),
-                # if, for some reason, they use the endpoint name, we should
-                # still populate version & endpoint
-                ('https://example.com/s3tokens',
-                 'https://example.com/s3tokens/v2.0/s3tokens'),
-                # this should almost certainly never happen
-                ('http://example.com/v7.0/s3tokens/butnotreally',
-                 'http://example.com/v7.0/s3tokens/butnotreally/s3tokens')]:
-            middleware = s3_token.filter_factory({
-                'auth_uri': conf_val})(self.app)
+    def test_partial_auth_uri_default_v2(self):
+        test_conditions = [
+            # if provided just host/scheme, tack on the default
+            # version/endpoint like before
+            ('https://example.com', 'https://example.com/v2.0/s3tokens'),
+            # if provided a version-specific URI, trust it
+            ('https://example.com:5000/v2.0/',
+             'https://example.com:5000/v2.0/s3tokens'),
+            # even try to allow for future versions
+            # keystone running under mod_wsgi often has a path prefix
+            ('https://example.com/identity',
+             'https://example.com/identity/v2.0/s3tokens'),
+            # if, for some reason, they use the endpoint name, we should
+            # still populate version & endpoint
+            ('https://example.com/s3tokens',
+             'https://example.com/s3tokens/v2.0/s3tokens'),
+        ]
+        # no auth version specified
+        conf = {}
+        self._test_partial_auth_uri(test_conditions, conf)
+
+    def test_partial_auth_uri_v2(self):
+        test_conditions = [
+            # if provided just host/scheme, tack on the default
+            # version/endpoint like before
+            ('https://example.com', 'https://example.com/v2.0/s3tokens'),
+            # if provided a version-specific URI, trust it
+            ('https://example.com:5000/v2.0/',
+             'https://example.com:5000/v2.0/s3tokens'),
+            # even try to allow for future versions
+            # keystone running under mod_wsgi often has a path prefix
+            ('https://example.com/identity',
+             'https://example.com/identity/v2.0/s3tokens'),
+            # if, for some reason, they use the endpoint name, we should
+            # still populate version & endpoint
+            ('https://example.com/s3tokens',
+             'https://example.com/s3tokens/v2.0/s3tokens'),
+        ]
+        # v2.0 specified obviously
+        conf = {'auth_version': 'v2.0'}
+        self._test_partial_auth_uri(test_conditions, conf)
+
+    def test_partial_auth_uri_v3(self):
+        test_conditions = [
+            # if provided just host/scheme, tack on the default
+            # version/endpoint like before
+            ('https://example.com', 'https://example.com/v3/s3tokens'),
+            # if provided a version-specific URI, trust it
+            ('https://example.com:5000/v3/',
+             'https://example.com:5000/v3/s3tokens'),
+            # keystone running under mod_wsgi often has a path prefix
+            ('https://example.com/identity',
+             'https://example.com/identity/v3/s3tokens'),
+            # if, for some reason, they use the endpoint name, we should
+            # still populate version & endpoint
+            ('https://example.com/s3tokens',
+             'https://example.com/s3tokens/v3/s3tokens'),
+            # this should almost certainly never happen
+        ]
+        conf = {'auth_version': 'v3.0'}
+        self._test_partial_auth_uri(test_conditions, conf)
+
+    def _test_partial_auth_uri(self, test_conditions, conf):
+        for conf_auth_uri_val, expected in test_conditions:
+            test_conf = conf.copy()
+            test_conf.update({'auth_uri': conf_auth_uri_val})
+            middleware = s3_token.filter_factory(test_conf)(self.app)
             self.assertEqual(expected, middleware._request_uri)
 
     def test_ipv6_auth_host_option(self):

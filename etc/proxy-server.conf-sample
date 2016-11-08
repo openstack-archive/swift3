@@ -153,6 +153,7 @@ delay_auth_decision = False
 
 # Keystone server details
 auth_uri = http://keystonehost:35357/
+auth_version = v2.0
 
 # Connect/read timeout to use when communicating with Keystone
 http_timeout = 10.0
