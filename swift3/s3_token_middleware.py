@@ -226,10 +226,27 @@ class S3Token(object):
                            resp.status_code, resp.content)
 
         try:
-            identity_info = resp.json()
-            token_id = str(identity_info['access']['token']['id'])
-            tenant = identity_info['access']['token']['tenant']
-        except (ValueError, KeyError):
+            access_info = resp.json()['access']
+            # Populate the environment similar to auth_token,
+            # so we don't have to contact Keystone again.
+            #
+            # Note that although the strings are unicode following json
+            # deserialization, Swift's HeaderEnvironProxy handles ensuring
+            # they're stored as native strings
+            req.headers.update({
+                'X-Identity-Status': 'Confirmed',
+                'X-Roles': ','.join(r['name']
+                                    for r in access_info['user']['roles']),
+                'X-User-Id': access_info['user']['id'],
+                'X-User-Name': access_info['user']['name'],
+                'X-Tenant-Id': access_info['token']['tenant']['id'],
+                'X-Tenant-Name': access_info['token']['tenant']['name'],
+                'X-Project-Id': access_info['token']['tenant']['id'],
+                'X-Project-Name': access_info['token']['tenant']['name'],
+            })
+            token_id = access_info['token'].get('id')
+            tenant = access_info['token']['tenant']
+        except (ValueError, KeyError, TypeError):
             if self._delay_auth_decision:
                 error = ('Error on keystone reply: %d %s - '
                          'deferring rejection downstream')
