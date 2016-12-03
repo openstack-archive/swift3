@@ -1189,7 +1189,7 @@ class S3AclRequest(Request):
             self.user_id = "%s:%s" % (sw_resp.environ['HTTP_X_TENANT_NAME'],
                                       sw_resp.environ['HTTP_X_USER_NAME'])
             self.user_id = utf8encode(self.user_id)
-            self.token = sw_resp.environ['HTTP_X_AUTH_TOKEN']
+            self.token = sw_resp.environ.get('HTTP_X_AUTH_TOKEN')
             # Need to skip S3 authorization since authtoken middleware
             # overwrites account in PATH_INFO
             del self.headers['Authorization']

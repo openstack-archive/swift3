@@ -37,7 +37,8 @@ import logging
 import requests
 import six
 
-from swift.common.swob import Request, Response
+from swift.common.swob import Request, HTTPBadRequest, HTTPUnauthorized, \
+    HTTPException
 from swift.common.utils import config_true_value, split_path
 from swift.common.wsgi import ConfigFileError
 
@@ -46,9 +47,29 @@ from swift3.utils import is_valid_ipv6
 
 PROTOCOL_NAME = 'S3 Token Authentication'
 
-
-class ServiceError(Exception):
-    pass
+# Headers to purge if they came from (or may have come from) the client
+KEYSTONE_AUTH_HEADERS = (
+    'X-Identity-Status', 'X-Service-Identity-Status',
+    'X-Domain-Id', 'X-Service-Domain-Id',
+    'X-Domain-Name', 'X-Service-Domain-Name',
+    'X-Project-Id', 'X-Service-Project-Id',
+    'X-Project-Name', 'X-Service-Project-Name',
+    'X-Project-Domain-Id', 'X-Service-Project-Domain-Id',
+    'X-Project-Domain-Name', 'X-Service-Project-Domain-Name',
+    'X-User-Id', 'X-Service-User-Id',
+    'X-User-Name', 'X-Service-User-Name',
+    'X-User-Domain-Id', 'X-Service-User-Domain-Id',
+    'X-User-Domain-Name', 'X-Service-User-Domain-Name',
+    'X-Roles', 'X-Service-Roles',
+    'X-Is-Admin-Project',
+    'X-Service-Catalog',
+    # Deprecated headers, too...
+    'X-Tenant-Id',
+    'X-Tenant-Name',
+    'X-Tenant',
+    'X-User',
+    'X-Role',
+)
 
 
 class S3Token(object):
@@ -104,16 +125,16 @@ class S3Token(object):
             self._verify = None
 
     def _deny_request(self, code):
-        error_table = {
-            'AccessDenied': (401, 'Access denied'),
-            'InvalidURI': (400, 'Could not parse the specified URI'),
-        }
-        resp = Response(content_type='text/xml')
-        resp.status = error_table[code][0]
+        error_cls, message = {
+            'AccessDenied': (HTTPUnauthorized, 'Access denied'),
+            'InvalidURI': (HTTPBadRequest,
+                           'Could not parse the specified URI'),
+        }[code]
+        resp = error_cls(content_type='text/xml')
         error_msg = ('<?xml version="1.0" encoding="UTF-8"?>\r\n'
                      '<Error>\r\n  <Code>%s</Code>\r\n  '
                      '<Message>%s</Message>\r\n</Error>\r\n' %
-                     (code, error_table[code][1]))
+                     (code, message))
         if six.PY3:
             error_msg = error_msg.encode()
         resp.body = error_msg
@@ -128,14 +149,12 @@ class S3Token(object):
                                      timeout=self._timeout)
         except requests.exceptions.RequestException as e:
             self._logger.info('HTTP connection exception: %s', e)
-            resp = self._deny_request('InvalidURI')
-            raise ServiceError(resp)
+            raise self._deny_request('InvalidURI')
 
         if response.status_code < 200 or response.status_code >= 300:
             self._logger.debug('Keystone reply error: status=%s reason=%s',
                                response.status_code, response.reason)
-            resp = self._deny_request('AccessDenied')
-            raise ServiceError(resp)
+            raise self._deny_request('AccessDenied')
 
         return response
 
@@ -143,6 +162,10 @@ class S3Token(object):
         """Handle incoming request. authenticate and send downstream."""
         req = Request(environ)
         self._logger.debug('Calling S3Token middleware.')
+
+        # Always drop auth headers if we're first in the pipeline
+        if 'keystone.token_info' not in req.environ:
+            req.headers.update({h: None for h in KEYSTONE_AUTH_HEADERS})
 
         try:
             parts = split_path(req.path, 1, 4, True)
@@ -210,26 +233,45 @@ class S3Token(object):
         #              identified and not doing a second query and just
         #              pass it through to swiftauth in this case.
         try:
+            # NB: requests.Response, not swob.Response
             resp = self._json_request(creds_json)
-        except ServiceError as e:
-            resp = e.args[0]  # NB: swob.Response, not requests.Response
+        except HTTPException as e_resp:
             if self._delay_auth_decision:
                 msg = 'Received error, deferring rejection based on error: %s'
-                self._logger.debug(msg, resp.status)
+                self._logger.debug(msg, e_resp.status)
                 return self._app(environ, start_response)
             else:
                 msg = 'Received error, rejecting request with error: %s'
-                self._logger.debug(msg, resp.status)
-                return resp(environ, start_response)
+                self._logger.debug(msg, e_resp.status)
+                # NB: swob.Response, not requests.Response
+                return e_resp(environ, start_response)
 
         self._logger.debug('Keystone Reply: Status: %d, Output: %s',
                            resp.status_code, resp.content)
 
         try:
-            identity_info = resp.json()
-            token_id = str(identity_info['access']['token']['id'])
-            tenant = identity_info['access']['token']['tenant']
-        except (ValueError, KeyError):
+            access_info = resp.json()['access']
+            # Populate the environment similar to auth_token,
+            # so we don't have to contact Keystone again.
+            #
+            # Note that although the strings are unicode following json
+            # deserialization, Swift's HeaderEnvironProxy handles ensuring
+            # they're stored as native strings
+            req.headers.update({
+                'X-Identity-Status': 'Confirmed',
+                'X-Roles': ','.join(r['name']
+                                    for r in access_info['user']['roles']),
+                'X-User-Id': access_info['user']['id'],
+                'X-User-Name': access_info['user']['name'],
+                'X-Tenant-Id': access_info['token']['tenant']['id'],
+                'X-Tenant-Name': access_info['token']['tenant']['name'],
+                'X-Project-Id': access_info['token']['tenant']['id'],
+                'X-Project-Name': access_info['token']['tenant']['name'],
+            })
+            token_id = access_info['token'].get('id')
+            tenant = access_info['token']['tenant']
+            req.environ['keystone.token_info'] = resp.json()
+        except (ValueError, KeyError, TypeError):
             if self._delay_auth_decision:
                 error = ('Error on keystone reply: %d %s - '
                          'deferring rejection downstream')
