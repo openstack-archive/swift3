@@ -143,7 +143,6 @@ class Swift3Middleware(object):
         elif 'keystoneauth' in auth_pipeline:
             check_filter_order(auth_pipeline,
                                ['s3token',
-                                'authtoken',
                                 'keystoneauth'])
             LOGGER.debug('Use keystone middleware.')
         elif len(auth_pipeline):
