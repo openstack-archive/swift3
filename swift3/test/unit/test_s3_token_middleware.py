@@ -28,8 +28,24 @@ from swift3 import s3_token_middleware as s3_token
 from swift.common.swob import Request, Response
 from swift.common.wsgi import ConfigFileError
 
-GOOD_RESPONSE = {'access': {'token': {'id': 'TOKEN_ID',
-                                      'tenant': {'id': 'TENANT_ID'}}}}
+GOOD_RESPONSE = {'access': {
+    'user': {
+        'username': 'S3_USER',
+        'name': 'S3_USER',
+        'id': 'USER_ID',
+        'roles': [
+            {'name': 'swift-user'},
+            {'name': '_member_'},
+        ],
+    },
+    'token': {
+        'id': 'TOKEN_ID',
+        'tenant': {
+            'id': 'TENANT_ID',
+            'name': 'TENANT_NAME'
+        }
+    }
+}}
 
 
 class TestResponse(requests.Response):

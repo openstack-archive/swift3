@@ -508,19 +508,24 @@ class TestSwift3Middleware(Swift3TestCase):
             pipeline.return_value = 'swift3 tempauth proxy-server'
             self.swift3.check_pipeline(conf)
 
+            # This *should* still work; authtoken will remove our auth details,
+            # but the X-Auth-Token we drop in will remain
+            # if we found one in the response
             pipeline.return_value = 'swift3 s3token authtoken keystoneauth ' \
                 'proxy-server'
+            self.swift3.check_pipeline(conf)
+
+            # This should work now; no more doubled-up requests to keystone!
+            pipeline.return_value = 'swift3 s3token keystoneauth proxy-server'
             self.swift3.check_pipeline(conf)
 
             pipeline.return_value = 'swift3 swauth proxy-server'
             self.swift3.check_pipeline(conf)
 
+            # Note that authtoken would need to have delay_auth_decision=True
             pipeline.return_value = 'swift3 authtoken s3token keystoneauth ' \
                 'proxy-server'
-            with self.assertRaises(ValueError) as cm:
-                self.swift3.check_pipeline(conf)
-            self.assertIn('expected filter s3token before authtoken before '
-                          'keystoneauth', cm.exception.message)
+            self.swift3.check_pipeline(conf)
 
             pipeline.return_value = 'swift3 proxy-server'
             with self.assertRaises(ValueError) as cm:
