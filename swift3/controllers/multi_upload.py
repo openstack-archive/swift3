@@ -55,7 +55,7 @@ from six.moves.urllib.parse import urlparse  # pylint: disable=F0401
 from swift3.controllers.base import Controller, bucket_operation, \
     object_operation, check_container_existence
 from swift3.response import InvalidArgument, ErrorResponse, MalformedXML, \
-    InvalidPart, BucketAlreadyExists, EntityTooSmall, InvalidPartOrder, \
+    InvalidPart, BucketAlreadyOwnedByYou, EntityTooSmall, InvalidPartOrder, \
     InvalidRequest, HTTPOk, HTTPNoContent, NoSuchKey, NoSuchUpload, \
     NoSuchBucket
 from swift3.exception import BadSwiftRequest
@@ -335,7 +335,7 @@ class UploadsController(Controller):
         container = req.container_name + MULTIUPLOAD_SUFFIX
         try:
             req.get_response(self.app, 'PUT', container, '')
-        except BucketAlreadyExists:
+        except BucketAlreadyOwnedByYou:
             pass
 
         obj = '%s/%s' % (req.object_name, upload_id)
