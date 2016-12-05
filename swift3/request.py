@@ -24,7 +24,7 @@ import six
 from six.moves.urllib.parse import quote, unquote, parse_qsl
 import string
 
-from swift.common.utils import split_path
+from swift.common.utils import split_path, json
 from swift.common import swob
 from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
     HTTP_NO_CONTENT, HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, HTTP_NOT_FOUND, \
@@ -44,11 +44,12 @@ from swift3.controllers import ServiceController, BucketController, \
     UnsupportedController, S3AclController
 from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     RequestTimeTooSkewed, Response, SignatureDoesNotMatch, \
-    BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
+    BucketAlreadyOwnedByYou, BucketNotEmpty, EntityTooLarge, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
     MalformedXML, InvalidRequest, RequestTimeout, InvalidBucketName, \
-    BadDigest, AuthorizationHeaderMalformed, AuthorizationQueryParametersError
+    BadDigest, AuthorizationHeaderMalformed, \
+    AuthorizationQueryParametersError, BucketAlreadyExists
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.utils import utf8encode, LOGGER, check_path_header, S3Timestamp, \
     mktime, MULTIUPLOAD_SUFFIX
@@ -1060,6 +1061,15 @@ class Request(swob.Request):
 
         return code_map[method]
 
+    def _bucket_put_accepted_error(self, container, app):
+        sw_req = self.to_swift_req('HEAD', container, None)
+        info = get_container_info(sw_req.environ, app)
+        acl = json.loads(info.get('sysmeta', {}).get('swift3-acl', '{}'))
+        owner = acl.get('Owner')
+        if owner is None or owner == self.user_id:
+            raise BucketAlreadyOwnedByYou(container)
+        raise BucketAlreadyExists(container)
+
     def _swift_error_codes(self, method, container, obj, env, app):
         """
         Returns a dict from expected Swift error codes to the corresponding S3
@@ -1081,7 +1091,9 @@ class Request(swob.Request):
                     HTTP_NOT_FOUND: (NoSuchBucket, container),
                 },
                 'PUT': {
-                    HTTP_ACCEPTED: (BucketAlreadyExists, container),
+                    HTTP_ACCEPTED: (self._bucket_put_accepted_error, container,
+                                    app),
+                    HTTP_FORBIDDEN: (BucketAlreadyExists, container),
                 },
                 'POST': {
                     HTTP_NOT_FOUND: (NoSuchBucket, container),
