@@ -117,7 +117,7 @@ _start proxy coverage run --branch --include=../../*  --omit=./* \
 
 # run tests
 if [ -z "$CEPH_TESTS" ]; then
-    nosetests -v ./
+    nosetests -v "$@"
     rvalue=$?
 
     # show report
