@@ -548,6 +548,7 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
     @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
     def test_object_multipart_upload_initiate(self):
+        self.swift.register('HEAD', '/v1/AUTH_test', swob.HTTPOk, {}, None)
         req = Request.blank('/bucket/object?uploads',
                             environ={'REQUEST_METHOD': 'POST'},
                             headers={'Authorization':
