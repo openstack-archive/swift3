@@ -469,9 +469,9 @@ class TestSwift3Bucket(Swift3TestCase):
         code = self._test_method_error('PUT', '/bucket', swob.HTTPUnauthorized)
         self.assertEqual(code, 'SignatureDoesNotMatch')
         code = self._test_method_error('PUT', '/bucket', swob.HTTPForbidden)
-        self.assertEqual(code, 'AccessDenied')
-        code = self._test_method_error('PUT', '/bucket', swob.HTTPAccepted)
         self.assertEqual(code, 'BucketAlreadyExists')
+        code = self._test_method_error('PUT', '/bucket', swob.HTTPAccepted)
+        self.assertEqual(code, 'BucketAlreadyOwnedByYou')
         code = self._test_method_error('PUT', '/bucket', swob.HTTPServerError)
         self.assertEqual(code, 'InternalError')
         code = self._test_method_error(

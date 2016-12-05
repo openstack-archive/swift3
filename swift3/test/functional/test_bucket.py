@@ -16,7 +16,8 @@
 import unittest
 import os
 
-from swift3.test.functional.s3_test_client import Connection
+from swift3.test.functional.s3_test_client import Connection, \
+    get_tester2_connection
 from swift3.test.functional.utils import get_error_code
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.cfg import CONF
@@ -140,6 +141,10 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
 
         self.conn.make_request('PUT', 'bucket')
         status, headers, body = self.conn.make_request('PUT', 'bucket')
+        self.assertEqual(get_error_code(body), 'BucketAlreadyOwnedByYou')
+
+        conn2 = get_tester2_connection()
+        status, headers, body = conn2.make_request('PUT', 'bucket')
         self.assertEqual(get_error_code(body), 'BucketAlreadyExists')
 
     def test_put_bucket_with_LocationConstraint(self):
