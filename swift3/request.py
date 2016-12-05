@@ -41,7 +41,7 @@ from swift3.controllers import ServiceController, BucketController, \
     UnsupportedController, S3AclController
 from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     RequestTimeTooSkewed, Response, SignatureDoesNotMatch, \
-    BucketAlreadyExists, BucketNotEmpty, EntityTooLarge, \
+    BucketAlreadyOwnedByYou, BucketNotEmpty, EntityTooLarge, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
     MalformedXML, InvalidRequest, RequestTimeout, InvalidBucketName, \
@@ -956,7 +956,7 @@ class Request(swob.Request):
                     HTTP_NOT_FOUND: (NoSuchBucket, container),
                 },
                 'PUT': {
-                    HTTP_ACCEPTED: (BucketAlreadyExists, container),
+                    HTTP_ACCEPTED: (BucketAlreadyOwnedByYou, container),
                 },
                 'POST': {
                     HTTP_NOT_FOUND: (NoSuchBucket, container),
