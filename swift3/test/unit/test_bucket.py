@@ -307,6 +307,8 @@ class TestSwift3Bucket(Swift3TestCase):
 
     @s3acl
     def test_bucket_PUT_error(self):
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket',
+                            swob.HTTPNotFound, {}, json.dumps([]))
         code = self._test_method_error('PUT', '/bucket', swob.HTTPCreated,
                                        headers={'Content-Length': 'a'})
         self.assertEqual(code, 'InvalidArgument')
@@ -316,7 +318,7 @@ class TestSwift3Bucket(Swift3TestCase):
         code = self._test_method_error('PUT', '/bucket', swob.HTTPUnauthorized)
         self.assertEqual(code, 'SignatureDoesNotMatch')
         code = self._test_method_error('PUT', '/bucket', swob.HTTPForbidden)
-        self.assertEqual(code, 'AccessDenied')
+        self.assertEqual(code, 'BucketAlreadyExists')
         code = self._test_method_error('PUT', '/bucket', swob.HTTPAccepted)
         self.assertEqual(code, 'BucketAlreadyOwnedByYou')
         code = self._test_method_error('PUT', '/bucket', swob.HTTPServerError)
@@ -344,6 +346,8 @@ class TestSwift3Bucket(Swift3TestCase):
 
     @s3acl
     def test_bucket_PUT(self):
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket',
+                            swob.HTTPNotFound, {}, json.dumps([]))
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
@@ -365,6 +369,8 @@ class TestSwift3Bucket(Swift3TestCase):
 
     @s3acl
     def test_bucket_PUT_with_location(self):
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket', swob.HTTPNotFound,
+                            {}, None)
         elem = Element('CreateBucketConfiguration')
         SubElement(elem, 'LocationConstraint').text = 'US'
         xml = tostring(elem)
@@ -395,6 +401,8 @@ class TestSwift3Bucket(Swift3TestCase):
         account = 'test:tester'
         acl = \
             encode_acl('container', ACLPublicRead(Owner(account, account)))
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket', swob.HTTPNotFound,
+                            {}, None)
         req = Request.blank('/bucket',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
