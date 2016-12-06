@@ -45,7 +45,8 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     InternalError, NoSuchBucket, NoSuchKey, PreconditionFailed, InvalidRange, \
     MissingContentLength, InvalidStorageClass, S3NotImplemented, InvalidURI, \
     MalformedXML, InvalidRequest, RequestTimeout, InvalidBucketName, \
-    BadDigest, AuthorizationHeaderMalformed, AuthorizationQueryParametersError
+    BadDigest, AuthorizationHeaderMalformed, \
+    AuthorizationQueryParametersError, BucketAlreadyExists
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.utils import utf8encode, LOGGER, check_path_header, S3Timestamp, \
     mktime
@@ -972,6 +973,7 @@ class Request(swob.Request):
                 },
                 'PUT': {
                     HTTP_ACCEPTED: (BucketAlreadyOwnedByYou, container),
+                    HTTP_FORBIDDEN: (BucketAlreadyExists, container),
                 },
                 'POST': {
                     HTTP_NOT_FOUND: (NoSuchBucket, container),
@@ -1213,6 +1215,16 @@ class S3AclRequest(Request):
         Wrapper method of _get_response to add s3 acl information
         from response sysmeta headers.
         """
+        if method == 'PUT' and container and obj is None:
+            try:
+                resp = self.get_acl_response(app, 'HEAD', container)
+                if resp.bucket_acl.owner.id == self.user_id:
+                    raise BucketAlreadyOwnedByYou(container)
+                raise BucketAlreadyExists(container)
+            except (NoSuchKey, NoSuchBucket):
+                pass
+            except AccessDenied:
+                raise BucketAlreadyExists(container)
 
         resp = self._get_response(
             app, method, container, obj, headers, body, query)
