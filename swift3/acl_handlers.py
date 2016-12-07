@@ -85,7 +85,7 @@ def get_acl_handler(controller_name):
         # pylint: disable-msg=E1101
         for handler in base_klass.__subclasses__():
             handler_suffix_len = len('AclHandler') \
-                if not handler.__name__ == 'S3AclHandler' else len('Hanlder')
+                if not handler.__name__ == 'S3AclHandler' else len('Handler')
             if handler.__name__[:-handler_suffix_len] == controller_name:
                 return handler
     return BaseAclHandler
