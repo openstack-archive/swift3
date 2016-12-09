@@ -124,6 +124,7 @@ if [ -z "$CEPH_TESTS" ]; then
     coverage report
     coverage html
 else
+    set -e
     pushd ${TEST_DIR}
     git clone https://github.com/swiftstack/s3compat.git
     popd
@@ -132,8 +133,9 @@ else
 
     # ceph/s3-tests has some rather ancient requirements,
     # so drop into another virtualenv
-    virtualenv venv
-    . venv/bin/activate
+    VENV="$(mktemp -d)"
+    virtualenv "$VENV"
+    . "$VENV/bin/activate"
     pip install -r requirements.txt -r ceph-tests/requirements.txt
 
     S3TEST_CONF="${CONF_DIR}/ceph-s3.conf" ./bin/run_ceph_tests.py
@@ -150,6 +152,8 @@ else
 
     cp output/ceph-s3.out.xml "${LOG_DEST:-${TEST_DIR}/log}/ceph-s3-details.xml"
     popd
+    rm -rf "$VENV"
+    set +e
 fi
 
 # cleanup
