@@ -604,7 +604,7 @@ class RequestTimeout(ErrorResponse):
 
 class RequestTimeTooSkewed(ErrorResponse):
     _status = '403 Forbidden'
-    _msg = 'The difference between the request time and the server\'s time ' \
+    _msg = 'The difference between the request time and the current time ' \
            'is too large.'
 
 

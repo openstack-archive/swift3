@@ -138,10 +138,15 @@ class SigV4Mixin(object):
                 raise AccessDenied('AWS authentication requires a valid Date '
                                    'or x-amz-date header')
 
+            if timestamp < 0:
+                raise AccessDenied('AWS authentication requires a valid Date '
+                                   'or x-amz-date header')
+
             try:
                 self._timestamp = S3Timestamp(timestamp)
             except ValueError:
-                raise AccessDenied()
+                # Must be far-future; blame clock skew
+                raise RequestTimeTooSkewed()
 
         return self._timestamp
 
@@ -422,10 +427,14 @@ class Request(swob.Request):
                 raise AccessDenied('AWS authentication requires a valid Date '
                                    'or x-amz-date header')
 
+            if timestamp < 0:
+                raise AccessDenied('AWS authentication requires a valid Date '
+                                   'or x-amz-date header')
             try:
                 self._timestamp = S3Timestamp(timestamp)
             except ValueError:
-                raise AccessDenied()
+                # Must be far-future; blame clock skew
+                raise RequestTimeTooSkewed()
 
         return self._timestamp
 
