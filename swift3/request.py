@@ -344,6 +344,16 @@ class SigV4Mixin(object):
                 + scope + '\n'
                 + sha256(self._canonical_request()).hexdigest())
 
+    def signature_does_not_match_kwargs(self):
+        kwargs = super(SigV4Mixin, self).signature_does_not_match_kwargs()
+        cr = self._canonical_request()
+        kwargs.update({
+            'canonical_request': cr,
+            'canonical_request_bytes': ' '.join(
+                format(ord(c), '02x') for c in cr),
+        })
+        return kwargs
+
 
 def get_request_class(env):
     """
@@ -377,7 +387,7 @@ class Request(swob.Request):
         # NOTE: app is not used by this class, need for compatibility of S3acl
         swob.Request.__init__(self, env)
         self._timestamp = None
-        self.access_key, signature = self._parse_auth_info()
+        self.access_key, self.signature = self._parse_auth_info()
         self.bucket_in_host = self._parse_host()
         self.container_name, self.object_name = self._parse_uri()
         self._validate_headers()
@@ -394,7 +404,7 @@ class Request(swob.Request):
         # b626a3ca86e467fc7564eac236b9ee2efd49bdcc, the s3token is in swift3
         # repo so probably we need to change s3token to support v4 format.
         self.headers['Authorization'] = 'AWS %s:%s' % (
-            self.access_key, signature)
+            self.access_key, self.signature)
         # Avoids that swift.swob.Response replaces Location header value
         # by full URL when absolute path given. See swift.swob for more detail.
         self.environ['swift.leave_relative_location'] = True
@@ -777,6 +787,16 @@ class Request(swob.Request):
             buf.append(path)
         return '\n'.join(buf)
 
+    def signature_does_not_match_kwargs(self):
+        sts = self._string_to_sign()
+        return {
+            'a_w_s_access_key_id': self.access_key,
+            'string_to_sign': sts,
+            'signature_provided': self.signature,
+            'string_to_sign_bytes': ' '.join(
+                format(ord(c), '02x') for c in sts),
+        }
+
     @property
     def controller_name(self):
         return self.controller.__name__[:-len('Controller')]
@@ -1068,7 +1088,8 @@ class Request(swob.Request):
         if status == HTTP_BAD_REQUEST:
             raise BadSwiftRequest(err_msg)
         if status == HTTP_UNAUTHORIZED:
-            raise SignatureDoesNotMatch()
+            raise SignatureDoesNotMatch(
+                **self.signature_does_not_match_kwargs())
         if status == HTTP_FORBIDDEN:
             raise AccessDenied()
 
@@ -1178,7 +1199,8 @@ class S3AclRequest(Request):
         sw_resp = sw_req.get_response(app)
 
         if not sw_req.remote_user:
-            raise SignatureDoesNotMatch()
+            raise SignatureDoesNotMatch(
+                **self.signature_does_not_match_kwargs())
 
         _, self.account, _ = split_path(sw_resp.environ['PATH_INFO'],
                                         2, 3, True)
