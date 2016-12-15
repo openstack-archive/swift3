@@ -57,7 +57,7 @@ def s3acl(func=None, s3acl_only=False):
                 #  def test_xxxx(self)
 
                 with patch('swift3.request.get_container_info',
-                           lambda x, y: {'status': 204}):
+                           return_value={'status': 204}):
                     func(*args, **kwargs)
             except AssertionError:
                 # Make traceback message to clarify the assertion

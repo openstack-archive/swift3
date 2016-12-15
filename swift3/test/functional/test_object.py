@@ -194,9 +194,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.assertEqual(headers['content-type'], 'application/xml')
 
         status, headers, body = self.conn.make_request('GET', 'invalid', obj)
-        # TODO; requires consideration
-        # self.assertEqual(get_error_code(body), 'NoSuchBucket')
-        self.assertEqual(get_error_code(body), 'NoSuchKey')
+        self.assertEqual(get_error_code(body), 'NoSuchBucket')
         self.assertEqual(headers['content-type'], 'application/xml')
 
     def test_head_object_error(self):

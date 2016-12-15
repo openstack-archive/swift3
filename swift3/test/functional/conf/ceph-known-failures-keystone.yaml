@@ -56,7 +56,6 @@ ceph_s3:
   s3tests.functional.test_s3.test_object_acl_xml_readacp: {status: KNOWN}
   s3tests.functional.test_s3.test_object_acl_xml_write: {status: KNOWN}
   s3tests.functional.test_s3.test_object_acl_xml_writeacp: {status: KNOWN}
-  s3tests.functional.test_s3.test_object_copy_bucket_not_found: {status: KNOWN}
   s3tests.functional.test_s3.test_object_copy_canned_acl: {status: KNOWN}
   s3tests.functional.test_s3.test_object_copy_not_owned_object_bucket: {status: KNOWN}
   s3tests.functional.test_s3.test_object_copy_replacing_metadata: {status: KNOWN}

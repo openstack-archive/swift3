@@ -444,6 +444,10 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
             self.conn.make_request('DELETE', 'nothing', key, query=query)
         self.assertEqual(get_error_code(body), 'NoSuchBucket')
 
+        status, headers, body = \
+            self.conn.make_request('DELETE', bucket, 'nothing', query=query)
+        self.assertEqual(get_error_code(body), 'NoSuchUpload')
+
         query = 'uploadId=%s' % 'nothing'
         status, headers, body = \
             self.conn.make_request('DELETE', bucket, key, query=query)
