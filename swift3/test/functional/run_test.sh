@@ -43,6 +43,7 @@ for server in keystone swift proxy-server object-server container-server account
 	-e "s#%USER%#`whoami`#g" \
 	-e "s#%TEST_DIR%#${TEST_DIR}#g" \
 	-e "s#%CONF_DIR%#${CONF_DIR}#g" \
+	-e "s#%MIN_SEGMENT_SIZE%#${MIN_SEGMENT_SIZE}#g" \
 	conf/${server}.conf.in \
 	> conf/${server}.conf
 done

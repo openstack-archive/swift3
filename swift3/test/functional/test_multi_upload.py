@@ -24,13 +24,14 @@ from distutils.version import StrictVersion
 from hashlib import md5
 from itertools import izip
 
+from swift3.cfg import CONF
 from swift3.test.functional.utils import get_error_code, get_error_msg
 from swift3.etree import fromstring, tostring, Element, SubElement
 from swift3.test.functional import Swift3FunctionalTestCase
 from swift3.utils import mktime
 from swift3.test.functional.s3_test_client import Connection
 
-MIN_SEGMENT_SIZE = 5242880
+MIN_SEGMENT_SIZE = CONF.min_segment_size
 
 
 class TestSwift3MultiUpload(Swift3FunctionalTestCase):
@@ -521,6 +522,110 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
             self.conn.make_request('POST', bucket, keys[1], body=xml,
                                    query=query)
         self.assertEqual(get_error_code(body), 'InvalidPart')
+
+    def test_complete_upload_min_segment_size(self):
+        bucket = 'bucket'
+        key = 'obj'
+        self.conn.make_request('PUT', bucket)
+        query = 'uploads'
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, key, query=query)
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        upload_id = elem.find('UploadId').text
+
+        # multi parts with no body
+        etags = []
+        for i in xrange(1, 3):
+            query = 'partNumber=%s&uploadId=%s' % (i, upload_id)
+            status, headers, body = \
+                self.conn.make_request('PUT', bucket, key, query=query)
+            etags.append(headers['etag'])
+            xml = self._gen_comp_xml(etags)
+
+        query = 'uploadId=%s' % upload_id
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, key, body=xml,
+                                   query=query)
+        self.assertEqual(get_error_code(body), 'EntityTooSmall')
+
+        # multi parts with all parts less than min segment size
+        etags = []
+        for i in xrange(1, 3):
+            query = 'partNumber=%s&uploadId=%s' % (i, upload_id)
+            status, headers, body = \
+                self.conn.make_request('PUT', bucket, key, query=query,
+                                       body='AA')
+            etags.append(headers['etag'])
+            xml = self._gen_comp_xml(etags)
+
+        query = 'uploadId=%s' % upload_id
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, key, body=xml,
+                                   query=query)
+        self.assertEqual(get_error_code(body), 'EntityTooSmall')
+
+        # one part and less than min segment size
+        etags = []
+        query = 'partNumber=1&uploadId=%s' % upload_id
+        status, headers, body = \
+            self.conn.make_request('PUT', bucket, key, query=query,
+                                   body='AA')
+        etags.append(headers['etag'])
+        xml = self._gen_comp_xml(etags)
+
+        query = 'uploadId=%s' % upload_id
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, key, body=xml,
+                                   query=query)
+        self.assertEqual(status, 200)
+
+        # multi parts with all parts except the first part less than min
+        # segment size
+        query = 'uploads'
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, key, query=query)
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        upload_id = elem.find('UploadId').text
+
+        etags = []
+        body_size = [MIN_SEGMENT_SIZE, MIN_SEGMENT_SIZE - 1, 2]
+        for i in xrange(1, 3):
+            query = 'partNumber=%s&uploadId=%s' % (i, upload_id)
+            status, headers, body = \
+                self.conn.make_request('PUT', bucket, key, query=query,
+                                       body='A' * body_size[i])
+            etags.append(headers['etag'])
+            xml = self._gen_comp_xml(etags)
+
+        query = 'uploadId=%s' % upload_id
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, key, body=xml,
+                                   query=query)
+        self.assertEqual(get_error_code(body), 'EntityTooSmall')
+
+        # multi parts with all parts except last part more than min segment
+        # size
+        query = 'uploads'
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, key, query=query)
+        elem = fromstring(body, 'InitiateMultipartUploadResult')
+        upload_id = elem.find('UploadId').text
+
+        etags = []
+        body_size = [MIN_SEGMENT_SIZE, MIN_SEGMENT_SIZE, 2]
+        for i in xrange(1, 3):
+            query = 'partNumber=%s&uploadId=%s' % (i, upload_id)
+            status, headers, body = \
+                self.conn.make_request('PUT', bucket, key, query=query,
+                                       body='A' * body_size[i])
+            etags.append(headers['etag'])
+            xml = self._gen_comp_xml(etags)
+
+        query = 'uploadId=%s' % upload_id
+        status, headers, body = \
+            self.conn.make_request('POST', bucket, key, body=xml,
+                                   query=query)
+        self.assertEqual(status, 200)
 
     def test_complete_upload_with_fewer_etags(self):
         bucket = 'bucket'
