@@ -64,4 +64,5 @@ CONF = Config({
     'check_bucket_owner': False,
     'force_swift_request_proxy_log': False,
     'allow_multipart_uploads': True,
+    'min_segment_size': 5242880,
 })
