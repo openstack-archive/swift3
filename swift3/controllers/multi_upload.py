@@ -572,6 +572,12 @@ class UploadController(Controller):
             if manifest and int(manifest[-1]['size_bytes']) == 0:
                 raise EntityTooSmall()
 
+        # Check the size of each segment except the last and make sure they are
+        # all more than the minimum upload chunk size
+        for info in manifest[:-1]:
+            if int(info['size_bytes']) < CONF.min_segment_size:
+                raise EntityTooSmall()
+
         try:
             # TODO: add support for versioning
             if manifest:

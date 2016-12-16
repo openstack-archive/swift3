@@ -72,6 +72,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.last_modified = 'Fri, 01 Apr 2014 12:00:00 GMT'
         put_headers = {'etag': self.etag, 'last-modified': self.last_modified}
 
+        CONF.min_segment_size = 1
+
         objects = map(lambda item: {'name': item[0], 'last_modified': item[1],
                                     'hash': item[2], 'bytes': item[3]},
                       objects_template)
@@ -673,6 +675,22 @@ class TestSwift3MultiUpload(Swift3TestCase):
             status, headers, body = self.call_swift3(req)
             self.assertEqual(status.split()[0], '400')
             self.assertEqual(self._get_error_code(body), 'EntityTooSmall')
+            self.assertEqual(self._get_error_message(body), msg)
+
+        CONF.min_segment_size = 5242880
+        req = Request.blank(
+            '/bucket/object?uploadId=X',
+            environ={'REQUEST_METHOD': 'POST'},
+            headers={'Authorization': 'AWS test:tester:hmac',
+                     'Date': self.get_date_header(), },
+            body=xml)
+
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '400')
+        self.assertEqual(self._get_error_code(body), 'EntityTooSmall')
+        self.assertEqual(self._get_error_message(body),
+                         'Your proposed upload is smaller than the minimum '
+                         'allowed object size.')
 
     def test_object_multipart_upload_complete_single_zero_length_segment(self):
         segment_bucket = '/v1/AUTH_test/empty-bucket+segments'
