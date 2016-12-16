@@ -45,7 +45,11 @@ class Config(dict):
         if isinstance(self.get(key), bool):
             dict.__setitem__(self, key, config_true_value(value))
         elif isinstance(self.get(key), int):
-            dict.__setitem__(self, key, int(value))
+            try:
+                dict.__setitem__(self, key, int(value))
+            except ValueError:
+                if value:  # No need to raise the error if value is ''
+                    raise
         else:
             dict.__setitem__(self, key, value)
 
@@ -64,4 +68,5 @@ CONF = Config({
     'check_bucket_owner': False,
     'force_swift_request_proxy_log': False,
     'allow_multipart_uploads': True,
+    'min_segment_size': 5242880,
 })

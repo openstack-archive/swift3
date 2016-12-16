@@ -549,6 +549,7 @@ class UploadController(Controller):
                     raise InvalidPart(upload_id=upload_id,
                                       part_number=part_number)
 
+                info['size_bytes'] = int(info['size_bytes'])
                 manifest.append(info)
         except (XMLSyntaxError, DocumentInvalid):
             raise MalformedXML()
@@ -561,7 +562,7 @@ class UploadController(Controller):
 
         # Following swift commit 7f636a5, zero-byte segments aren't allowed,
         # even as the final segment
-        if int(info['size_bytes']) == 0:
+        if info['size_bytes'] == 0:
             manifest.pop()
 
             # Ordinarily, we just let SLO check segment sizes. However, we
@@ -569,7 +570,13 @@ class UploadController(Controller):
             # zero-byte segment and it was at the end, it would succeed on
             # Swift < 2.6.0 and fail on newer Swift. It seems reasonable that
             # it should always fail.
-            if manifest and int(manifest[-1]['size_bytes']) == 0:
+            if manifest and manifest[-1]['size_bytes'] < CONF.min_segment_size:
+                raise EntityTooSmall()
+
+        # Check the size of each segment except the last and make sure they are
+        # all more than the minimum upload chunk size
+        for info in manifest[:-1]:
+            if info['size_bytes'] < CONF.min_segment_size:
                 raise EntityTooSmall()
 
         try:
@@ -601,7 +608,7 @@ class UploadController(Controller):
             else:
                 raise
 
-        if int(info['size_bytes']) == 0:
+        if info['size_bytes'] == 0:
             # clean up the zero-byte segment
             empty_seg_cont, empty_seg_name = info['path'].split('/', 2)[1:]
             req.get_response(self.app, 'DELETE',
