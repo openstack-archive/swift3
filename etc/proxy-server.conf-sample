@@ -164,13 +164,15 @@ http_timeout = 10.0
 
 [filter:authtoken]
 # See swift manual for more details.
-paste.filter_factory = keystonemiddleware.auth_token:filter_factory
+use = egg:keystonemiddleware#auth_token
 identity_uri = http://keystonehost:35357/
 auth_uri = http://keystonehost:5000/
 admin_tenant_name = service
 admin_user = swift
 admin_password = password
 cache = swift.cache
+# keystoneauth should handle the final auth decision
+delay_auth_decision = true
 
 [filter:keystoneauth]
 # See swift manual for more details.

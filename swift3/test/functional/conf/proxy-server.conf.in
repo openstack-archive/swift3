@@ -54,13 +54,14 @@ use = egg:swift3#s3token
 auth_uri = http://localhost:35357/
 
 [filter:authtoken]
-paste.filter_factory = keystonemiddleware.auth_token:filter_factory
+use = egg:keystonemiddleware#auth_token
 identity_uri = http://localhost:35357/
 auth_uri = http://localhost:5000/
 admin_tenant_name = service
 admin_user = swift
 admin_password = password
 cache = swift.cache
+delay_auth_decision = true
 
 [filter:keystoneauth]
 use = egg:swift#keystoneauth
