@@ -562,8 +562,9 @@ class UploadController(Controller):
 
         # Following swift commit 7f636a5, zero-byte segments aren't allowed,
         # even as the final segment
-        if info['size_bytes'] == 0:
-            manifest.pop()
+        empty_seg = None
+        if manifest[-1]['size_bytes'] == 0:
+            empty_seg = manifest.pop()
 
             # Ordinarily, we just let SLO check segment sizes. However, we
             # just popped off a zero-byte segment; if there was a second
@@ -608,9 +609,9 @@ class UploadController(Controller):
             else:
                 raise
 
-        if info['size_bytes'] == 0:
+        if empty_seg:
             # clean up the zero-byte segment
-            empty_seg_cont, empty_seg_name = info['path'].split('/', 2)[1:]
+            empty_seg_cont, empty_seg_name = empty_seg['path'].split('/', 2)[1:]
             req.get_response(self.app, 'DELETE',
                              container=empty_seg_cont, obj=empty_seg_name)
 
