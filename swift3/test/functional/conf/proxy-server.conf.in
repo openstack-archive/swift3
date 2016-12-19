@@ -61,6 +61,7 @@ admin_tenant_name = service
 admin_user = swift
 admin_password = password
 cache = swift.cache
+delay_auth_decision = true
 
 [filter:keystoneauth]
 use = egg:swift#keystoneauth
