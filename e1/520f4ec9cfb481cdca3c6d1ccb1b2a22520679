@@ -1,0 +1,8 @@
+Code-Review+2: Tim Burke <tim@swiftstack.com>
+Workflow+1: Tim Burke <tim@swiftstack.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 20 Dec 2016 18:18:20 +0000
+Reviewed-on: https://review.openstack.org/413088
+Project: openstack/swift3
+Branch: refs/heads/master
