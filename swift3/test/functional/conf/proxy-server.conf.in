@@ -26,6 +26,7 @@ s3_acl = %S3ACL%
 location = US
 dns_compliant_bucket_names = %DNS_BUCKET_NAMES%
 check_bucket_owner = %CHECK_BUCKET_OWNER%
+min_segment_size = %MIN_SEGMENT_SIZE%
 
 [filter:catch_errors]
 use = egg:swift#catch_errors
@@ -38,7 +39,6 @@ use = egg:swift#bulk
 
 [filter:slo]
 use = egg:swift#slo
-min_segment_size = 4
 
 [filter:dlo]
 use = egg:swift#dlo

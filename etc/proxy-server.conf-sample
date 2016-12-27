@@ -116,6 +116,10 @@ use = egg:swift3#swift3
 # to achieve S3 compatibilities when force_swift_request_proxy_log is set to
 # 'true'
 # force_swift_request_proxy_log = false
+#
+# AWS S3 document says that each part must be at least 5 MB in a multipart
+# upload, except the last part.
+min_segment_size = 5242880
 
 [filter:catch_errors]
 use = egg:swift#catch_errors
@@ -128,10 +132,6 @@ use = egg:swift#bulk
 
 [filter:slo]
 use = egg:swift#slo
-
-# AWS S3 document says that each part must be at least 5 MB in a multipart
-# upload, except the last part.
-min_segment_size = 5242880
 
 [filter:dlo]
 use = egg:swift#dlo

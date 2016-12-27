@@ -150,3 +150,6 @@ class FakeSwift(object):
                     headers.update({key: value})
 
         self._responses[(method, path)] = (response_class, headers, body)
+
+    def clear_calls(self):
+        del self._calls[:]
