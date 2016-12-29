@@ -363,9 +363,8 @@ class TestSwift3Bucket(Swift3TestCase):
         self.assertEqual(status.split()[0], '200')
         self.assertEqual(headers['Location'], '/bucket')
 
-    @s3acl
-    def test_bucket_PUT_with_location(self):
-        elem = Element('CreateBucketConfiguration')
+    def _test_bucket_PUT_with_location(self, root_element):
+        elem = Element(root_element)
         SubElement(elem, 'LocationConstraint').text = 'US'
         xml = tostring(elem)
 
@@ -376,6 +375,20 @@ class TestSwift3Bucket(Swift3TestCase):
                             body=xml)
         status, headers, body = self.call_swift3(req)
         self.assertEqual(status.split()[0], '200')
+
+    @s3acl
+    def test_bucket_PUT_with_location(self):
+        self._test_bucket_PUT_with_location('CreateBucketConfiguration')
+
+    @s3acl
+    def test_bucket_PUT_with_ami_location(self):
+        # ec2-ami-tools apparently uses CreateBucketConstraint instead?
+        self._test_bucket_PUT_with_location('CreateBucketConstraint')
+
+    @s3acl
+    def test_bucket_PUT_with_strange_location(self):
+        # Even crazier: it doesn't seem to matter
+        self._test_bucket_PUT_with_location('foo')
 
     def test_bucket_PUT_with_canned_acl(self):
         req = Request.blank('/bucket',
