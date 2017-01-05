@@ -37,7 +37,8 @@ import logging
 import requests
 import six
 
-from swift.common.swob import Request, Response
+from swift.common.swob import Request, HTTPBadRequest, HTTPUnauthorized, \
+    HTTPException
 from swift.common.utils import config_true_value, split_path
 from swift.common.wsgi import ConfigFileError
 
@@ -105,11 +106,11 @@ class S3Token(object):
 
     def _deny_request(self, code):
         error_table = {
-            'AccessDenied': (401, 'Access denied'),
-            'InvalidURI': (400, 'Could not parse the specified URI'),
+            'AccessDenied': (HTTPUnauthorized, 'Access denied'),
+            'InvalidURI': (HTTPBadRequest,
+                           'Could not parse the specified URI'),
         }
-        resp = Response(content_type='text/xml')
-        resp.status = error_table[code][0]
+        resp = error_table[code][0](content_type='text/xml')
         error_msg = ('<?xml version="1.0" encoding="UTF-8"?>\r\n'
                      '<Error>\r\n  <Code>%s</Code>\r\n  '
                      '<Message>%s</Message>\r\n</Error>\r\n' %
@@ -129,13 +130,12 @@ class S3Token(object):
         except requests.exceptions.RequestException as e:
             self._logger.info('HTTP connection exception: %s', e)
             resp = self._deny_request('InvalidURI')
-            raise ServiceError(resp)
-
+            raise resp
         if response.status_code < 200 or response.status_code >= 300:
             self._logger.debug('Keystone reply error: status=%s reason=%s',
                                response.status_code, response.reason)
             resp = self._deny_request('AccessDenied')
-            raise ServiceError(resp)
+            raise resp
 
         return response
 
@@ -210,17 +210,18 @@ class S3Token(object):
         #              identified and not doing a second query and just
         #              pass it through to swiftauth in this case.
         try:
+            # NB: requests.Response, here
             resp = self._json_request(creds_json)
-        except ServiceError as e:
-            resp = e.args[0]  # NB: swob.Response, not requests.Response
+        except HTTPException as e_resp:
             if self._delay_auth_decision:
                 msg = 'Received error, deferring rejection based on error: %s'
-                self._logger.debug(msg, resp.status)
+                self._logger.debug(msg, e_resp.status)
                 return self._app(environ, start_response)
             else:
                 msg = 'Received error, rejecting request with error: %s'
-                self._logger.debug(msg, resp.status)
-                return resp(environ, start_response)
+                self._logger.debug(msg, e_resp.status)
+                # NB: swob.Response, not requests.Response
+                return e_resp(environ, start_response)
 
         self._logger.debug('Keystone Reply: Status: %d, Output: %s',
                            resp.status_code, resp.content)
