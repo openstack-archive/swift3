@@ -129,13 +129,12 @@ class S3Token(object):
         except requests.exceptions.RequestException as e:
             self._logger.info('HTTP connection exception: %s', e)
             resp = self._deny_request('InvalidURI')
-            raise ServiceError(resp)
-
+            raise resp
         if response.status_code < 200 or response.status_code >= 300:
             self._logger.debug('Keystone reply error: status=%s reason=%s',
                                response.status_code, response.reason)
             resp = self._deny_request('AccessDenied')
-            raise ServiceError(resp)
+            raise resp
 
         return response
 
