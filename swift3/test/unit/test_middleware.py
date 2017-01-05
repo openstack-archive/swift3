@@ -19,16 +19,22 @@ from contextlib import nested
 from datetime import datetime
 import hashlib
 import base64
+import requests
+import json
 from urllib import unquote, quote
 
+from swift.common.middleware.keystoneauth import KeystoneAuth
 from swift.common import swob, utils
 from swift.common.swob import Request
 
 import swift3
 from swift3.test.unit import Swift3TestCase
+from swift3.test.unit.helpers import FakeSwift
+from swift3.test.unit.test_s3_token_middleware import GOOD_RESPONSE
 from swift3.request import SigV4Request, Request as S3Request
 from swift3.etree import fromstring
-from swift3.middleware import filter_factory
+from swift3.middleware import filter_factory, Swift3Middleware
+from swift3.s3_token_middleware import S3Token
 from swift3.cfg import CONF
 
 
@@ -865,6 +871,32 @@ class TestSwift3Middleware(Swift3TestCase):
         req.content_type = 'text/plain'
         status, headers, body = self.call_swift3(req)
         self.assertEqual(status.split()[0], '403', body)
+
+    def test_swift3_with_only_s3_token(self):
+        self.swift = FakeSwift()
+        self.keystone_auth = KeystoneAuth(
+            self.swift, {'operator_roles': 'swift-user'})
+        self.s3_token = S3Token(
+            self.keystone_auth, {'auth_uri': 'https://fakehost/identity'})
+        self.swift3 = Swift3Middleware(self.s3_token, CONF)
+        req = Request.blank(
+            '/bucket',
+            environ={'REQUEST_METHOD': 'PUT'},
+            headers={'Authorization': 'AWS access:signature',
+                     'Date': self.get_date_header()})
+        self.swift.register('PUT', '/v1/AUTH_TENANT_ID/bucket',
+                            swob.HTTPCreated, {}, None)
+        self.swift.register('HEAD', '/v1/AUTH_TENANT_ID',
+                            swob.HTTPOk, {}, None)
+        with patch.object(self.s3_token, '_json_request') as mock_req:
+            mock_resp = requests.Response()
+            mock_resp._content = json.dumps(GOOD_RESPONSE)
+            mock_resp.status_code = 201
+            mock_req.return_value = mock_resp
+
+            status, headers, body = self.call_swift3(req)
+            self.assertEqual(body, '')
+            self.assertEqual(1, mock_req.call_count)
 
 
 if __name__ == '__main__':

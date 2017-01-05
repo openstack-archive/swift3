@@ -396,17 +396,17 @@ class S3TokenMiddlewareTestBad(S3TokenMiddlewareTestBase):
 
     def test_fail_to_connect_to_keystone(self):
         with mock.patch.object(self.middleware, '_json_request') as o:
-            s3_invalid_req = self.middleware._deny_request('InvalidURI')
-            o.side_effect = s3_token.ServiceError(s3_invalid_req)
+            s3_invalid_resp = self.middleware._deny_request('InvalidURI')
+            o.side_effect = s3_invalid_resp
 
             req = Request.blank('/v1/AUTH_cfa/c/o')
             req.headers['Authorization'] = 'AWS access:signature'
             req.headers['X-Storage-Token'] = 'token'
             resp = req.get_response(self.middleware)
-            self.assertEqual(resp.body, s3_invalid_req.body)
+            self.assertEqual(resp.body, s3_invalid_resp.body)
             self.assertEqual(
                 resp.status_int,  # pylint: disable-msg=E1101
-                s3_invalid_req.status_int)  # pylint: disable-msg=E1101
+                s3_invalid_resp.status_int)  # pylint: disable-msg=E1101
             self.assertEqual(0, self.middleware._app.calls)
 
     def _test_bad_reply(self, response_body):
@@ -512,8 +512,8 @@ class S3TokenMiddlewareTestDeferredAuth(S3TokenMiddlewareTestBase):
 
     def test_fail_to_connect_to_keystone(self):
         with mock.patch.object(self.middleware, '_json_request') as o:
-            s3_invalid_req = self.middleware._deny_request('InvalidURI')
-            o.side_effect = s3_token.ServiceError(s3_invalid_req)
+            s3_invalid_resp = self.middleware._deny_request('InvalidURI')
+            o.side_effect = s3_invalid_resp
 
             req = Request.blank('/v1/AUTH_cfa/c/o')
             req.headers['Authorization'] = 'AWS access:signature'
