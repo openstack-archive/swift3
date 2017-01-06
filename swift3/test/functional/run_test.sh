@@ -139,7 +139,7 @@ else
     . "$VENV/bin/activate"
     pip install -r requirements.txt -r ceph-tests/requirements.txt
 
-    S3TEST_CONF="${CONF_DIR}/ceph-s3.conf" ./bin/run_ceph_tests.py || true
+    S3TEST_CONF="${CONF_DIR}/ceph-s3.conf" ./bin/run_ceph_tests.py "$@" || true
 
     # show report
     ./bin/get_ceph_test_attributes.py
