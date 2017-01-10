@@ -1,4 +1,4 @@
 start =
-  element CreateBucketConfiguration {
+  element * {
     element LocationConstraint { xsd:string }
   }
