@@ -1,0 +1,10 @@
+Code-Review+1: Karen Chan <karen@karen-chan.com>
+Code-Review+1: wanghongtaozz <wanghongtaozz@inspur.com>
+Code-Review+2: Kota Tsuyuzaki <tsuyuzaki.kota@lab.ntt.co.jp>
+Workflow+1: Kota Tsuyuzaki <tsuyuzaki.kota@lab.ntt.co.jp>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 10 Jan 2017 04:37:46 +0000
+Reviewed-on: https://review.openstack.org/415559
+Project: openstack/swift3
+Branch: refs/heads/master
