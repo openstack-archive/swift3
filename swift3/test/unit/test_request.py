@@ -27,7 +27,7 @@ from swift3.cfg import CONF
 from swift3.request import Request as S3_Request
 from swift3.request import S3AclRequest, SigV4Request, SIGV4_X_AMZ_DATE_FORMAT
 from swift3.response import InvalidArgument, NoSuchBucket, InternalError, \
-    AccessDenied, SignatureDoesNotMatch
+    AccessDenied, SignatureDoesNotMatch, RequestTimeTooSkewed
 
 
 Fake_ACL_MAP = {
@@ -439,6 +439,24 @@ class TestRequest(Swift3TestCase):
             self._test_request_timestamp_sigv4(date_header)
 
         self.assertEqual('403 Forbidden', cm.exception.message)
+        self.assertIn(access_denied_message, cm.exception.body)
+
+        # far-past Date header
+        date_header = {'Date': 'Tue, 07 Jul 999 21:53:04 GMT'}
+        with self.assertRaises(AccessDenied) as cm:
+            self._test_request_timestamp_sigv4(date_header)
+
+        self.assertEqual('403 Forbidden', cm.exception.message)
+        self.assertIn(access_denied_message, cm.exception.body)
+
+        # far-future Date header
+        date_header = {'Date': 'Tue, 07 Jul 9999 21:53:04 GMT'}
+        with self.assertRaises(RequestTimeTooSkewed) as cm:
+            self._test_request_timestamp_sigv4(date_header)
+
+        self.assertEqual('403 Forbidden', cm.exception.message)
+        self.assertIn('The difference between the request time and the '
+                      'current time is too large.', cm.exception.body)
 
     def _test_request_timestamp_sigv2(self, date_header):
         # signature v4 here
@@ -485,6 +503,31 @@ class TestRequest(Swift3TestCase):
 
         self.assertEqual('403 Forbidden', cm.exception.message)
         self.assertIn(access_denied_message, cm.exception.body)
+
+        # Negative timestamp
+        date_header = {'X-Amz-Date': '00160523T054055Z'}
+        with self.assertRaises(AccessDenied) as cm:
+            self._test_request_timestamp_sigv2(date_header)
+
+        self.assertEqual('403 Forbidden', cm.exception.message)
+        self.assertIn(access_denied_message, cm.exception.body)
+
+        # far-past Date header
+        date_header = {'Date': 'Tue, 07 Jul 999 21:53:04 GMT'}
+        with self.assertRaises(AccessDenied) as cm:
+            self._test_request_timestamp_sigv2(date_header)
+
+        self.assertEqual('403 Forbidden', cm.exception.message)
+        self.assertIn(access_denied_message, cm.exception.body)
+
+        # far-future Date header
+        date_header = {'Date': 'Tue, 07 Jul 9999 21:53:04 GMT'}
+        with self.assertRaises(RequestTimeTooSkewed) as cm:
+            self._test_request_timestamp_sigv2(date_header)
+
+        self.assertEqual('403 Forbidden', cm.exception.message)
+        self.assertIn('The difference between the request time and the '
+                      'current time is too large.', cm.exception.body)
 
     def test_headers_to_sign_sigv4(self):
         environ = {
