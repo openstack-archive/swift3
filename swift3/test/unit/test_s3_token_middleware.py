@@ -29,7 +29,7 @@ from swift3 import s3_token_middleware as s3_token
 from swift.common.swob import Request, Response
 from swift.common.wsgi import ConfigFileError
 
-GOOD_RESPONSE = {'access': {
+GOOD_RESPONSE_V2 = {'access': {
     'user': {
         'username': 'S3_USER',
         'name': 'S3_USER',
@@ -46,6 +46,28 @@ GOOD_RESPONSE = {'access': {
             'name': 'TENANT_NAME'
         }
     }
+}}
+GOOD_RESPONSE_V3 = {'token': {
+    'user': {
+        'domain': {
+            'name': 'Default',
+            'id': 'default',
+        },
+        'name': 'S3_USER',
+        'id': 'USER_ID',
+    },
+    'project': {
+        'domain': {
+            'name': 'PROJECT_DOMAIN_NAME',
+            'id': 'PROJECT_DOMAIN_ID',
+        },
+        'name': 'PROJECT_NAME',
+        'id': 'PROJECT_ID',
+    },
+    'roles': [
+        {'name': 'swift-user'},
+        {'name': '_member_'},
+    ],
 }}
 
 
@@ -139,7 +161,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
 
         self.requests_mock.post(self.TEST_URL,
                                 status_code=201,
-                                json=GOOD_RESPONSE)
+                                json=GOOD_RESPONSE_V2)
 
     # Ignore the request and pass to the next middleware in the
     # pipeline if no path has been specified.
@@ -192,7 +214,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         self._assert_authorized(req)
 
     def test_tolerate_missing_token_id(self):
-        resp = copy.deepcopy(GOOD_RESPONSE)
+        resp = copy.deepcopy(GOOD_RESPONSE_V2)
         del resp['access']['token']['id']
         self.requests_mock.post(self.TEST_URL,
                                 status_code=201,
@@ -210,7 +232,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         port = 35357
         self.requests_mock.post(
             '%s://%s:%s/v2.0/s3tokens' % (protocol, host, port),
-            status_code=201, json=GOOD_RESPONSE)
+            status_code=201, json=GOOD_RESPONSE_V2)
 
         self.middleware = (
             s3_token.filter_factory({'auth_protocol': 'http',
@@ -244,7 +266,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         self.middleware = s3_token.filter_factory(
             {'insecure': 'True', 'auth_uri': 'http://example.com'})(self.app)
 
-        text_return_value = json.dumps(GOOD_RESPONSE)
+        text_return_value = json.dumps(GOOD_RESPONSE_V2)
         MOCK_REQUEST.return_value = TestResponse({
             'status_code': 201,
             'text': text_return_value})
@@ -316,7 +338,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
 
         MOCK_REQUEST.return_value = TestResponse({
             'status_code': 201,
-            'text': json.dumps(GOOD_RESPONSE)})
+            'text': json.dumps(GOOD_RESPONSE_V2)})
 
         req = Request.blank('/v1/AUTH_cfa/c/o')
         req.headers['Authorization'] = 'AWS access:signature'
@@ -429,7 +451,7 @@ class S3TokenMiddlewareTestBad(S3TokenMiddlewareTestBase):
         self._test_bad_reply('<badreply>')
 
     def _test_bad_reply_missing_parts(self, *parts):
-        resp = copy.deepcopy(GOOD_RESPONSE)
+        resp = copy.deepcopy(GOOD_RESPONSE_V2)
         part_dict = resp
         for part in parts[:-1]:
             part_dict = part_dict[part]
@@ -530,3 +552,80 @@ class S3TokenMiddlewareTestDeferredAuth(S3TokenMiddlewareTestBase):
             200)
         self.assertNotIn('X-Auth-Token', req.headers)
         self.assertEqual(1, self.middleware._app.calls)
+
+
+class S3TokenMiddlewareTestV3(S3TokenMiddlewareTestBase):
+
+    def setUp(self):
+        super(S3TokenMiddlewareTestV3, self).setUp()
+
+        self.requests_mock.post(self.TEST_URL,
+                                status_code=200,
+                                json=GOOD_RESPONSE_V3)
+
+    def _assert_authorized(self, req, expect_token=True):
+        self.assertTrue(req.path.startswith('/v1/AUTH_PROJECT_ID'))
+        expected_headers = {
+            'X-Identity-Status': 'Confirmed',
+            'X-Roles': 'swift-user,_member_',
+            'X-User-Id': 'USER_ID',
+            'X-User-Name': 'S3_USER',
+            'X-User-Domain-Id': 'default',
+            'X-User-Domain-Name': 'Default',
+            'X-Tenant-Id': 'PROJECT_ID',
+            'X-Tenant-Name': 'PROJECT_NAME',
+            'X-Project-Id': 'PROJECT_ID',
+            'X-Project-Name': 'PROJECT_NAME',
+            'X-Project-Domain-Id': 'PROJECT_DOMAIN_ID',
+            'X-Project-Domain-Name': 'PROJECT_DOMAIN_NAME',
+        }
+        for header, value in expected_headers.items():
+            self.assertIn(header, req.headers)
+            self.assertEqual(value, req.headers[header])
+            # WSGI wants native strings for headers
+            self.assertIsInstance(req.headers[header], str)
+        self.assertNotIn('X-Auth-Token', req.headers)
+        self.assertEqual(1, self.middleware._app.calls)
+
+    def test_authorized(self):
+        req = Request.blank('/v1/AUTH_cfa/c/o')
+        req.headers['Authorization'] = 'AWS access:signature'
+        req.headers['X-Storage-Token'] = 'token'
+        req.get_response(self.middleware)
+        self._assert_authorized(req)
+
+    def _test_bad_reply_missing_parts(self, *parts):
+        resp = copy.deepcopy(GOOD_RESPONSE_V3)
+        part_dict = resp
+        for part in parts[:-1]:
+            part_dict = part_dict[part]
+        del part_dict[parts[-1]]
+        self.requests_mock.post(self.TEST_URL,
+                                status_code=201,
+                                text=json.dumps(resp))
+
+        req = Request.blank('/v1/AUTH_cfa/c/o')
+        req.headers['Authorization'] = 'AWS access:signature'
+        req.headers['X-Storage-Token'] = 'token'
+        resp = req.get_response(self.middleware)
+        s3_invalid_resp = self.middleware._deny_request('InvalidURI')
+        self.assertEqual(resp.body, s3_invalid_resp.body)
+        self.assertEqual(
+            resp.status_int,  # pylint: disable-msg=E1101
+            s3_invalid_resp.status_int)  # pylint: disable-msg=E1101
+        self.assertEqual(0, self.middleware._app.calls)
+
+    def test_bad_reply_missing_parts(self):
+        self._test_bad_reply_missing_parts('token', 'user', 'id')
+        self._test_bad_reply_missing_parts('token', 'user', 'name')
+        self._test_bad_reply_missing_parts('token', 'user', 'domain', 'id')
+        self._test_bad_reply_missing_parts('token', 'user', 'domain', 'name')
+        self._test_bad_reply_missing_parts('token', 'user', 'domain')
+        self._test_bad_reply_missing_parts('token', 'user')
+        self._test_bad_reply_missing_parts('token', 'project', 'id')
+        self._test_bad_reply_missing_parts('token', 'project', 'name')
+        self._test_bad_reply_missing_parts('token', 'project', 'domain', 'id')
+        self._test_bad_reply_missing_parts('token', 'project', 'domain', 'name')
+        self._test_bad_reply_missing_parts('token', 'project', 'domain')
+        self._test_bad_reply_missing_parts('token', 'project')
+        self._test_bad_reply_missing_parts('token', 'roles')
