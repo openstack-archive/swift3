@@ -33,7 +33,8 @@ from keystoneauth1.access import AccessInfoV2
 import swift3
 from swift3.test.unit import Swift3TestCase
 from swift3.test.unit.helpers import FakeSwift
-from swift3.test.unit.test_s3_token_middleware import GOOD_RESPONSE
+from swift3.test.unit.test_s3_token_middleware import \
+    GOOD_RESPONSE, GOOD_RESPONSE_V3
 from swift3.request import SigV4Request, Request as S3Request
 from swift3.etree import fromstring
 from swift3.middleware import filter_factory, Swift3Middleware
@@ -902,6 +903,32 @@ class TestSwift3Middleware(Swift3TestCase):
             mock_resp = requests.Response()
             mock_resp._content = json.dumps(GOOD_RESPONSE)
             mock_resp.status_code = 201
+            mock_req.return_value = mock_resp
+
+            status, headers, body = self.call_swift3(req)
+            self.assertEqual(body, '')
+            self.assertEqual(1, mock_req.call_count)
+
+    def test_swift3_with_only_s3_token_v3(self):
+        self.swift = FakeSwift()
+        self.keystone_auth = KeystoneAuth(
+            self.swift, {'operator_roles': 'swift-user'})
+        self.s3_token = S3Token(
+            self.keystone_auth, {'auth_uri': 'https://fakehost/identity'})
+        self.swift3 = Swift3Middleware(self.s3_token, CONF)
+        req = Request.blank(
+            '/bucket',
+            environ={'REQUEST_METHOD': 'PUT'},
+            headers={'Authorization': 'AWS access:signature',
+                     'Date': self.get_date_header()})
+        self.swift.register('PUT', '/v1/AUTH_PROJECT_ID/bucket',
+                            swob.HTTPCreated, {}, None)
+        self.swift.register('HEAD', '/v1/AUTH_PROJECT_ID',
+                            swob.HTTPOk, {}, None)
+        with patch.object(self.s3_token, '_json_request') as mock_req:
+            mock_resp = requests.Response()
+            mock_resp._content = json.dumps(GOOD_RESPONSE_V3)
+            mock_resp.status_code = 200
             mock_req.return_value = mock_resp
 
             status, headers, body = self.call_swift3(req)

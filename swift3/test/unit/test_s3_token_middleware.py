@@ -48,6 +48,28 @@ GOOD_RESPONSE = {'access': {
         }
     }
 }}
+GOOD_RESPONSE_V3 = {'token': {
+    'user': {
+        'domain': {
+            'name': 'Default',
+            'id': 'default',
+        },
+        'name': 'S3_USER',
+        'id': 'USER_ID',
+    },
+    'project': {
+        'domain': {
+            'name': 'PROJECT_DOMAIN_NAME',
+            'id': 'PROJECT_DOMAIN_ID',
+        },
+        'name': 'PROJECT_NAME',
+        'id': 'PROJECT_ID',
+    },
+    'roles': [
+        {'name': 'swift-user'},
+        {'name': '_member_'},
+    ],
+}}
 
 
 class TestResponse(requests.Response):
@@ -600,3 +622,141 @@ class S3TokenMiddlewareTestDeferredAuth(S3TokenMiddlewareTestBase):
             200)
         self.assertNotIn('X-Auth-Token', req.headers)
         self.assertEqual(1, self.middleware._app.calls)
+
+
+class S3TokenMiddlewareTestV3(S3TokenMiddlewareTestBase):
+
+    def setUp(self):
+        super(S3TokenMiddlewareTestV3, self).setUp()
+
+        self.requests_mock.post(self.TEST_URL,
+                                status_code=200,
+                                json=GOOD_RESPONSE_V3)
+
+    def _assert_authorized(self, req,
+                           account_path='/v1/AUTH_PROJECT_ID/'):
+        self.assertTrue(req.path.startswith(account_path))
+        expected_headers = {
+            'X-Identity-Status': 'Confirmed',
+            'X-Roles': 'swift-user,_member_',
+            'X-User-Id': 'USER_ID',
+            'X-User-Name': 'S3_USER',
+            'X-User-Domain-Id': 'default',
+            'X-User-Domain-Name': 'Default',
+            'X-Tenant-Id': 'PROJECT_ID',
+            'X-Tenant-Name': 'PROJECT_NAME',
+            'X-Project-Id': 'PROJECT_ID',
+            'X-Project-Name': 'PROJECT_NAME',
+            'X-Project-Domain-Id': 'PROJECT_DOMAIN_ID',
+            'X-Project-Domain-Name': 'PROJECT_DOMAIN_NAME',
+        }
+        for header, value in expected_headers.items():
+            self.assertIn(header, req.headers)
+            self.assertEqual(value, req.headers[header])
+            # WSGI wants native strings for headers
+            self.assertIsInstance(req.headers[header], str)
+        self.assertNotIn('X-Auth-Token', req.headers)
+        self.assertEqual(1, self.middleware._app.calls)
+
+    def test_authorized(self):
+        req = Request.blank('/v1/AUTH_cfa/c/o')
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
+        req.get_response(self.middleware)
+        self._assert_authorized(req)
+
+    def test_authorized_bytes(self):
+        req = Request.blank('/v1/AUTH_cfa/c/o')
+        req.environ['swift3.auth_details'] = {
+            'access_key': b'access',
+            'signature': b'signature',
+            'string_to_sign': b'token',
+        }
+        req.get_response(self.middleware)
+        self._assert_authorized(req)
+
+    def test_authorized_http(self):
+        protocol = 'http'
+        host = 'fakehost'
+        port = 35357
+        self.requests_mock.post(
+            '%s://%s:%s/v2.0/s3tokens' % (protocol, host, port),
+            status_code=201, json=GOOD_RESPONSE_V3)
+
+        self.middleware = (
+            s3_token.filter_factory({'auth_protocol': 'http',
+                                     'auth_host': host,
+                                     'auth_port': port})(self.app))
+        req = Request.blank('/v1/AUTH_cfa/c/o')
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
+        req.get_response(self.middleware)
+        self._assert_authorized(req)
+
+    def test_authorized_trailing_slash(self):
+        self.middleware = s3_token.filter_factory({
+            'auth_uri': self.TEST_AUTH_URI + '/'})(self.app)
+        req = Request.blank('/v1/AUTH_cfa/c/o')
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
+        req.get_response(self.middleware)
+        self._assert_authorized(req)
+
+    def test_authorization_nova_toconnect(self):
+        req = Request.blank('/v1/AUTH_swiftint/c/o')
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access:FORCED_TENANT_ID',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
+        req.get_response(self.middleware)
+        self._assert_authorized(req, account_path='/v1/AUTH_FORCED_TENANT_ID/')
+
+    def _test_bad_reply_missing_parts(self, *parts):
+        resp = copy.deepcopy(GOOD_RESPONSE_V3)
+        part_dict = resp
+        for part in parts[:-1]:
+            part_dict = part_dict[part]
+        del part_dict[parts[-1]]
+        self.requests_mock.post(self.TEST_URL,
+                                status_code=201,
+                                text=json.dumps(resp))
+
+        req = Request.blank('/v1/AUTH_cfa/c/o')
+        req.environ['swift3.auth_details'] = {
+            'access_key': u'access',
+            'signature': u'signature',
+            'string_to_sign': u'token',
+        }
+        resp = req.get_response(self.middleware)
+        s3_invalid_resp = self.middleware._deny_request('InvalidURI')
+        self.assertEqual(resp.body, s3_invalid_resp.body)
+        self.assertEqual(
+            resp.status_int,  # pylint: disable-msg=E1101
+            s3_invalid_resp.status_int)  # pylint: disable-msg=E1101
+        self.assertEqual(0, self.middleware._app.calls)
+
+    def test_bad_reply_missing_parts(self):
+        self._test_bad_reply_missing_parts('token', 'user', 'id')
+        self._test_bad_reply_missing_parts('token', 'user', 'name')
+        self._test_bad_reply_missing_parts('token', 'user', 'domain', 'id')
+        self._test_bad_reply_missing_parts('token', 'user', 'domain', 'name')
+        self._test_bad_reply_missing_parts('token', 'user', 'domain')
+        self._test_bad_reply_missing_parts('token', 'user')
+        self._test_bad_reply_missing_parts('token', 'project', 'id')
+        self._test_bad_reply_missing_parts('token', 'project', 'name')
+        self._test_bad_reply_missing_parts('token', 'project', 'domain', 'id')
+        self._test_bad_reply_missing_parts('token', 'project', 'domain',
+                                           'name')
+        self._test_bad_reply_missing_parts('token', 'project', 'domain')
+        self._test_bad_reply_missing_parts('token', 'project')
+        self._test_bad_reply_missing_parts('token', 'roles')
