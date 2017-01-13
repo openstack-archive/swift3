@@ -72,6 +72,45 @@ KEYSTONE_AUTH_HEADERS = (
 )
 
 
+def parse_v2_response(token):
+    access_info = token['access']
+    headers = {
+        'X-Identity-Status': 'Confirmed',
+        'X-Roles': ','.join(r['name']
+                            for r in access_info['user']['roles']),
+        'X-User-Id': access_info['user']['id'],
+        'X-User-Name': access_info['user']['name'],
+        'X-Tenant-Id': access_info['token']['tenant']['id'],
+        'X-Tenant-Name': access_info['token']['tenant']['name'],
+        'X-Project-Id': access_info['token']['tenant']['id'],
+        'X-Project-Name': access_info['token']['tenant']['name'],
+    }
+    return (
+        headers,
+        access_info['token'].get('id'),
+        access_info['token']['tenant'])
+
+
+def parse_v3_response(token):
+    token = token['token']
+    headers = {
+        'X-Identity-Status': 'Confirmed',
+        'X-Roles': ','.join(r['name']
+                            for r in token['roles']),
+        'X-User-Id': token['user']['id'],
+        'X-User-Name': token['user']['name'],
+        'X-User-Domain-Id': token['user']['domain']['id'],
+        'X-User-Domain-Name': token['user']['domain']['name'],
+        'X-Tenant-Id': token['project']['id'],
+        'X-Tenant-Name': token['project']['name'],
+        'X-Project-Id': token['project']['id'],
+        'X-Project-Name': token['project']['name'],
+        'X-Project-Domain-Id': token['project']['domain']['id'],
+        'X-Project-Domain-Name': token['project']['domain']['name'],
+    }
+    return headers, None, token['project']
+
+
 class S3Token(object):
     """Middleware that handles S3 authentication."""
 
@@ -250,27 +289,22 @@ class S3Token(object):
                            resp.status_code, resp.content)
 
         try:
-            access_info = resp.json()['access']
+            token = resp.json()
+            if 'access' in token:
+                headers, token_id, tenant = parse_v2_response(token)
+            elif 'token' in token:
+                headers, token_id, tenant = parse_v3_response(token)
+            else:
+                raise ValueError
+
             # Populate the environment similar to auth_token,
             # so we don't have to contact Keystone again.
             #
             # Note that although the strings are unicode following json
             # deserialization, Swift's HeaderEnvironProxy handles ensuring
             # they're stored as native strings
-            req.headers.update({
-                'X-Identity-Status': 'Confirmed',
-                'X-Roles': ','.join(r['name']
-                                    for r in access_info['user']['roles']),
-                'X-User-Id': access_info['user']['id'],
-                'X-User-Name': access_info['user']['name'],
-                'X-Tenant-Id': access_info['token']['tenant']['id'],
-                'X-Tenant-Name': access_info['token']['tenant']['name'],
-                'X-Project-Id': access_info['token']['tenant']['id'],
-                'X-Project-Name': access_info['token']['tenant']['name'],
-            })
-            token_id = access_info['token'].get('id')
-            tenant = access_info['token']['tenant']
-            req.environ['keystone.token_info'] = resp.json()
+            req.headers.update(headers)
+            req.environ['keystone.token_info'] = token
         except (ValueError, KeyError, TypeError):
             if self._delay_auth_decision:
                 error = ('Error on keystone reply: %d %s - '
