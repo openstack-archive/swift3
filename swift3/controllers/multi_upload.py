@@ -566,11 +566,9 @@ class UploadController(Controller):
         if manifest[-1]['size_bytes'] == 0:
             empty_seg = manifest.pop()
 
-            # Ordinarily, we just let SLO check segment sizes. However, we
-            # just popped off a zero-byte segment; if there was a second
-            # zero-byte segment and it was at the end, it would succeed on
-            # Swift < 2.6.0 and fail on newer Swift. It seems reasonable that
-            # it should always fail.
+            # We'll check the sizes of all except the last segment below, but
+            # since we just popped off a zero-byte segment, we should check
+            # that last segment, too.
             if manifest and manifest[-1]['size_bytes'] < CONF.min_segment_size:
                 raise EntityTooSmall()
 
@@ -594,14 +592,8 @@ class UploadController(Controller):
                                         headers=headers)
         except BadSwiftRequest as e:
             msg = str(e)
-            msg_pre_260 = 'Each segment, except the last, must be at least '
-            # see https://github.com/openstack/swift/commit/c0866ce
-            msg_260 = ('too small; each segment, except the last, must be '
-                       'at least ')
-            # see https://github.com/openstack/swift/commit/7f636a5
-            msg_post_260 = 'too small; each segment must be at least 1 byte'
-            if msg.startswith(msg_pre_260) or \
-                    msg_260 in msg or msg_post_260 in msg:
+            expected_msg = 'too small; each segment must be at least 1 byte'
+            if expected_msg in msg:
                 # FIXME: AWS S3 allows a smaller object than 5 MB if there is
                 # only one part.  Use a COPY request to copy the part object
                 # from the segments container instead.
