@@ -5,8 +5,8 @@
 # more middleware.
 #
 # Keystone pipeline
-# Note that s3token and authtoken require the keystonemiddleware package.
-pipeline = proxy-logging cache swift3 s3token authtoken keystoneauth bulk slo proxy-logging proxy-server
+# Note that authtoken requires the keystonemiddleware package.
+pipeline = proxy-logging cache authtoken swift3 s3token keystoneauth bulk slo proxy-logging proxy-server
 
 # Tempauth pipeline
 # pipeline = proxy-logging cache swift3 tempauth bulk slo proxy-logging proxy-server
@@ -164,7 +164,7 @@ http_timeout = 10.0
 
 [filter:authtoken]
 # See swift manual for more details.
-paste.filter_factory = keystonemiddleware.auth_token:filter_factory
+use = egg:keystone#auth_token
 identity_uri = http://keystonehost:35357/
 auth_uri = http://keystonehost:5000/
 admin_tenant_name = service

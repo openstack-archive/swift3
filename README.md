@@ -49,17 +49,18 @@ If you use keystone:
     Change To::
 
         [pipeline:main]
-        pipeline = catch_errors cache swift3 s3token authtoken keystoneauth proxy-server
+        pipeline = catch_errors cache authtoken swift3 s3token keystoneauth proxy-server
 
     To support Multipart Upload::
 
         [pipeline:main]
-        pipeline = catch_errors cache swift3 s3token authtoken keystoneauth slo proxy-server
+        pipeline = catch_errors cache authtoken swift3 s3token keystoneauth slo proxy-server
 
 Note:
  * The authtoken filter requires the keystonemiddleware package.
  * Swift3 explicitly checks that keystoneauth is in the pipeline.  You must use this name
    in the pipeline statement and in [filter:keystoneauth] section header.
+ * If Keystone users will only use the S3 API, the authtoken middleware is not required.
 
 3) Add to your proxy-server.conf the section for the Swift3 WSGI filter::
 

@@ -52,8 +52,3 @@ use = egg:swift#memcache
 [filter:s3token]
 use = egg:swift3#s3token
 auth_uri = http://localhost:35357/
-
-[filter:keystoneauth]
-use = egg:swift#keystoneauth
-operator_roles = admin, swiftoperator
-reseller_admin_role = ResellerAdmin
