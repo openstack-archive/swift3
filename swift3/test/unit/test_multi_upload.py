@@ -652,30 +652,21 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEqual(headers.get('X-Object-Meta-Foo'), 'bar')
 
     def test_object_multipart_upload_complete_segment_too_small(self):
-        msgs = [
-            # pre-2.6.0 swift
-            'Each segment, except the last, must be at least 1234 bytes.',
-            # swift 2.6.0
-            'Index 0: too small; each segment, except the last, must be '
-            'at least 1234 bytes.',
-            # swift 2.7.0+
-            'Index 0: too small; each segment must be at least 1 byte.',
-        ]
+        msg = 'Index 0: too small; each segment must be at least 1 byte.'
 
-        for msg in msgs:
-            req = Request.blank(
-                '/bucket/object?uploadId=X',
-                environ={'REQUEST_METHOD': 'POST'},
-                headers={'Authorization': 'AWS test:tester:hmac',
-                         'Date': self.get_date_header(), },
-                body=xml)
+        req = Request.blank(
+            '/bucket/object?uploadId=X',
+            environ={'REQUEST_METHOD': 'POST'},
+            headers={'Authorization': 'AWS test:tester:hmac',
+                     'Date': self.get_date_header(), },
+            body=xml)
 
-            self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
-                                swob.HTTPBadRequest, {}, msg)
-            status, headers, body = self.call_swift3(req)
-            self.assertEqual(status.split()[0], '400')
-            self.assertEqual(self._get_error_code(body), 'EntityTooSmall')
-            self.assertEqual(self._get_error_message(body), msg)
+        self.swift.register('PUT', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPBadRequest, {}, msg)
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '400')
+        self.assertEqual(self._get_error_code(body), 'EntityTooSmall')
+        self.assertEqual(self._get_error_message(body), msg)
 
         self.swift.clear_calls()
         CONF.min_segment_size = 5242880
