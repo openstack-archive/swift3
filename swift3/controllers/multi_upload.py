@@ -563,16 +563,6 @@ class UploadController(Controller):
         # Following swift commit 7f636a5, zero-byte segments aren't allowed,
         # even as the final segment
         empty_seg = None
-        if manifest[-1]['size_bytes'] == 0:
-            empty_seg = manifest.pop()
-
-            # Ordinarily, we just let SLO check segment sizes. However, we
-            # just popped off a zero-byte segment; if there was a second
-            # zero-byte segment and it was at the end, it would succeed on
-            # Swift < 2.6.0 and fail on newer Swift. It seems reasonable that
-            # it should always fail.
-            if manifest and manifest[-1]['size_bytes'] < CONF.min_segment_size:
-                raise EntityTooSmall()
 
         # Check the size of each segment except the last and make sure they are
         # all more than the minimum upload chunk size
