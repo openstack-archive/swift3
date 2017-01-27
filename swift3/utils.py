@@ -34,6 +34,8 @@ LOGGER = get_logger(CONF, log_route='swift3')
 
 MULTIUPLOAD_SUFFIX = '+segments'
 
+VERSIONING_SUFFIX = '+versioning'
+
 
 def sysmeta_prefix(resource):
     """

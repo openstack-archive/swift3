@@ -15,16 +15,21 @@
 
 import unittest
 
-from swift.common.swob import Request
+from swift.common.swob import Request, HTTPCreated, HTTPNoContent
 
 from swift3.test.unit import Swift3TestCase
-from swift3.etree import fromstring
+from swift3.etree import fromstring, tostring, Element, SubElement
 
 
 class TestSwift3Versioning(Swift3TestCase):
 
     def setUp(self):
         super(TestSwift3Versioning, self).setUp()
+
+        self.swift.register('PUT', '/v1/AUTH_test/bucket+versioning',
+                            HTTPCreated, {}, None)
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket+versioning',
+                            HTTPNoContent, {}, None)
 
     def test_object_versioning_GET(self):
         req = Request.blank('/bucket/object?versioning',
@@ -37,12 +42,26 @@ class TestSwift3Versioning(Swift3TestCase):
         fromstring(body, 'VersioningConfiguration')
 
     def test_object_versioning_PUT(self):
+        elem = Element('VersioningConfiguration')
+        SubElement(elem, 'Status').text = 'Enabled'
+        xml = tostring(elem)
+
         req = Request.blank('/bucket/object?versioning',
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
+                            body=xml)
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '200')
+
+        req = Request.blank('/bucket/object?versioning',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
-        self.assertEqual(self._get_error_code(body), 'NotImplemented')
+        self.assertEqual(status.split()[0], '200')
+
+        elem = fromstring(body, 'VersioningConfiguration')
 
     def test_bucket_versioning_GET(self):
         req = Request.blank('/bucket?versioning',
@@ -50,6 +69,7 @@ class TestSwift3Versioning(Swift3TestCase):
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '200')
         fromstring(body, 'VersioningConfiguration')
 
 if __name__ == '__main__':
