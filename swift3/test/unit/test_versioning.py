@@ -15,42 +15,176 @@
 
 import unittest
 
-from swift.common.swob import Request
+from swift.common.swob import Request, HTTPCreated, HTTPNoContent, \
+    HTTPNotFound
+
+from swift3.utils import VERSIONING_SUFFIX
 
 from swift3.test.unit import Swift3TestCase
-from swift3.etree import fromstring
+from swift3.etree import fromstring, tostring, Element, SubElement
+
+VERSIONING_BUCKET = 'bucket%s' % VERSIONING_SUFFIX
 
 
 class TestSwift3Versioning(Swift3TestCase):
 
-    def setUp(self):
-        super(TestSwift3Versioning, self).setUp()
-
-    def test_object_versioning_GET(self):
-        req = Request.blank('/bucket/object?versioning',
+    def _versioning_GET(self, path):
+        req = Request.blank('%s?versioning' % path,
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac',
                                      'Date': self.get_date_header()})
 
         status, headers, body = self.call_swift3(req)
-        self.assertEqual(status.split()[0], '200')
-        fromstring(body, 'VersioningConfiguration')
+        return status, headers, body
 
-    def test_object_versioning_PUT(self):
-        req = Request.blank('/bucket/object?versioning',
+    def _versioning_GET_not_configured(self, path):
+        self.swift.register('HEAD', '/v1/AUTH_test/%s' % VERSIONING_BUCKET,
+                            HTTPNotFound, {}, None)
+
+        status, headers, body = self._versioning_GET(path)
+        self.assertEqual(status.split()[0], '200')
+        elem = fromstring(body, 'VersioningConfiguration')
+        self.assertEqual(elem.getchildren(), [])
+
+    def _versioning_GET_enabled(self, path):
+        self.swift.register('HEAD', '/v1/AUTH_test/%s' % VERSIONING_BUCKET,
+                            HTTPNoContent, {}, None)
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket', HTTPNoContent, {
+            'X-Container-Sysmeta-Versions-Location': VERSIONING_BUCKET,
+            'X-Container-Sysmeta-Versions-Mode': 'history',
+        }, None)
+
+        status, headers, body = self._versioning_GET(path)
+        self.assertEqual(status.split()[0], '200')
+        elem = fromstring(body, 'VersioningConfiguration')
+        status = elem.find('./Status').text
+        self.assertEqual(status, 'Enabled')
+
+    def _versioning_GET_suspended(self, path):
+        self.swift.register('HEAD', '/v1/AUTH_test/%s' % VERSIONING_BUCKET,
+                            HTTPNoContent, {}, None)
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket', HTTPNoContent, {},
+                            None)
+
+        status, headers, body = self._versioning_GET('/bucket/object')
+        self.assertEqual(status.split()[0], '200')
+        elem = fromstring(body, 'VersioningConfiguration')
+        status = elem.find('./Status').text
+        self.assertEqual(status, 'Suspended')
+
+    def _versioning_PUT_error(self, path):
+        # Root tag is not VersioningConfiguration
+        elem = Element('foo')
+        SubElement(elem, 'Status').text = 'Enabled'
+        xml = tostring(elem)
+
+        req = Request.blank('%s?versioning' % path,
                             environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
-                                     'Date': self.get_date_header()})
+                                     'Date': self.get_date_header()},
+                            body=xml)
         status, headers, body = self.call_swift3(req)
-        self.assertEqual(self._get_error_code(body), 'NotImplemented')
+        self.assertEqual(status.split()[0], '400')
 
-    def test_bucket_versioning_GET(self):
-        req = Request.blank('/bucket?versioning',
-                            environ={'REQUEST_METHOD': 'GET'},
+        # Status is not "Enabled" or "Suspended"
+        elem = Element('VersioningConfiguration')
+        SubElement(elem, 'Status').text = 'enabled'
+        xml = tostring(elem)
+
+        req = Request.blank('%s?versioning' % path,
+                            environ={'REQUEST_METHOD': 'PUT'},
                             headers={'Authorization': 'AWS test:tester:hmac',
-                                     'Date': self.get_date_header()})
+                                     'Date': self.get_date_header()},
+                            body=xml)
         status, headers, body = self.call_swift3(req)
-        fromstring(body, 'VersioningConfiguration')
+        self.assertEqual(status.split()[0], '400')
+
+    def _versioning_PUT_enabled(self, path):
+        elem = Element('VersioningConfiguration')
+        SubElement(elem, 'Status').text = 'Enabled'
+        xml = tostring(elem)
+
+        self.swift.register('HEAD', '/v1/AUTH_test/%s' % VERSIONING_BUCKET,
+                            HTTPNotFound, {}, None)
+        self.swift.register('PUT', '/v1/AUTH_test/%s' % VERSIONING_BUCKET,
+                            HTTPCreated, {}, None)
+        self.swift.register('POST', '/v1/AUTH_test/bucket',
+                            HTTPNoContent, {}, None)
+
+        req = Request.blank('%s?versioning' % path,
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
+                            body=xml)
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '200')
+
+        calls = self.swift.calls_with_headers
+        self.assertEqual(calls[-1][0], 'POST')
+        self.assertIn(('X-History-Location', VERSIONING_BUCKET),
+                      calls[-1][2].items())
+
+    def _versioning_PUT_suspended(self, path):
+        elem = Element('VersioningConfiguration')
+        SubElement(elem, 'Status').text = 'Suspended'
+        xml = tostring(elem)
+
+        self.swift.register('HEAD', '/v1/AUTH_test/%s' % VERSIONING_BUCKET,
+                            HTTPNotFound, {}, None)
+        self.swift.register('PUT', '/v1/AUTH_test/%s' % VERSIONING_BUCKET,
+                            HTTPCreated, {}, None)
+        self.swift.register('POST', '/v1/AUTH_test/bucket',
+                            HTTPNoContent, {}, None)
+
+        req = Request.blank('%s?versioning' % path,
+                            environ={'REQUEST_METHOD': 'PUT'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()},
+                            body=xml)
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '200')
+
+        calls = self.swift.calls_with_headers
+        self.assertEqual(calls[-1][0], 'POST')
+        self.assertIn(('X-Remove-History-Location', 'true'),
+                      calls[-1][2].items())
+
+    def test_object_versioning_GET_not_configured(self):
+        self._versioning_GET_not_configured('/bucket/object')
+
+    def test_object_versioning_GET_enabled(self):
+        self._versioning_GET_enabled('/bucket/object')
+
+    def test_object_versioning_GET_suspended(self):
+        self._versioning_GET_suspended('/bucket/object')
+
+    def test_object_versioning_PUT_error(self):
+        self._versioning_PUT_error('/bucket/object')
+
+    def test_object_versioning_PUT_enabled(self):
+        self._versioning_PUT_enabled('/bucket/object')
+
+    def test_object_versioning_PUT_suspended(self):
+        self._versioning_PUT_suspended('/bucket/object')
+
+    def test_bucket_versioning_GET_not_configured(self):
+        self._versioning_GET_not_configured('/bucket')
+
+    def test_bucket_versioning_GET_enabled(self):
+        self._versioning_GET_enabled('/bucket')
+
+    def test_bucket_versioning_GET_suspended(self):
+        self._versioning_GET_suspended('/bucket')
+
+    def test_bucket_versioning_PUT_error(self):
+        self._versioning_PUT_error('/bucket')
+
+    def test_bucket_versioning_PUT_enabled(self):
+        self._versioning_PUT_enabled('/bucket')
+
+    def test_bucket_versioning_PUT_suspended(self):
+        self._versioning_PUT_suspended('/bucket')
+
 
 if __name__ == '__main__':
     unittest.main()
