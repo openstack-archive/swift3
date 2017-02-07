@@ -173,7 +173,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         self.middleware(req.environ, self.start_fake_response)
         self.assertEqual(self.response_status, 200)
 
-    def _assert_authorized(self, req, expect_token=True):
+    def _assert_authorized(self, req):
         self.assertTrue(req.path.startswith('/v1/AUTH_TENANT_ID'))
         expected_headers = {
             'X-Identity-Status': 'Confirmed',
@@ -187,7 +187,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
             'X-Auth-Token': 'TOKEN_ID',
         }
         for header, value in expected_headers.items():
-            if header == 'X-Auth-Token' and not expect_token:
+            if header == 'X-Auth-Token':
                 self.assertNotIn(header, req.headers)
                 continue
             self.assertIn(header, req.headers)
@@ -214,7 +214,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         req.headers['Authorization'] = 'AWS access:signature'
         req.headers['X-Storage-Token'] = 'token'
         req.get_response(self.middleware)
-        self._assert_authorized(req, expect_token=False)
+        self._assert_authorized(req)
 
     def test_authorized_http(self):
         protocol = 'http'

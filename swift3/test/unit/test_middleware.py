@@ -963,7 +963,9 @@ class TestSwift3Middleware(Swift3TestCase):
                               '_do_fetch_token') as mock_fetch:
                 mock_resp = requests.Response()
                 no_token_id_good_resp = copy.deepcopy(GOOD_RESPONSE)
-                # delete token id
+                # delete token id, this may looks odd but as sanity
+                # now we don't need any token from keystone to pass
+                # the request
                 del no_token_id_good_resp['access']['token']['id']
                 mock_resp._content = json.dumps(no_token_id_good_resp)
                 mock_resp.status_code = 201
@@ -975,21 +977,43 @@ class TestSwift3Middleware(Swift3TestCase):
                 mock_fetch.return_value = (MagicMock(), mock_access_info)
 
                 status, headers, body = self.call_swift3(req)
-                # No token provided from keystone result in 401 Unauthorized
-                # at `swift.common.middleware.keystoneauth` because auth_token
-                # will remove all auth headers including 'X-Identity-Status'[1]
-                # and then, set X-Identity-Status: Invalid at [2]
-                #
-                # 1: https://github.com/openstack/keystonemiddleware/blob/
-                #    master/keystonemiddleware/auth_token/__init__.py#L620
-                # 2: https://github.com/openstack/keystonemiddleware/blob/
-                #    master/keystonemiddleware/auth_token/__init__.py#L627-L629
-
-                self.assertEqual('403 Forbidden', status)
+                # it works as well as s3_token + auth_token
+                self.assertEqual('200 OK', status)
                 self.assertEqual(1, mock_req.call_count)
-                # if no token provided from keystone, we can skip the call to
-                # fetch the token
-                self.assertEqual(0, mock_fetch.call_count)
+                self.assertEqual(1, mock_fetch.call_count)
+
+    def test_swift3_with_only_s3_token_in_s3acl(self):
+        self.swift = FakeSwift()
+        self.keystone_auth = KeystoneAuth(
+            self.swift, {'operator_roles': 'swift-user'})
+        self.s3_token = S3Token(
+            self.keystone_auth, {'auth_uri': 'https://fakehost/identity'})
+
+        with patch.object(CONF, 's3_acl', True):
+            self.swift3 = Swift3Middleware(self.s3_token, CONF)
+            req = Request.blank(
+                '/bucket',
+                environ={'REQUEST_METHOD': 'PUT'},
+                headers={'Authorization': 'AWS access:signature',
+                         'Date': self.get_date_header()})
+            self.swift.register('PUT', '/v1/AUTH_TENANT_ID/bucket',
+                                swob.HTTPCreated, {}, None)
+            # For now, s3 acl commits the bucket owner acl via POST
+            # after PUT container so we need to register the resposne here
+            self.swift.register('POST', '/v1/AUTH_TENANT_ID/bucket',
+                                swob.HTTPNoContent, {}, None)
+            self.swift.register('TEST', '/v1/AUTH_TENANT_ID',
+                                swob.HTTPMethodNotAllowed, {}, None)
+            with patch.object(self.s3_token, '_json_request') as mock_req:
+                mock_resp = requests.Response()
+                mock_resp._content = json.dumps(GOOD_RESPONSE)
+                mock_resp.status_code = 201
+                mock_req.return_value = mock_resp
+
+                status, headers, body = self.call_swift3(req)
+                self.assertEqual(body, '')
+                self.assertEqual(1, mock_req.call_count)
+
 
 if __name__ == '__main__':
     unittest.main()

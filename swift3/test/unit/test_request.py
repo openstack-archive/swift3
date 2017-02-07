@@ -232,11 +232,15 @@ class TestRequest(Swift3TestCase):
 
             m_swift_resp.return_value = FakeSwiftResponse()
             s3_req = S3AclRequest(req.environ, MagicMock())
-            self.assertTrue('HTTP_AUTHORIZATION' not in s3_req.environ)
-            self.assertTrue('Authorization' not in s3_req.headers)
-            self.assertEqual(s3_req.token, 'token')
+            self.assertNotIn('HTTP_AUTHORIZATION', s3_req.environ)
+            self.assertNotIn('Authorization', s3_req.headers)
+            # The token will be removed after "authenticate"
+            self.assertEqual(s3_req.token, None)
 
     def test_to_swift_req_Authorization_not_exist_in_swreq_headers(self):
+        # the difference from
+        # test_authenticate_delete_Authorization_from_s3req_headers above is
+        # this method asserts *to_swift_req* method.
         container = 'bucket'
         obj = 'obj'
         method = 'GET'
@@ -250,10 +254,13 @@ class TestRequest(Swift3TestCase):
 
             m_swift_resp.return_value = FakeSwiftResponse()
             s3_req = S3AclRequest(req.environ, MagicMock())
+            # Yes, we *want* to assert this
             sw_req = s3_req.to_swift_req(method, container, obj)
+            # So since the result of S3AclRequest init tests and with this
+            # result to_swift_req doesn't add Authorization header and token
             self.assertNotIn('HTTP_AUTHORIZATION', sw_req.environ)
             self.assertNotIn('Authorization', sw_req.headers)
-            self.assertEqual(sw_req.headers['X-Auth-Token'], 'token')
+            self.assertEqual(sw_req.headers['X-Auth-Token'], None)
 
     def test_to_swift_req_subrequest_proxy_access_log(self):
         container = 'bucket'

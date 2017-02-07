@@ -43,6 +43,10 @@ class FakeSwift(object):
         if 'HTTP_AUTHORIZATION' not in env:
             return
 
+        if 'swift.authorize' in env:
+            # we have already the auth for testing in the pipeline
+            return
+
         _, authorization = env['HTTP_AUTHORIZATION'].split(' ')
         tenant_user, sign = authorization.rsplit(':', 1)
         tenant, user = tenant_user.rsplit(':', 1)

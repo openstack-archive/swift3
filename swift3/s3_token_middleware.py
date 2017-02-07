@@ -268,7 +268,6 @@ class S3Token(object):
                 'X-Project-Id': access_info['token']['tenant']['id'],
                 'X-Project-Name': access_info['token']['tenant']['name'],
             })
-            token_id = access_info['token'].get('id')
             tenant = access_info['token']['tenant']
             req.environ['keystone.token_info'] = resp.json()
         except (ValueError, KeyError, TypeError):
@@ -284,7 +283,6 @@ class S3Token(object):
                 return self._deny_request('InvalidURI')(
                     environ, start_response)
 
-        req.headers['X-Auth-Token'] = token_id
         tenant_to_connect = force_tenant or tenant['id']
         if six.PY2 and isinstance(tenant_to_connect, six.text_type):
             tenant_to_connect = tenant_to_connect.encode('utf-8')
