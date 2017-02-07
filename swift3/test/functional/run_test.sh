@@ -27,7 +27,7 @@ mkdir -p ${TEST_DIR}/certs ${TEST_DIR}/private
 
 # create config files
 if [ "$AUTH" == 'keystone' ]; then
-    MIDDLEWARE="s3token authtoken keystoneauth"
+    MIDDLEWARE="s3token keystoneauth"
 elif [ "$AUTH" == 'tempauth' ]; then
     MIDDLEWARE="tempauth"
 else
