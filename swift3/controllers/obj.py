@@ -16,6 +16,8 @@
 import sys
 
 from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT, HTTP_NO_CONTENT
+from swift.common.middleware.versioned_writes import \
+    DELETE_MARKER_CONTENT_TYPE
 from swift.common.swob import Range, content_range_header_value
 from swift.common.utils import public
 
@@ -153,6 +155,30 @@ class ObjectController(Controller):
     def POST(self, req):
         raise S3NotImplemented()
 
+    def _delete_version(self, req, query):
+        info = req.get_object_info(self.app)
+        version_id = info.get('sysmeta', {}).get('version-id', 'null')
+
+        if req.params.get('versionId') in [version_id, 'null']:
+            if info['type'] == DELETE_MARKER_CONTENT_TYPE:
+                # if the object is already marked as deleted, just delete it
+                resp = req.get_response(self.app, query=query)
+            else:
+                resp = req.get_response(self.app, query=query, headers={
+                    'X-Backend-Versioning-Mode-Override': 'stack'})
+        else:
+            # delete the specific version in the versioning container
+            req.container_name += VERSIONING_SUFFIX
+            req.object_name = versioned_object_name(
+                req.object_name, req.params['versionId'])
+
+            resp = req.get_response(self.app, query=query)
+
+        resp.status = HTTP_NO_CONTENT
+        resp.body = ''
+
+        return resp
+
     @public
     def DELETE(self, req):
         """
@@ -161,7 +187,12 @@ class ObjectController(Controller):
         try:
             query = req.gen_multipart_manifest_delete_query(self.app)
             req.headers['Content-Type'] = None  # Ignore client content-type
-            resp = req.get_response(self.app, query=query)
+
+            if req.params.get('versionId'):
+                resp = self._delete_version(req, query)
+            else:
+                resp = req.get_response(self.app, query=query)
+
             if query and resp.status_int == HTTP_OK:
                 for chunk in resp.app_iter:
                     pass  # drain the bulk-deleter response

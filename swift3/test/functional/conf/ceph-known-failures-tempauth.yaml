@@ -72,7 +72,6 @@ ceph_s3:
   s3tests.functional.test_s3.test_put_object_ifnonmatch_nonexisted_good: {status: KNOWN}
   s3tests.functional.test_s3.test_put_object_ifnonmatch_overwrite_existed_failed: {status: KNOWN}
   s3tests.functional.test_s3.test_set_cors: {status: KNOWN}
-  s3tests.functional.test_s3.test_versioned_concurrent_object_create_and_remove: {status: KNOWN}
   s3tests.functional.test_s3.test_versioned_concurrent_object_create_concurrent_remove: {status: KNOWN}
   s3tests.functional.test_s3.test_versioned_object_acl: {status: KNOWN}
   s3tests.functional.test_s3.test_versioning_copy_obj_version: {status: KNOWN}
@@ -80,12 +79,9 @@ ceph_s3:
   s3tests.functional.test_s3.test_versioning_multi_object_delete_with_marker: {status: KNOWN}
   s3tests.functional.test_s3.test_versioning_multi_object_delete_with_marker_create: {status: KNOWN}
   s3tests.functional.test_s3.test_versioning_obj_create_overwrite_multipart: {status: KNOWN}
-  s3tests.functional.test_s3.test_versioning_obj_create_read_remove: {status: KNOWN}
   s3tests.functional.test_s3.test_versioning_obj_create_read_remove_head: {status: KNOWN}
   s3tests.functional.test_s3.test_versioning_obj_create_versions_remove_all: {status: KNOWN}
   s3tests.functional.test_s3.test_versioning_obj_create_versions_remove_special_names: {status: KNOWN}
-  s3tests.functional.test_s3.test_versioning_obj_plain_null_version_overwrite: {status: KNOWN}
-  s3tests.functional.test_s3.test_versioning_obj_plain_null_version_removal: {status: KNOWN}
   s3tests.functional.test_s3.test_versioning_obj_suspend_versions: {status: KNOWN}
   s3tests.functional.test_s3.test_versioning_obj_suspend_versions_simple: {status: KNOWN}
   s3tests.functional.test_s3_website.check_can_test_website: {status: KNOWN}
