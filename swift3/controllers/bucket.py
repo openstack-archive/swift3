@@ -25,7 +25,8 @@ from swift3.response import HTTPOk, S3NotImplemented, InvalidArgument, \
     MalformedXML, InvalidLocationConstraint, NoSuchBucket, \
     BucketNotEmpty, InternalError, ServiceUnavailable, NoSuchKey
 from swift3.cfg import CONF
-from swift3.utils import LOGGER, MULTIUPLOAD_SUFFIX
+from swift3.utils import LOGGER, MULTIUPLOAD_SUFFIX, VERSIONING_SUFFIX, \
+    versioned_object_name
 
 MAX_PUT_BUCKET_BODY_SIZE = 10240
 
@@ -114,15 +115,50 @@ class BucketController(Controller):
             query.update({'prefix': req.params['prefix']})
         if 'delimiter' in req.params:
             query.update({'delimiter': req.params['delimiter']})
+        if 'key-marker' in req.params:
+            query.update({'marker': req.params['marker']})
+        if 'marker' in query and \
+                req.params.get('version-id-marker', 'null') != 'null':
+            query.update({
+                'marker': versioned_object_name(
+                    query['marker'], req.params['version-id-marker']),
+            })
 
         resp = req.get_response(self.app, query=query)
 
         objects = json.loads(resp.body)
 
-        elem = Element('ListBucketResult')
+        if 'versions' in req.params and len(objects) < max_keys:
+            req.container_name += VERSIONING_SUFFIX
+            query['reverse'] = 'true'
+            try:
+                resp = req.get_response(self.app, query=query)
+                versioned_objects = json.loads(resp.body)
+                for o in versioned_objects:
+                    # The name looks like this:
+                    #  '%03x%s/%s' % (len(name), name, version)
+                    o['name'], o['version_id'] = o['name'][3:].split('/', 1)
+                objects.extend(versioned_objects)
+                objects.sort(key=lambda o: o['name'])
+                with open('/tmp/swift3.log', 'a') as f:
+                    f.write('objects={}\n'.format(objects))
+            except NoSuchBucket:
+                # the bucket may not be versioned
+                pass
+            req.container_name = req.container_name[:-len(VERSIONING_SUFFIX)]
+
+        if 'versions' in req.params:
+            elem = Element('ListVersionsResult')
+        else:
+            elem = Element('ListBucketResult')
         SubElement(elem, 'Name').text = req.container_name
         SubElement(elem, 'Prefix').text = req.params.get('prefix')
-        SubElement(elem, 'Marker').text = req.params.get('marker')
+        if 'versions' in req.params:
+            SubElement(elem, 'KeyMarker').text = req.params.get('key-marker')
+            SubElement(elem, 'VersionIdMarker').text = req.params.get(
+                'version-id-marker')
+        else:
+            SubElement(elem, 'Marker').text = req.params.get('marker')
 
         # in order to judge that truncated is valid, check whether
         # max_keys + 1 th element exists in swift.
@@ -150,8 +186,19 @@ class BucketController(Controller):
 
         for o in objects:
             if 'subdir' not in o:
-                contents = SubElement(elem, 'Contents')
-                SubElement(contents, 'Key').text = o['name']
+                if 'versions' in req.params:
+                    contents = SubElement(elem, 'Version')
+                    SubElement(contents, 'Key').text = o['name']
+                    version_id = o.get('version_id')
+                    if not version_id:
+                        info = req.get_object_info(
+                            self.app, object_name=o['name'])
+                        version_id = info.get('meta', {}).get(
+                            'versionid', 'null')
+                    SubElement(contents, 'VersionId').text = version_id
+                else:
+                    contents = SubElement(elem, 'Contents')
+                    SubElement(contents, 'Key').text = o['name']
                 SubElement(contents, 'LastModified').text = \
                     o['last_modified'][:-3] + 'Z'
                 SubElement(contents, 'ETag').text = '"%s"' % o['hash']
