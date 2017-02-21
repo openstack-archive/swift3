@@ -157,6 +157,12 @@ def validate_bucket_name(name):
             return True
 
 
+def versioned_object_name(object_name, version_id=''):
+    if version_id:
+        version_id = '/%s' % version_id
+    return '%03x%s%s' % (len(object_name), object_name, version_id)
+
+
 class S3Timestamp(utils.Timestamp):
     @property
     def s3xmlformat(self):
