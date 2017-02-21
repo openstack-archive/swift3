@@ -16,6 +16,7 @@
 import sys
 
 from swift.common.http import HTTP_OK
+from swift.common.middleware.versioned_writes import DELETE_MARKER_CONTENT_TYPE
 from swift.common.utils import json, public
 
 from swift3.controllers.base import Controller
@@ -25,7 +26,7 @@ from swift3.response import HTTPOk, S3NotImplemented, InvalidArgument, \
     MalformedXML, InvalidLocationConstraint, NoSuchBucket, \
     BucketNotEmpty, InternalError, ServiceUnavailable, NoSuchKey
 from swift3.cfg import CONF
-from swift3.utils import LOGGER, MULTIUPLOAD_SUFFIX
+from swift3.utils import LOGGER, MULTIUPLOAD_SUFFIX, VERSIONING_SUFFIX
 
 MAX_PUT_BUCKET_BODY_SIZE = 10240
 
@@ -119,10 +120,65 @@ class BucketController(Controller):
 
         objects = json.loads(resp.body)
 
-        elem = Element('ListBucketResult')
+        if 'versions' in req.params:
+            req.container_name += VERSIONING_SUFFIX
+            query['reverse'] = 'true'
+            try:
+                resp = req.get_response(self.app, query=query)
+                versioned_objects = json.loads(resp.body)
+                for o in versioned_objects:
+                    # The name looks like this:
+                    #  '%03x%s/%s' % (len(name), name, version)
+                    o['name'], o['version_id'] = o['name'][3:].split('/', 1)
+                objects.extend(versioned_objects)
+            except NoSuchBucket:
+                # the bucket may not be versioned
+                pass
+            req.container_name = req.container_name[:-len(VERSIONING_SUFFIX)]
+            objects.sort(key=lambda o: o['name'])
+            for o in objects:
+                if not o.get('version_id'):
+                    info = req.get_object_info(
+                        self.app, object_name=o['name'])
+                    o['sysmeta_version_id'] = info.get('sysmeta', {}).get(
+                        'version-id', 'null')
+
+        if 'versions' in req.params:
+            elem = Element('ListVersionsResult')
+        else:
+            elem = Element('ListBucketResult')
         SubElement(elem, 'Name').text = req.container_name
         SubElement(elem, 'Prefix').text = req.params.get('prefix')
-        SubElement(elem, 'Marker').text = req.params.get('marker')
+        if 'versions' in req.params:
+            SubElement(elem, 'KeyMarker').text = req.params.get('key-marker')
+            SubElement(elem, 'VersionIdMarker').text = req.params.get(
+                'version-id-marker')
+        else:
+            SubElement(elem, 'Marker').text = req.params.get('marker')
+
+        # Filter objects according to version-id-marker and key-marker
+        v_marker = req.params.get('version-id-marker')
+        k_marker = req.params.get('key-marker')
+        k_marker_matched = not bool(k_marker)
+        if 'versions' in req.params and (v_marker or k_marker):
+            to_delete = []
+            for i, o in enumerate(objects):
+                if 'subdir' not in o:
+                    version_id = o.get('version_id',
+                                       o.get('sysmeta_version_id', 'null'))
+
+                    if not k_marker_matched and k_marker != o['name']:
+                        to_delete.append(i)
+                    if k_marker == o['name']:
+                        k_marker_matched = True
+
+                    if k_marker == o['name'] and v_marker:
+
+                        if v_marker == version_id:
+                            v_marker = None
+                        to_delete.append(i)
+            for i in reversed(to_delete):
+                objects.pop(i)
 
         # in order to judge that truncated is valid, check whether
         # max_keys + 1 th element exists in swift.
@@ -150,16 +206,31 @@ class BucketController(Controller):
 
         for o in objects:
             if 'subdir' not in o:
-                contents = SubElement(elem, 'Contents')
-                SubElement(contents, 'Key').text = o['name']
+                if 'versions' in req.params:
+                    version_id = o.get('version_id',
+                                       o.get('sysmeta_version_id', 'null'))
+
+                    if o.get('content_type') == DELETE_MARKER_CONTENT_TYPE:
+                        contents = SubElement(elem, 'DeleteMarker')
+                    else:
+                        contents = SubElement(elem, 'Version')
+                    SubElement(contents, 'Key').text = o['name']
+                    SubElement(contents, 'VersionId').text = version_id
+                    SubElement(contents, 'IsLatest').text = str(
+                        'version_id' not in o).lower()
+                else:
+                    contents = SubElement(elem, 'Contents')
+                    SubElement(contents, 'Key').text = o['name']
                 SubElement(contents, 'LastModified').text = \
                     o['last_modified'][:-3] + 'Z'
-                SubElement(contents, 'ETag').text = '"%s"' % o['hash']
-                SubElement(contents, 'Size').text = str(o['bytes'])
+                if contents.tag != 'DeleteMarker':
+                    SubElement(contents, 'ETag').text = '"%s"' % o['hash']
+                    SubElement(contents, 'Size').text = str(o['bytes'])
                 owner = SubElement(contents, 'Owner')
                 SubElement(owner, 'ID').text = req.user_id
                 SubElement(owner, 'DisplayName').text = req.user_id
-                SubElement(contents, 'StorageClass').text = 'STANDARD'
+                if contents.tag != 'DeleteMarker':
+                    SubElement(contents, 'StorageClass').text = 'STANDARD'
 
         for o in objects:
             if 'subdir' in o:

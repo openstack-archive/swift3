@@ -17,6 +17,7 @@ import unittest
 import cgi
 
 from swift.common import swob
+from swift.common.middleware.versioned_writes import DELETE_MARKER_CONTENT_TYPE
 from swift.common.swob import Request
 from swift.common.utils import json
 
@@ -304,6 +305,177 @@ class TestSwift3Bucket(Swift3TestCase):
         self.assertEqual(elem.find('./NextMarker').text, 'rose')
         self.assertEqual(elem.find('./MaxKeys').text, '1')
         self.assertEqual(elem.find('./IsTruncated').text, 'true')
+
+    def test_bucket_GET_with_versions_versioning_not_configured(self):
+        self.swift.register('GET', '/v1/AUTH_test/junk+versioning',
+                            swob.HTTPNotFound, {}, None)
+        for obj in self.objects:
+            self.swift.register('HEAD', '/v1/AUTH_test/junk/%s' % obj[0],
+                                swob.HTTPOk, {}, None)
+        self.swift.register('HEAD', '/v1/AUTH_test/junk/viola',
+                            swob.HTTPOk, {}, None)
+
+        req = Request.blank('/junk?versions',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+
+        self.assertEqual(status.split()[0], '200')
+        elem = fromstring(body, 'ListVersionsResult')
+        self.assertEqual(elem.find('./Name').text, 'junk')
+        self.assertEqual(elem.find('./Prefix').text, None)
+        self.assertEqual(elem.find('./KeyMarker').text, None)
+        self.assertEqual(elem.find('./VersionIdMarker').text, None)
+        self.assertEqual(elem.find('./MaxKeys').text, '1000')
+        self.assertEqual(elem.find('./IsTruncated').text, 'false')
+        self.assertEqual(elem.findall('./DeleteMarker'), [])
+        versions = elem.findall('./Version')
+        objects = list(self.objects)
+        objects.sort(key=lambda o: o[0])
+        self.assertEqual(len(versions), len(objects))
+        self.assertEqual([v.find('./Key').text for v in versions],
+                         [v[0] for v in objects])
+        self.assertEqual([v.find('./IsLatest').text for v in versions],
+                         ['true' for v in objects])
+        self.assertEqual([v.find('./VersionId').text for v in versions],
+                         ['null' for v in objects])
+        # Last modified in self.objects is 2011-01-05T02:19:14.275290 but
+        # the returned value is 2011-01-05T02:19:14.275Z
+        self.assertEqual([v.find('./LastModified').text for v in versions],
+                         [v[1][:-3] + 'Z' for v in objects])
+        self.assertEqual([v.find('./ETag').text for v in versions],
+                         ['"%s"' % v[2] for v in objects])
+        self.assertEqual([v.find('./Size').text for v in versions],
+                         [str(v[3]) for v in objects])
+        self.assertEqual([v.find('./Owner/ID').text for v in versions],
+                         ['test:tester' for v in objects])
+        self.assertEqual([v.find('./Owner/DisplayName').text
+                          for v in versions],
+                         ['test:tester' for v in objects])
+        self.assertEqual([v.find('./StorageClass').text for v in versions],
+                         ['STANDARD' for v in objects])
+
+    def test_bucket_GET_with_versions(self):
+        versioned_objects = [
+            {'name': '004rose/2', 'hash': '0', 'bytes': '0',
+             'last_modified': '2010-03-01T17:09:51.510928',
+             'content_type': DELETE_MARKER_CONTENT_TYPE},
+            {'name': '004rose/1', 'hash': '1234', 'bytes': '6',
+             'last_modified': '2010-03-01T17:09:50.510928'},
+        ]
+        self.swift.register('GET', '/v1/AUTH_test/junk+versioning',
+                            swob.HTTPOk, {}, json.dumps(versioned_objects))
+        for obj in self.objects:
+            if obj[0] == 'rose':
+                headers = {'X-Object-Sysmeta-Version-Id': '3'}
+            else:
+                headers = {}
+            self.swift.register('HEAD', '/v1/AUTH_test/junk/%s' % obj[0],
+                                swob.HTTPOk, headers, None)
+
+        req = Request.blank('/junk?versions',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+
+        self.assertEqual(status.split()[0], '200')
+        elem = fromstring(body, 'ListVersionsResult')
+        self.assertEqual(elem.find('./Name').text, 'junk')
+        delete_markers = elem.findall('./DeleteMarker')
+        self.assertEqual(len(delete_markers), 1)
+        self.assertEqual(delete_markers[0].find('./IsLatest').text, 'false')
+        self.assertEqual(delete_markers[0].find('./VersionId').text, '2')
+        self.assertEqual(delete_markers[0].find('./Key').text, 'rose')
+        versions = elem.findall('./Version')
+        self.assertEqual(len(versions), len(self.objects) + 1)
+        self.assertEqual(versions[2].find('./IsLatest').text, 'false')
+        self.assertEqual(versions[2].find('./VersionId').text, '1')
+        # Test that version id is retrieved from sysmeta
+        self.assertEqual(versions[1].find('./VersionId').text, '3')
+        self.assertEqual(versions[2].find('./Key').text, 'rose')
+
+        # with max keys
+        req = Request.blank('/junk?versions&max-keys=3',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+
+        self.assertEqual(status.split()[0], '200')
+        elem = fromstring(body, 'ListVersionsResult')
+        self.assertEqual(elem.find('./MaxKeys').text, '3')
+        self.assertEqual(elem.find('./IsTruncated').text, 'true')
+        delete_markers = elem.findall('./DeleteMarker')
+        self.assertEqual(len(delete_markers), 1)
+        versions = elem.findall('./Version')
+        self.assertEqual(len(versions), 2)
+        self.assertEqual([v.find('./Key').text for v in versions],
+                         ['lily', 'rose'])
+        self.assertEqual([v.find('./VersionId').text for v in versions],
+                         ['null', '3'])
+        self.assertEqual([v.find('./IsLatest').text for v in versions],
+                         ['true', 'true'])
+
+        # with key-marker
+        req = Request.blank('/junk?versions&max-keys=2&key-marker=rose',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+
+        self.assertEqual(status.split()[0], '200')
+        elem = fromstring(body, 'ListVersionsResult')
+        self.assertEqual(elem.find('./MaxKeys').text, '2')
+        self.assertEqual(elem.find('./IsTruncated').text, 'true')
+        delete_markers = elem.findall('./DeleteMarker')
+        self.assertEqual(len(delete_markers), 1)
+        self.assertEqual(delete_markers[0].find('./Key').text, 'rose')
+        self.assertEqual(delete_markers[0].find('./VersionId').text, '2')
+        versions = elem.findall('./Version')
+        self.assertEqual(len(versions), 1)
+        self.assertEqual(versions[0].find('./Key').text, 'rose')
+        self.assertEqual(versions[0].find('./VersionId').text, '3')
+        self.assertEqual(versions[0].find('./IsLatest').text, 'true')
+
+        # with key-marker and version-id-marker
+        req = Request.blank(
+            '/junk?versions&key-marker=rose&version-id-marker=2',
+            environ={'REQUEST_METHOD': 'GET'},
+            headers={'Authorization': 'AWS test:tester:hmac',
+                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+
+        self.assertEqual(status.split()[0], '200')
+        elem = fromstring(body, 'ListVersionsResult')
+        self.assertEqual(elem.find('./IsTruncated').text, 'false')
+        delete_markers = elem.findall('./DeleteMarker')
+        self.assertEqual(len(delete_markers), 0)
+        versions = elem.findall('./Version')
+        self.assertEqual(len(versions), len(self.objects) - 1)
+        self.assertEqual(versions[0].find('./Key').text, 'rose')
+        self.assertEqual(versions[0].find('./VersionId').text, '1')
+        self.assertEqual(versions[0].find('./IsLatest').text, 'false')
+
+        # with key-marker and non-existent version-id-marker
+        req = Request.blank(
+            '/junk?versions&key-marker=rose&version-id-marker=x',
+            environ={'REQUEST_METHOD': 'GET'},
+            headers={'Authorization': 'AWS test:tester:hmac',
+                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+
+        self.assertEqual(status.split()[0], '200')
+        elem = fromstring(body, 'ListVersionsResult')
+        self.assertEqual(elem.find('./Name').text, 'junk')
+        delete_markers = elem.findall('./DeleteMarker')
+        self.assertEqual(len(delete_markers), 0)
+        versions = elem.findall('./Version')
+        self.assertEqual(len(versions), len(self.objects) - 2)
+        self.assertEqual(versions[0].find('./Key').text, 'viola')
+        self.assertEqual(versions[0].find('./IsLatest').text, 'true')
+        self.assertEqual(versions[0].find('./VersionId').text, 'null')
 
     @s3acl
     def test_bucket_PUT_error(self):
