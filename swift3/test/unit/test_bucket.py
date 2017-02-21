@@ -30,9 +30,9 @@ from swift3.request import MAX_32BIT_INT
 
 class TestSwift3Bucket(Swift3TestCase):
     def setup_objects(self):
-        self.objects = (('rose', '2011-01-05T02:19:14.275290', 0, 303),
+        self.objects = (('lily', '2011-01-05T02:19:14.275290', '0', '3909'),
+                        ('rose', '2011-01-05T02:19:14.275290', 0, 303),
                         ('viola', '2011-01-05T02:19:14.275290', '0', 3909),
-                        ('lily', '2011-01-05T02:19:14.275290', '0', '3909'),
                         ('with space', '2011-01-05T02:19:14.275290', 0, 390),
                         ('with%20space', '2011-01-05T02:19:14.275290', 0, 390))
 
@@ -382,7 +382,7 @@ class TestSwift3Bucket(Swift3TestCase):
         status, headers, body = self.call_swift3(req)
         self.assertEqual(status.split()[0], '200')
         elem = fromstring(body, 'ListBucketResult')
-        self.assertEqual(elem.find('./NextMarker').text, 'viola')
+        self.assertEqual(elem.find('./NextMarker').text, 'rose')
         self.assertEqual(elem.find('./MaxKeys').text, '2')
         self.assertEqual(elem.find('./IsTruncated').text, 'true')
 
@@ -457,6 +457,46 @@ class TestSwift3Bucket(Swift3TestCase):
         objects = elem.iterchildren('Contents')
         for o in objects:
             self.assertIsNotNone(o.find('./Owner'))
+
+    def test_bucket_GET_with_versions_versioning_not_configured(self):
+        req = Request.blank('/junk?versions',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+
+        self.assertEqual(status.split()[0], '200')
+        elem = fromstring(body, 'ListVersionsResult')
+        self.assertEqual(elem.find('./Name').text, 'junk')
+        self.assertIsNone(elem.find('./Prefix').text)
+        self.assertIsNone(elem.find('./KeyMarker').text)
+        self.assertIsNone(elem.find('./VersionIdMarker').text)
+        self.assertEqual(elem.find('./MaxKeys').text, '1000')
+        self.assertEqual(elem.find('./IsTruncated').text, 'false')
+        self.assertEqual(elem.findall('./DeleteMarker'), [])
+        versions = elem.findall('./Version')
+        objects = list(self.objects)
+        self.assertEqual([v.find('./Key').text for v in versions],
+                         [v[0] for v in objects])
+        self.assertEqual([v.find('./IsLatest').text for v in versions],
+                         ['true' for v in objects])
+        self.assertEqual([v.find('./VersionId').text for v in versions],
+                         ['null' for v in objects])
+        # Last modified in self.objects is 2011-01-05T02:19:14.275290 but
+        # the returned value is 2011-01-05T02:19:14.275Z
+        self.assertEqual([v.find('./LastModified').text for v in versions],
+                         [v[1][:-3] + 'Z' for v in objects])
+        self.assertEqual([v.find('./ETag').text for v in versions],
+                         ['"%s"' % v[2] for v in objects])
+        self.assertEqual([v.find('./Size').text for v in versions],
+                         [str(v[3]) for v in objects])
+        self.assertEqual([v.find('./Owner/ID').text for v in versions],
+                         ['test:tester' for v in objects])
+        self.assertEqual([v.find('./Owner/DisplayName').text
+                          for v in versions],
+                         ['test:tester' for v in objects])
+        self.assertEqual([v.find('./StorageClass').text for v in versions],
+                         ['STANDARD' for v in objects])
 
     @s3acl
     def test_bucket_PUT_error(self):
