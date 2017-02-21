@@ -84,6 +84,12 @@ class TestSwift3Utils(unittest.TestCase):
             self.assertFalse(utils.validate_bucket_name('bucket.'))
             self.assertFalse(utils.validate_bucket_name('a' * 256))
 
+    def test_versioned_object_name(self):
+        self.assertEqual(utils.versioned_object_name('bucket'),
+                         '006bucket')
+        self.assertEqual(utils.versioned_object_name('bucket', '1234'),
+                         '006bucket/1234')
+
     def test_s3timestamp(self):
         expected = '1970-01-01T00:00:01.000Z'
         # integer

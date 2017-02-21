@@ -33,7 +33,7 @@ from swift.common.http import HTTP_OK, HTTP_CREATED, HTTP_ACCEPTED, \
 
 from swift.common.constraints import check_utf8
 from swift.proxy.controllers.base import get_container_info, \
-    headers_to_container_info
+    headers_to_container_info, get_object_info
 
 from swift3.controllers import ServiceController, BucketController, \
     ObjectController, AclController, MultiObjectDeleteController, \
@@ -1178,6 +1178,14 @@ class Request(swob.Request):
             resp = self.get_response(app, 'HEAD', self.container_name, '')
             return headers_to_container_info(
                 resp.sw_headers, resp.status_int)  # pylint: disable-msg=E1101
+
+    def get_object_info(self, app, container_name=None, object_name=None):
+        if container_name is None:
+            container_name = self.container_name
+        if object_name is None:
+            object_name = self.object_name
+        sw_req = self.to_swift_req('HEAD', container_name, object_name)
+        return get_object_info(sw_req.environ, app)
 
     def gen_multipart_manifest_delete_query(self, app):
         if not CONF.allow_multipart_uploads:

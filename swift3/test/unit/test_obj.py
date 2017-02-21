@@ -373,6 +373,68 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEqual(headers['content-encoding'], 'gzip')
 
     @s3acl
+    def test_object_GET_version_id(self):
+        # GET current version
+        req = Request.blank('/bucket/object?versionId=null',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '200', body)
+        self.assertEqual(body, self.object_body)
+
+        # GET current version that is not null
+        headers = self.response_headers.copy()
+        headers['X-Object-Sysmeta-Version-Id'] = '2'
+        self.swift.register(
+            'HEAD', '/v1/AUTH_test/bucket/object', swob.HTTPOk, headers, None)
+        self.swift.register(
+            'GET', '/v1/AUTH_test/bucket/object', swob.HTTPOk, headers,
+            'hello')
+        self.swift.register(
+            'GET', '/v1/AUTH_test/bucket+versioning/006object/2',
+            swob.HTTPNotFound, {}, None)
+        req = Request.blank('/bucket/object?versionId=2',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '200', body)
+        self.assertEqual(body, self.object_body)
+
+        # GET version in archive
+        headers = self.response_headers.copy()
+        headers['Content-Length'] = 6
+        account = 'test:tester'
+        grants = [Grant(User(account), 'FULL_CONTROL')]
+        headers.update(
+            encode_acl('object', ACL(Owner(account, account), grants)))
+        self.swift.register(
+            'HEAD', '/v1/AUTH_test/bucket+versioning/006object/1', swob.HTTPOk,
+            headers, None)
+        self.swift.register(
+            'GET', '/v1/AUTH_test/bucket+versioning/006object/1', swob.HTTPOk,
+            headers, 'hello1')
+        req = Request.blank('/bucket/object?versionId=1',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '200', body)
+        self.assertEqual(body, 'hello1')
+
+        # Version not found
+        self.swift.register(
+            'GET', '/v1/AUTH_test/bucket+versioning/006object/A',
+            swob.HTTPNotFound, {}, None)
+        req = Request.blank('/bucket/object?versionId=A',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '404')
+
+    @s3acl
     def test_object_PUT_error(self):
         code = self._test_method_error('PUT', '/bucket/object',
                                        swob.HTTPUnauthorized)
