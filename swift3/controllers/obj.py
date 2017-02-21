@@ -19,7 +19,7 @@ from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT, HTTP_NO_CONTENT
 from swift.common.swob import Range, content_range_header_value
 from swift.common.utils import public
 
-from swift3.utils import S3Timestamp
+from swift3.utils import S3Timestamp, VERSIONING_SUFFIX, versioned_object_name
 from swift3.controllers.base import Controller
 from swift3.response import S3NotImplemented, InvalidRange, NoSuchKey, \
     InvalidArgument
@@ -63,10 +63,35 @@ class ObjectController(Controller):
         return resp
 
     def GETorHEAD(self, req):
-        resp = req.get_response(self.app)
+        object_name = req.object_name
+        version_id = req.params.get('versionId')
+        if version_id and version_id != 'null':
+            # get a specific version in the versioning container
+            req.container_name += VERSIONING_SUFFIX
+            req.object_name = versioned_object_name(
+                req.object_name, req.params.pop('versionId'))
+
+        try:
+            resp = req.get_response(self.app)
+        except NoSuchKey:
+            resp = None
+            if version_id and version_id != 'null':
+                # if the specific version is not in the versioning container,
+                # it might be the current version
+                req.container_name = req.container_name[
+                    :-len(VERSIONING_SUFFIX)]
+                info = req.get_object_info(self.app, object_name=object_name)
+                if info.get('meta', {}).get('versionid') == version_id:
+                    req.object_name = object_name
+                    resp = req.get_response(self.app)
+            if resp is None:
+                raise
 
         if req.method == 'HEAD':
             resp.app_iter = None
+
+        if 'x-amz-meta-deleted' in resp.headers:
+            raise NoSuchKey(object_name)
 
         for key in ('content-type', 'content-language', 'expires',
                     'cache-control', 'content-disposition',
