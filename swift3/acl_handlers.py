@@ -436,4 +436,10 @@ ACL_MAP = {
     # Versioning
     ('PUT', 'POST', 'container'):
     {'Permission': 'WRITE'},
+    ('DELETE', 'POST', 'container'):
+    {'Permission': 'WRITE'},
+    ('DELETE', 'GET', 'container'):
+    {'Permission': 'READ'},
+    ('DELETE', 'GET', 'object'):
+    {'Permission': 'READ'},
 }

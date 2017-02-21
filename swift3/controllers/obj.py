@@ -15,9 +15,12 @@
 
 import sys
 
-from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT, HTTP_NO_CONTENT
+from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT, HTTP_NO_CONTENT, \
+    HTTP_NOT_FOUND
+from swift.common.middleware.versioned_writes import \
+    DELETE_MARKER_CONTENT_TYPE
 from swift.common.swob import Range, content_range_header_value
-from swift.common.utils import public
+from swift.common.utils import public, json
 
 from swift3.utils import S3Timestamp, VERSIONING_SUFFIX, versioned_object_name
 from swift3.controllers.base import Controller
@@ -153,6 +156,122 @@ class ObjectController(Controller):
     def POST(self, req):
         raise S3NotImplemented()
 
+    def _restore_data(self, req, version_to_restore):
+        req.object_name = version_to_restore['name']
+        name, version_id = req.object_name[3:].rsplit('/', 1)
+        resp = req.get_response(self.app, 'GET')
+
+        if resp.status_int == HTTP_NOT_FOUND:
+            return resp
+
+        resp.headers['X-Object-Meta-VersionId'] = version_id
+
+        req.container_name = req.container_name[:-len(VERSIONING_SUFFIX)]
+        req.object_name = name
+        for header, value in resp.headers.items():
+            if header.lower() != 'x-timestamp':
+                if value.startswith('"'):
+                    # remove the double quotes around the value
+                    value = value[1:-1]
+                req.headers[header] = value
+
+        resp = req.get_response(self.app, 'PUT', body=resp.body)
+
+        return resp
+
+    def _delete_and_restore(self, req, query, etag):
+        container_name = req.container_name
+        object_name = req.object_name
+
+        req.container_name = container_name + VERSIONING_SUFFIX
+        req.object_name = None
+        versioned_objects = json.loads(req.get_response(
+            self.app, 'GET', query={
+                'prefix': versioned_object_name(object_name),
+                'reverse': 'true',
+                'format': 'json',
+            }).body)
+
+        for version_to_restore in versioned_objects:
+            if version_to_restore['content_type'] == \
+                    DELETE_MARKER_CONTENT_TYPE:
+                continue
+            resp = self._restore_data(req, version_to_restore)
+            if resp:
+                break
+        else:
+            version_to_restore = None
+
+        if version_to_restore:
+            # delete the object from the versioning container after copying it
+            req.container_name = container_name + VERSIONING_SUFFIX
+            req.object_name = version_to_restore['name']
+        else:
+            # delete the current object if there is nothing to restore
+            req.container_name = container_name
+            req.object_name = object_name
+            # store the original hash value so we know to delete this later
+            req.headers['X-Object-Meta-DeletedHash'] = etag
+            req.get_response(self.app, 'PUT')
+            info = req.get_object_info(self.app)
+
+        resp = req.get_response(self.app, 'DELETE')
+
+        # an extra object is created in the versioning container
+        req.container_name = container_name + VERSIONING_SUFFIX
+        req.object_name = None
+        versioned_objects = json.loads(req.get_response(
+            self.app, 'GET', query={
+                'prefix': versioned_object_name(object_name),
+                'reverse': 'true',
+                'format': 'json',
+            }).body)
+
+        deleted_etags = {vo['hash']: vo['name']
+                         for vo in versioned_objects
+                         if vo['content_type'] == DELETE_MARKER_CONTENT_TYPE}
+
+        for vo in versioned_objects:
+            if vo['hash'] == etag:
+                req.object_name = vo['name']
+                resp = req.get_response(self.app, 'DELETE')
+            elif vo['hash'] in deleted_etags:
+                info = req.get_object_info(self.app, object_name=vo['name'])
+                if info.get('meta', {}).get('deletedhash') == etag:
+                    # delete the delete marker
+                    req.object_name = deleted_etags[vo['hash']]
+                    req.get_response(self.app, 'DELETE')
+                    # delete the version created by adding the deletedhash
+                    # metadata
+                    req.object_name = vo['name']
+                    resp = req.get_response(self.app, 'DELETE')
+
+        req.container_name = container_name
+        return resp
+
+    def _delete_version(self, req, query):
+        info = req.get_object_info(self.app)
+        version_id = info.get('meta', {}).get('versionid', 'null')
+
+        if version_id == req.params.get('versionId'):
+            if info['type'] == DELETE_MARKER_CONTENT_TYPE:
+                # if the object is already marked as deleted, just delete it
+                resp = req.get_response(self.app, query=query)
+            else:
+                resp = self._delete_and_restore(req, query, info['etag'])
+        else:
+            # delete the specific version in the versioning container
+            req.container_name += VERSIONING_SUFFIX
+            req.object_name = versioned_object_name(
+                req.object_name, req.params['versionId'])
+
+            resp = req.get_response(self.app, query=query)
+
+        resp.status = HTTP_NO_CONTENT
+        resp.body = ''
+
+        return resp
+
     @public
     def DELETE(self, req):
         """
@@ -161,7 +280,12 @@ class ObjectController(Controller):
         try:
             query = req.gen_multipart_manifest_delete_query(self.app)
             req.headers['Content-Type'] = None  # Ignore client content-type
-            resp = req.get_response(self.app, query=query)
+
+            if req.params.get('versionId'):
+                resp = self._delete_version(req, query)
+            else:
+                resp = req.get_response(self.app, query=query)
+
             if query and resp.status_int == HTTP_OK:
                 for chunk in resp.app_iter:
                     pass  # drain the bulk-deleter response
