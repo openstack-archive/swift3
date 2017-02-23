@@ -9,7 +9,7 @@ account_autocreate = true
 log_level = DEBUG
 
 [pipeline:main]
-pipeline = catch_errors gatekeeper proxy-logging cache swift3 %MIDDLEWARE% bulk slo dlo proxy-logging proxy-server
+pipeline = catch_errors gatekeeper proxy-logging cache %MIDDLEWARE% bulk slo dlo proxy-logging proxy-server
 
 [app:proxy-server]
 use = egg:swift#proxy
