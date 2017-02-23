@@ -40,7 +40,20 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         self.assertEqual(status, 200)
 
         self.assertCommonResponseHeaders(headers)
-        self.assertEqual(headers['location'], '/' + bucket)
+        self.assertIn(headers['location'], (
+            '/' + bucket,  # swob won't touch it...
+            # but webob (which we get because of auth_token) *does*
+            'http://%s%s/%s' % (
+                self.conn.host,
+                '' if self.conn.port == 80 else ':%d' % self.conn.port,
+                bucket),
+            # ...and because this is all based on the Host header the client
+            # provided, and boto does silly things for sig v4...
+            'http://%s%s:%d/%s' % (
+                self.conn.host,
+                '' if self.conn.port == 80 else ':%d' % self.conn.port,
+                self.conn.port,
+                bucket)))
         self.assertEqual(headers['content-length'], '0')
 
         # GET Bucket(Without Object)

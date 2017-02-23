@@ -9,7 +9,7 @@ account_autocreate = true
 log_level = DEBUG
 
 [pipeline:main]
-pipeline = catch_errors gatekeeper proxy-logging cache swift3 %MIDDLEWARE% bulk slo dlo proxy-logging proxy-server
+pipeline = catch_errors gatekeeper proxy-logging cache %MIDDLEWARE% bulk slo dlo proxy-logging proxy-server
 
 [app:proxy-server]
 use = egg:swift#proxy
@@ -52,6 +52,16 @@ use = egg:swift#memcache
 [filter:s3token]
 use = egg:swift3#s3token
 auth_uri = http://localhost:35357/
+
+[filter:authtoken]
+use = egg:keystonemiddleware#auth_token
+identity_uri = http://localhost:35357/
+auth_uri = http://localhost:5000/
+admin_tenant_name = service
+admin_user = swift
+admin_password = password
+cache = swift.cache
+delay_auth_decision = True
 
 [filter:keystoneauth]
 use = egg:swift#keystoneauth
