@@ -134,10 +134,12 @@ else
 
     # ceph/s3-tests has some rather ancient requirements,
     # so drop into another virtualenv
+    # TODO: this may no longer be necessary?
     VENV="$(mktemp -d)"
     virtualenv "$VENV"
     . "$VENV/bin/activate"
-    pip install -r requirements.txt -r ceph-tests/requirements.txt
+    pip install -r requirements.txt
+    pip freeze
 
     S3TEST_CONF="${CONF_DIR}/ceph-s3.conf" ./bin/run_ceph_tests.py "$@" || true
 
