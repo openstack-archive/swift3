@@ -690,5 +690,69 @@ class TestRequest(Swift3TestCase):
             self.assertEqual(uri, '/bucket/obj1')
             self.assertEqual(req.environ['PATH_INFO'], '/bucket/obj1')
 
+    @patch.object(CONF, 'storage_domain', 's3.amazonaws.com')
+    @patch.object(S3_Request, '_validate_headers', lambda *a: None)
+    def test_check_signature_sigv2(self):
+        # See https://web.archive.org/web/20151226025049/http://
+        # docs.aws.amazon.com//AmazonS3/latest/dev/RESTAuthentication.html
+        req = Request.blank('/photos/puppy.jpg', headers={
+            'Host': 'johnsmith.s3.amazonaws.com',
+            'Date': 'Tue, 27 Mar 2007 19:36:42 +0000',
+            'Authorization': ('AWS AKIAIOSFODNN7EXAMPLE:'
+                              'bWq2s1WEIj+Ydj0vQ697zp+IXMU='),
+        })
+        sigv2_req = S3_Request(req.environ)
+        expected_sts = '\n'.join([
+            'GET',
+            '',
+            '',
+            'Tue, 27 Mar 2007 19:36:42 +0000',
+            '/johnsmith/photos/puppy.jpg',
+        ])
+        self.assertEqual(expected_sts, sigv2_req._string_to_sign())
+        self.assertTrue(sigv2_req.check_signature(
+            'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'))
+
+        req = Request.blank('/photos/puppy.jpg', method='PUT', headers={
+            'Content-Type': 'image/jpeg',
+            'Content-Length': '94328',
+            'Host': 'johnsmith.s3.amazonaws.com',
+            'Date': 'Tue, 27 Mar 2007 21:15:45 +0000',
+            'Authorization': ('AWS AKIAIOSFODNN7EXAMPLE:'
+                              'MyyxeRY7whkBe+bq8fHCL/2kKUg='),
+        })
+        sigv2_req = S3_Request(req.environ)
+        expected_sts = '\n'.join([
+            'PUT',
+            '',
+            'image/jpeg',
+            'Tue, 27 Mar 2007 21:15:45 +0000',
+            '/johnsmith/photos/puppy.jpg',
+        ])
+        self.assertEqual(expected_sts, sigv2_req._string_to_sign())
+        self.assertTrue(sigv2_req.check_signature(
+            'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'))
+
+        req = Request.blank(
+            '/?prefix=photos&max-keys=50&marker=puppy',
+            headers={
+                'User-Agent': 'Mozilla/5.0',
+                'Host': 'johnsmith.s3.amazonaws.com',
+                'Date': 'Tue, 27 Mar 2007 19:42:41 +0000',
+                'Authorization': ('AWS AKIAIOSFODNN7EXAMPLE:'
+                                  'htDYFYduRNen8P9ZfE/s9SuKy0U='),
+            })
+        sigv2_req = S3_Request(req.environ)
+        expected_sts = '\n'.join([
+            'GET',
+            '',
+            '',
+            'Tue, 27 Mar 2007 19:42:41 +0000',
+            '/johnsmith/',
+        ])
+        self.assertEqual(expected_sts, sigv2_req._string_to_sign())
+        self.assertTrue(sigv2_req.check_signature(
+            'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'))
+
 if __name__ == '__main__':
     unittest.main()
