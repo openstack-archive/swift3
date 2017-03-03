@@ -13,8 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 from email.header import Header
-from hashlib import sha256, md5
+from hashlib import sha1, sha256, md5
+import hmac
 import re
 import six
 import string
@@ -70,6 +72,7 @@ ALLOWED_SUB_RESOURCES = sorted([
 MAX_32BIT_INT = 2147483647
 SIGV2_TIMESTAMP_FORMAT = '%Y-%m-%dT%H:%M:%S'
 SIGV4_X_AMZ_DATE_FORMAT = '%Y%m%dT%H%M%SZ'
+SERVICE = 's3'  # useful for mocking out in tests
 
 
 def _header_strip(value):
@@ -107,6 +110,19 @@ class SigV4Mixin(object):
     """
     A request class mixin to provide S3 signature v4 functionality
     """
+
+    def check_signature(self, secret):
+        user_signature = self.environ['swift3.auth_details']['signature']
+        sts = self.environ['swift3.auth_details']['string_to_sign']
+        derived_secret = 'AWS4' + secret
+        for scope_piece in self.scope:
+            derived_secret = hmac.new(
+                derived_secret, scope_piece, sha256).digest()
+            print repr(derived_secret)
+        valid_signature = hmac.new(
+            derived_secret, sts, sha256).hexdigest()
+        print valid_signature
+        return user_signature == valid_signature
 
     @property
     def _is_query_auth(self):
@@ -336,17 +352,19 @@ class SigV4Mixin(object):
         cr.append(hashed_payload)
         return '\n'.join(cr).encode('utf-8')
 
+    @property
+    def scope(self):
+        return [self.timestamp.amz_date_format.split('T')[0],
+                CONF.location, SERVICE, 'aws4_request']
+
     def _string_to_sign(self):
         """
         Create 'StringToSign' value in Amazon terminology for v4.
         """
-        scope = (self.timestamp.amz_date_format.split('T')[0] +
-                 '/' + CONF.location + '/s3/aws4_request')
-
-        return ('AWS4-HMAC-SHA256' + '\n'
-                + self.timestamp.amz_date_format + '\n'
-                + scope + '\n'
-                + sha256(self._canonical_request()).hexdigest())
+        return '\n'.join(['AWS4-HMAC-SHA256',
+                          self.timestamp.amz_date_format,
+                          '/'.join(self.scope),
+                          sha256(self._canonical_request()).hexdigest()])
 
 
 def get_request_class(env):
@@ -389,6 +407,7 @@ class Request(swob.Request):
             'access_key': self.access_key,
             'signature': signature,
             'string_to_sign': self._string_to_sign(),
+            'check_signature': self.check_signature,
         }
         self.token = None
         self.account = None
@@ -407,6 +426,13 @@ class Request(swob.Request):
         # Avoids that swift.swob.Response replaces Location header value
         # by full URL when absolute path given. See swift.swob for more detail.
         self.environ['swift.leave_relative_location'] = True
+
+    def check_signature(self, secret):
+        user_signature = self.environ['swift3.auth_details']['signature']
+        sts = self.environ['swift3.auth_details']['string_to_sign']
+        valid_signature = base64.b64encode(hmac.new(
+            secret, sts, sha1).digest()).strip()
+        return user_signature == valid_signature
 
     @property
     def timestamp(self):
