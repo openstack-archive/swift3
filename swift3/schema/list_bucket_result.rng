@@ -9,14 +9,38 @@
       <element name="Prefix">
         <data type="string"/>
       </element>
-      <element name="Marker">
-        <data type="string"/>
-      </element>
-      <optional>
-        <element name="NextMarker">
-          <data type="string"/>
-        </element>
-      </optional>
+      <choice>
+        <group>
+          <element name="Marker">
+            <data type="string"/>
+          </element>
+          <optional>
+            <element name="NextMarker">
+              <data type="string"/>
+            </element>
+          </optional>
+        </group>
+        <group>
+          <optional>
+            <element name="NextContinuationToken">
+              <data type="string"/>
+            </element>
+          </optional>
+          <optional>
+            <element name="ContinuationToken">
+              <data type="string"/>
+            </element>
+          </optional>
+          <optional>
+            <element name="StartAfter">
+              <data type="string"/>
+            </element>
+          </optional>
+          <element name="KeyCount">
+            <data type="int"/>
+          </element>
+        </group>
+      </choice>
       <element name="MaxKeys">
         <data type="int"/>
       </element>
