@@ -266,12 +266,13 @@ class TestSwift3Middleware(Swift3TestCase):
         req = Request.blank(
             '/bucket/object'
             '?X-Amz-Algorithm=AWS4-HMAC-SHA256'
-            '&X-Amz-Credential=test:tester/20T20Z/US/s3/aws4_request'
+            '&X-Amz-Credential=test:tester/%s/US/s3/aws4_request'
             '&X-Amz-Date=%s'
             '&X-Amz-Expires=1000'
             '&X-Amz-SignedHeaders=host'
-            '&X-Amz-Signature=X' %
-            self.get_v4_amz_date_header(),
+            '&X-Amz-Signature=X' % (
+                self.get_v4_amz_date_header().split('T', 1)[0],
+                self.get_v4_amz_date_header()),
             headers={'Date': self.get_date_header()},
             environ={'REQUEST_METHOD': 'GET'})
         req.content_type = 'text/plain'
@@ -280,6 +281,41 @@ class TestSwift3Middleware(Swift3TestCase):
         for _, _, headers in self.swift.calls_with_headers:
             self.assertEqual('AWS test:tester:X', headers['Authorization'])
             self.assertIn('X-Auth-Token', headers)
+
+    def test_signed_urls_v4_bad_credential(self):
+        def test(credential, message):
+            req = Request.blank(
+                '/bucket/object'
+                '?X-Amz-Algorithm=AWS4-HMAC-SHA256'
+                '&X-Amz-Credential=%s'
+                '&X-Amz-Date=%s'
+                '&X-Amz-Expires=1000'
+                '&X-Amz-SignedHeaders=host'
+                '&X-Amz-Signature=X' % (
+                    credential,
+                    self.get_v4_amz_date_header()),
+                headers={'Date': self.get_date_header()},
+                environ={'REQUEST_METHOD': 'GET'})
+            req.content_type = 'text/plain'
+            status, headers, body = self.call_swift3(req)
+            self.assertEqual(status.split()[0], '400', body)
+            self.assertEqual(self._get_error_code(body),
+                             'AuthorizationQueryParametersError')
+            self.assertEqual(self._get_error_message(body), message)
+
+        dt = self.get_v4_amz_date_header().split('T', 1)[0]
+        test('test:tester/not-a-date/US/s3/aws4_request',
+             'Invalid credential date "not-a-date". This date is not the same '
+             'as X-Amz-Date: "%s".' % dt)
+        test('test:tester/%s/not-US/s3/aws4_request' % dt,
+             "Error parsing the X-Amz-Credential parameter; the region "
+             "'not-US' is wrong; expecting 'US'")
+        test('test:tester/%s/US/not-s3/aws4_request' % dt,
+             'Error parsing the X-Amz-Credential parameter; incorrect service '
+             '"not-s3". This endpoint belongs to "s3".')
+        test('test:tester/%s/US/s3/not-aws4_request' % dt,
+             'Error parsing the X-Amz-Credential parameter; incorrect '
+             'terminal "not-aws4_request". This endpoint uses "aws4_request".')
 
     def test_signed_urls_v4_missing_x_amz_date(self):
         req = Request.blank('/bucket/object'
@@ -605,9 +641,9 @@ class TestSwift3Middleware(Swift3TestCase):
         headers = {
             'Authorization':
                 'AWS4-HMAC-SHA256 '
-                'Credential=test:tester/20130524/US/s3/aws4_request, '
+                'Credential=test:tester/%s/US/s3/aws4_request, '
                 'SignedHeaders=host;x-amz-date,'
-                'Signature=X',
+                'Signature=X' % self.get_v4_amz_date_header().split('T', 1)[0],
             'X-Amz-Date': self.get_v4_amz_date_header(),
             'X-Amz-Content-SHA256': '0123456789'}
         req = Request.blank('/bucket/object', environ=environ, headers=headers)
@@ -640,9 +676,9 @@ class TestSwift3Middleware(Swift3TestCase):
         headers = {
             'Authorization':
                 'AWS4-HMAC-SHA256 '
-                'Credential=test:tester/20130524/US/s3/aws4_request, '
+                'Credential=test:tester/%s/US/s3/aws4_request, '
                 'SignedHeaders=host;x-amz-date,'
-                'Signature=X',
+                'Signature=X' % self.get_v4_amz_date_header().split('T', 1)[0],
             'X-Amz-Date': self.get_v4_amz_date_header()}
         req = Request.blank('/bucket/object', environ=environ, headers=headers)
         req.content_type = 'text/plain'
@@ -682,6 +718,31 @@ class TestSwift3Middleware(Swift3TestCase):
              'and Signature.')
 
         auth_str = ('AWS4-HMAC-SHA256 '
+                    'Credential=test:tester/%s/not-US/s3/aws4_request, '
+                    'Signature=X, SignedHeaders=host;x-amz-date' %
+                    self.get_v4_amz_date_header().split('T', 1)[0])
+        test(auth_str, 'AuthorizationHeaderMalformed',
+             "The authorization header is malformed; "
+             "the region 'not-US' is wrong; expecting 'US'")
+
+        auth_str = ('AWS4-HMAC-SHA256 '
+                    'Credential=test:tester/%s/US/not-s3/aws4_request, '
+                    'Signature=X, SignedHeaders=host;x-amz-date' %
+                    self.get_v4_amz_date_header().split('T', 1)[0])
+        test(auth_str, 'AuthorizationHeaderMalformed',
+             'The authorization header is malformed; '
+             'incorrect service "not-s3". This endpoint belongs to "s3".')
+
+        auth_str = ('AWS4-HMAC-SHA256 '
+                    'Credential=test:tester/%s/US/s3/not-aws4_request, '
+                    'Signature=X, SignedHeaders=host;x-amz-date' %
+                    self.get_v4_amz_date_header().split('T', 1)[0])
+        test(auth_str, 'AuthorizationHeaderMalformed',
+             'The authorization header is malformed; '
+             'incorrect terminal "not-aws4_request". '
+             'This endpoint uses "aws4_request".')
+
+        auth_str = ('AWS4-HMAC-SHA256 '
                     'Credential=test:tester/20130524/US/s3/aws4_request, '
                     'SignedHeaders=host;x-amz-date')
         test(auth_str, 'AccessDenied', 'Access Denied.')
@@ -703,7 +764,7 @@ class TestSwift3Middleware(Swift3TestCase):
                     '27ae41e4649b934ca495991b7852b855',
                 'HTTP_AUTHORIZATION':
                     'AWS4-HMAC-SHA256 '
-                    'Credential=X:Y/dt/reg/host/blah, '
+                    'Credential=X:Y/20110909/US/s3/aws4_request, '
                     'SignedHeaders=content-md5;content-type;date, '
                     'Signature=x',
             }
