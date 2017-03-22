@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import base64
+from collections import OrderedDict
 from email.header import Header
 from hashlib import sha1, sha256, md5
 import hmac
@@ -114,7 +115,7 @@ class SigV4Mixin(object):
     def check_signature(self, secret):
         user_signature = self.signature
         derived_secret = 'AWS4' + secret
-        for scope_piece in self.scope:
+        for scope_piece in self.scope.values():
             derived_secret = hmac.new(
                 derived_secret, scope_piece, sha256).digest()
         valid_signature = hmac.new(
@@ -189,6 +190,15 @@ class SigV4Mixin(object):
         if int(self.timestamp) + expires < S3Timestamp.now():
             raise AccessDenied('Request has expired')
 
+    def _parse_credential(self, credential_string):
+        parts = credential_string.split("/")
+        # credential must be in following format:
+        # <access-key-id>/<date>/<AWS-region>/<AWS-service>/aws4_request
+        if not parts[0] or len(parts) != 5:
+            raise AccessDenied()
+        return dict(zip(['access', 'date', 'region', 'service', 'terminal'],
+                        parts))
+
     def _parse_query_authentication(self):
         """
         Parse v4 query authentication
@@ -201,10 +211,12 @@ class SigV4Mixin(object):
             raise InvalidArgument('X-Amz-Algorithm',
                                   self.params.get('X-Amz-Algorithm'))
         try:
-            cred_param = self.params['X-Amz-Credential'].split("/")
-            access = cred_param[0]
+            cred_param = self._parse_credential(
+                self.params['X-Amz-Credential'])
             sig = self.params['X-Amz-Signature']
-            expires = self.params['X-Amz-Expires']
+            if not sig:
+                raise AccessDenied()
+            self.params['X-Amz-Expires']
         except KeyError:
             raise AccessDenied()
 
@@ -216,12 +228,26 @@ class SigV4Mixin(object):
 
         self._signed_headers = set(signed_headers.split(';'))
 
-        # credential must be in following format:
-        # <access-key-id>/<date>/<AWS-region>/<AWS-service>/aws4_request
-        if not all([access, sig, len(cred_param) == 5, expires]):
-            raise AccessDenied()
+        invalid_messages = {
+            'date': 'Invalid credential date "%s". This date is not the same '
+                    'as X-Amz-Date: "%s".',
+            'region': "Error parsing the X-Amz-Credential parameter; "
+                    "the region '%s' is wrong; expecting '%s'",
+            'service': 'Error parsing the X-Amz-Credential parameter; '
+                    'incorrect service "%s". This endpoint belongs to "%s".',
+            'terminal': 'Error parsing the X-Amz-Credential parameter; '
+                    'incorrect terminal "%s". This endpoint uses "%s".',
+        }
+        for key in ('date', 'region', 'service', 'terminal'):
+            if cred_param[key] != self.scope[key]:
+                kwargs = {}
+                if key == 'region':
+                    kwargs = {'region': self.scope['region']}
+                raise AuthorizationQueryParametersError(
+                    invalid_messages[key] % (cred_param[key], self.scope[key]),
+                    **kwargs)
 
-        return access, sig
+        return cred_param['access'], sig
 
     def _parse_header_authentication(self):
         """
@@ -233,23 +259,39 @@ class SigV4Mixin(object):
         """
 
         auth_str = self.headers['Authorization']
-        cred_param = auth_str.partition(
-            "Credential=")[2].split(',')[0].split("/")
-        access = cred_param[0]
+        cred_param = self._parse_credential(auth_str.partition(
+            "Credential=")[2].split(',')[0])
         sig = auth_str.partition("Signature=")[2].split(',')[0]
+        if not sig:
+            raise AccessDenied()
         signed_headers = auth_str.partition(
             "SignedHeaders=")[2].split(',', 1)[0]
-        # credential must be in following format:
-        # <access-key-id>/<date>/<AWS-region>/<AWS-service>/aws4_request
-        if not all([access, sig, len(cred_param) == 5]):
-            raise AccessDenied()
         if not signed_headers:
             # TODO: make sure if is it Malformed?
             raise AuthorizationHeaderMalformed()
 
+        invalid_messages = {
+            'date': 'Invalid credential date "%s". This date is not the same '
+                    'as X-Amz-Date: "%s".',
+            'region': "The authorization header is malformed; the region '%s' "
+                    "is wrong; expecting '%s'",
+            'service': 'The authorization header is malformed; incorrect '
+                    'service "%s". This endpoint belongs to "%s".',
+            'terminal': 'The authorization header is malformed; incorrect '
+                    'terminal "%s". This endpoint uses "%s".',
+        }
+        for key in ('date', 'region', 'service', 'terminal'):
+            if cred_param[key] != self.scope[key]:
+                kwargs = {}
+                if key == 'region':
+                    kwargs = {'region': self.scope['region']}
+                raise AuthorizationHeaderMalformed(
+                    invalid_messages[key] % (cred_param[key], self.scope[key]),
+                    **kwargs)
+
         self._signed_headers = set(signed_headers.split(';'))
 
-        return access, sig
+        return cred_param['access'], sig
 
     def _canonical_query_string(self):
         return '&'.join(
@@ -351,8 +393,12 @@ class SigV4Mixin(object):
 
     @property
     def scope(self):
-        return [self.timestamp.amz_date_format.split('T')[0],
-                CONF.location, SERVICE, 'aws4_request']
+        return OrderedDict([
+            ('date', self.timestamp.amz_date_format.split('T')[0]),
+            ('region', CONF.location),
+            ('service', SERVICE),
+            ('terminal', 'aws4_request'),
+        ])
 
     def _string_to_sign(self):
         """
@@ -360,7 +406,7 @@ class SigV4Mixin(object):
         """
         return '\n'.join(['AWS4-HMAC-SHA256',
                           self.timestamp.amz_date_format,
-                          '/'.join(self.scope),
+                          '/'.join(self.scope.values()),
                           sha256(self._canonical_request()).hexdigest()])
 
 
@@ -555,8 +601,10 @@ class Request(swob.Request):
         :raises: NotS3Request
         """
         if self._is_query_auth:
+            self._validate_dates()
             return self._parse_query_authentication()
         elif self._is_header_auth:
+            self._validate_dates()
             return self._parse_header_authentication()
         else:
             # if this request is neither query auth nor header auth
@@ -589,7 +637,6 @@ class Request(swob.Request):
         :raises: RequestTimeTooSkewed
         """
         if self._is_query_auth:
-            self._validate_expire_param()
             # TODO: make sure the case if timestamp param in query
             return
 
@@ -620,7 +667,8 @@ class Request(swob.Request):
                 raise InvalidArgument('Content-Length',
                                       self.environ['CONTENT_LENGTH'])
 
-        self._validate_dates()
+        if self._is_query_auth:
+            self._validate_expire_param()
 
         value = _header_strip(self.headers.get('Content-MD5'))
         if value is not None:
