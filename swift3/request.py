@@ -221,6 +221,29 @@ class SigV4Mixin(object):
         if not all([access, sig, len(cred_param) == 5, expires]):
             raise AccessDenied()
 
+        self._validate_dates()
+
+        if cred_param[1] != self.scope[0]:
+            raise AuthorizationQueryParametersError(
+                'Invalid credential date "%s". This date is not the same as '
+                'X-Amz-Date: "%s".' % (cred_param[1], self.scope[0]))
+        if cred_param[2] != self.scope[1]:
+            raise AuthorizationQueryParametersError(
+                "Error parsing the X-Amz-Credential parameter; the region "
+                "'%s' is wrong; expecting '%s'" % (
+                    cred_param[2], self.scope[1]),
+                region=self.scope[1])
+        if cred_param[3] != self.scope[2]:
+            raise AuthorizationQueryParametersError(
+                'Error parsing the X-Amz-Credential parameter; incorrect '
+                'service "%s". This endpoint belongs to "%s".' % (
+                    cred_param[3], self.scope[2]))
+        if cred_param[4] != self.scope[3]:
+            raise AuthorizationQueryParametersError(
+                'Error parsing the X-Amz-Credential parameter; incorrect '
+                'terminal "%s". This endpoint uses "%s".' % (
+                    cred_param[4], self.scope[3]))
+
         return access, sig
 
     def _parse_header_authentication(self):
@@ -243,9 +266,31 @@ class SigV4Mixin(object):
         # <access-key-id>/<date>/<AWS-region>/<AWS-service>/aws4_request
         if not all([access, sig, len(cred_param) == 5]):
             raise AccessDenied()
+
+        self._validate_dates()
+
         if not signed_headers:
             # TODO: make sure if is it Malformed?
             raise AuthorizationHeaderMalformed()
+        if cred_param[1] != self.scope[0]:
+            raise AuthorizationHeaderMalformed(
+                'Invalid credential date "%s". This date is not the same as '
+                'X-Amz-Date: "%s".' % (cred_param[1], self.scope[0]))
+        if cred_param[2] != self.scope[1]:
+            raise AuthorizationHeaderMalformed(
+                "The authorization header is malformed; the region '%s' is "
+                "wrong; expecting '%s'" % (cred_param[2], self.scope[1]),
+                region=self.scope[1])
+        if cred_param[3] != self.scope[2]:
+            raise AuthorizationHeaderMalformed(
+                'The authorization header is malformed; incorrect service '
+                '"%s". This endpoint belongs to "%s".' % (
+                    cred_param[3], self.scope[2]))
+        if cred_param[4] != self.scope[3]:
+            raise AuthorizationHeaderMalformed(
+                'The authorization header is malformed; incorrect terminal '
+                '"%s". This endpoint uses "%s".' % (
+                    cred_param[4], self.scope[3]))
 
         self._signed_headers = set(signed_headers.split(';'))
 
