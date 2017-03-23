@@ -44,8 +44,8 @@ class TestSwift3PresignedUrls(Swift3FunctionalTestCase):
 
         elem = fromstring(resp.content, 'ListBucketResult')
         self.assertEqual(elem.find('Name').text, bucket)
-        self.assertEqual(elem.find('Prefix').text, None)
-        self.assertEqual(elem.find('Marker').text, None)
+        self.assertIsNone(elem.find('Prefix').text)
+        self.assertIsNone(elem.find('Marker').text)
         self.assertEqual(elem.find('MaxKeys').text,
                          str(CONF.max_bucket_listing))
         self.assertEqual(elem.find('IsTruncated').text, 'false')
@@ -69,8 +69,8 @@ class TestSwift3PresignedUrls(Swift3FunctionalTestCase):
 
         elem = fromstring(resp.content, 'ListBucketResult')
         self.assertEqual(elem.find('Name').text, bucket)
-        self.assertEqual(elem.find('Prefix').text, None)
-        self.assertEqual(elem.find('Marker').text, None)
+        self.assertIsNone(elem.find('Prefix').text)
+        self.assertIsNone(elem.find('Marker').text)
         self.assertEqual(elem.find('MaxKeys').text,
                          str(CONF.max_bucket_listing))
         self.assertEqual(elem.find('IsTruncated').text, 'false')
