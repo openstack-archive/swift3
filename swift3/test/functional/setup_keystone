@@ -19,7 +19,7 @@ export OS_AUTH_URL=http://localhost:35357/
 export OS_PROJECT_NAME=admin
 export OS_USERNAME=admin
 export OS_PASSWORD=admin
-export OS_IDENTITY_API_VERSION=3
+export OS_IDENTITY_API_VERSION=2
 
 _get_id()
 {
@@ -71,7 +71,7 @@ _create_swift_accounts()
 
     SERVICE=$(openstack service create --name=swift object-store | _get_id)
     openstack endpoint create $SERVICE \
-        public "http://localhost:8080/v1/AUTH_\$(tenant_id)s"
+        --publicurl "http://localhost:8080/v1/AUTH_\$(tenant_id)s"
 }
 
 _setup_keystone()
