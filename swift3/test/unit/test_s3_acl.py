@@ -529,7 +529,7 @@ class TestSwift3S3Acl(Swift3TestCase):
         self.assertRaises(TypeError, fake_class.s3acl_error)
         self.assertRaises(AssertionError, fake_class.s3acl_assert_fail)
         self.assertRaises(TypeError, fake_class.s3acl_s3only_error)
-        self.assertEqual(None, fake_class.s3acl_s3only_no_error())
+        self.assertIsNone(fake_class.s3acl_s3only_no_error())
 
 if __name__ == '__main__':
     unittest.main()

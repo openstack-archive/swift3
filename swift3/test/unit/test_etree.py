@@ -45,7 +45,7 @@ class TestSwift3Etree(unittest.TestCase):
 
         xml = test_xml('xmlns:s3="http://example.com/"', 's3:')
         elem = etree.fromstring(xml)
-        self.assertEqual(elem.find('./B'), None)
+        self.assertIsNone(elem.find('./B'))
 
     def test_xml_with_comments(self):
         xml = '<A><!-- comment --><B>C</B></A>'

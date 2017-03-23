@@ -41,7 +41,7 @@ class TestSwift3Location(Swift3TestCase):
         self.assertEqual(status.split()[0], '200')
         elem = fromstring(body, 'LocationConstraint')
         location = elem.text
-        self.assertEqual(location, None)
+        self.assertIsNone(location)
 
     def test_object_location_setting_as_us_west_1(self):
         CONF.location = 'us-west-1'
