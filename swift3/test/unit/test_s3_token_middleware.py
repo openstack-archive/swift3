@@ -30,7 +30,7 @@ from swift3 import s3_token_middleware as s3_token
 from swift.common.swob import Request, Response
 from swift.common.wsgi import ConfigFileError
 
-GOOD_RESPONSE = {'access': {
+GOOD_RESPONSE_V2 = {'access': {
     'user': {
         'username': 'S3_USER',
         'name': 'S3_USER',
@@ -162,7 +162,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
 
         self.requests_mock.post(self.TEST_URL,
                                 status_code=201,
-                                json=GOOD_RESPONSE)
+                                json=GOOD_RESPONSE_V2)
 
     # Ignore the request and pass to the next middleware in the
     # pipeline if no path has been specified.
@@ -238,7 +238,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         self._assert_authorized(req)
 
     def test_tolerate_missing_token_id(self):
-        resp = copy.deepcopy(GOOD_RESPONSE)
+        resp = copy.deepcopy(GOOD_RESPONSE_V2)
         del resp['access']['token']['id']
         self.requests_mock.post(self.TEST_URL,
                                 status_code=201,
@@ -269,7 +269,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         port = 35357
         self.requests_mock.post(
             '%s://%s:%s/v2.0/s3tokens' % (protocol, host, port),
-            status_code=201, json=GOOD_RESPONSE)
+            status_code=201, json=GOOD_RESPONSE_V2)
 
         self.middleware = (
             s3_token.filter_factory({'auth_protocol': 'http',
@@ -311,7 +311,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
         self.middleware = s3_token.filter_factory(
             {'insecure': 'True', 'auth_uri': 'http://example.com'})(self.app)
 
-        text_return_value = json.dumps(GOOD_RESPONSE)
+        text_return_value = json.dumps(GOOD_RESPONSE_V2)
         MOCK_REQUEST.return_value = TestResponse({
             'status_code': 201,
             'text': text_return_value})
@@ -386,7 +386,7 @@ class S3TokenMiddlewareTestGood(S3TokenMiddlewareTestBase):
 
         MOCK_REQUEST.return_value = TestResponse({
             'status_code': 201,
-            'text': json.dumps(GOOD_RESPONSE)})
+            'text': json.dumps(GOOD_RESPONSE_V2)})
 
         req = Request.blank('/v1/AUTH_cfa/c/o')
         req.environ['swift3.auth_details'] = {
@@ -516,7 +516,7 @@ class S3TokenMiddlewareTestBad(S3TokenMiddlewareTestBase):
         self._test_bad_reply('<badreply>')
 
     def _test_bad_reply_missing_parts(self, *parts):
-        resp = copy.deepcopy(GOOD_RESPONSE)
+        resp = copy.deepcopy(GOOD_RESPONSE_V2)
         part_dict = resp
         for part in parts[:-1]:
             part_dict = part_dict[part]

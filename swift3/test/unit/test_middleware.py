@@ -34,7 +34,7 @@ import swift3
 from swift3.test.unit import Swift3TestCase
 from swift3.test.unit.helpers import FakeSwift
 from swift3.test.unit.test_s3_token_middleware import \
-    GOOD_RESPONSE, GOOD_RESPONSE_V3
+    GOOD_RESPONSE_V2, GOOD_RESPONSE_V3
 from swift3.request import SigV4Request, Request as S3Request
 from swift3.etree import fromstring
 from swift3.middleware import filter_factory, Swift3Middleware
@@ -901,7 +901,7 @@ class TestSwift3Middleware(Swift3TestCase):
                             swob.HTTPOk, {}, None)
         with patch.object(self.s3_token, '_json_request') as mock_req:
             mock_resp = requests.Response()
-            mock_resp._content = json.dumps(GOOD_RESPONSE)
+            mock_resp._content = json.dumps(GOOD_RESPONSE_V2)
             mock_resp.status_code = 201
             mock_req.return_value = mock_resp
 
@@ -957,11 +957,11 @@ class TestSwift3Middleware(Swift3TestCase):
             with patch.object(self.auth_token,
                               '_do_fetch_token') as mock_fetch:
                 mock_resp = requests.Response()
-                mock_resp._content = json.dumps(GOOD_RESPONSE)
+                mock_resp._content = json.dumps(GOOD_RESPONSE_V2)
                 mock_resp.status_code = 201
                 mock_req.return_value = mock_resp
 
-                mock_access_info = AccessInfoV2(GOOD_RESPONSE)
+                mock_access_info = AccessInfoV2(GOOD_RESPONSE_V2)
                 mock_access_info.will_expire_soon = \
                     lambda stale_duration: False
                 mock_fetch.return_value = (MagicMock(), mock_access_info)
@@ -995,14 +995,14 @@ class TestSwift3Middleware(Swift3TestCase):
             with patch.object(self.auth_token,
                               '_do_fetch_token') as mock_fetch:
                 mock_resp = requests.Response()
-                no_token_id_good_resp = copy.deepcopy(GOOD_RESPONSE)
+                no_token_id_good_resp = copy.deepcopy(GOOD_RESPONSE_V2)
                 # delete token id
                 del no_token_id_good_resp['access']['token']['id']
                 mock_resp._content = json.dumps(no_token_id_good_resp)
                 mock_resp.status_code = 201
                 mock_req.return_value = mock_resp
 
-                mock_access_info = AccessInfoV2(GOOD_RESPONSE)
+                mock_access_info = AccessInfoV2(GOOD_RESPONSE_V2)
                 mock_access_info.will_expire_soon = \
                     lambda stale_duration: False
                 mock_fetch.return_value = (MagicMock(), mock_access_info)
