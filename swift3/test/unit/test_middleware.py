@@ -18,6 +18,7 @@ from mock import patch, MagicMock
 from contextlib import nested
 from datetime import datetime
 import hashlib
+import mock
 import requests
 import json
 import copy
@@ -382,14 +383,16 @@ class TestSwift3Middleware(Swift3TestCase):
         req.headers['Authorization'] = 'AWS test:tester:hmac'
         date_header = self.get_date_header()
         req.headers['Date'] = date_header
-        status, headers, body = self.call_swift3(req)
+        with mock.patch('swift3.request.Request.check_signature') as mock_cs:
+            status, headers, body = self.call_swift3(req)
         _, _, headers = self.swift.calls_with_headers[-1]
         self.assertEqual(req.environ['swift3.auth_details'], {
             'access_key': 'test:tester',
             'signature': 'hmac',
             'string_to_sign': '\n'.join([
                 'PUT', '', '', date_header,
-                '/bucket/object?partNumber=1&uploadId=123456789abcdef'])})
+                '/bucket/object?partNumber=1&uploadId=123456789abcdef']),
+            'check_signature': mock_cs})
 
     def test_invalid_uri(self):
         req = Request.blank('/bucket/invalid\xffname',
@@ -712,16 +715,20 @@ class TestSwift3Middleware(Swift3TestCase):
                 req = SigV4Request(env)
             return req
 
-        def string_to_sign(path, environ):
-            return _get_req(path, environ)._string_to_sign()
-
         def canonical_string(path, environ):
             return _get_req(path, environ)._canonical_request()
 
         def verify(hash_val, path, environ):
-            s = string_to_sign(path, environ)
-            s = s.split('\n')[3]
-            self.assertEqual(hash_val, s)
+            # See http://docs.aws.amazon.com/general/latest/gr
+            # /signature-v4-test-suite.html for where location, service, and
+            # signing key came from
+            with patch.object(CONF, 'location', 'us-east-1'), \
+                    patch.object(swift3.request, 'SERVICE', 'host'):
+                req = _get_req(path, environ)
+                hash_in_sts = req._string_to_sign().split('\n')[3]
+                self.assertEqual(hash_val, hash_in_sts)
+                self.assertTrue(req.check_signature(
+                    'wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY'))
 
         # all next data got from aws4_testsuite from Amazon
         # http://docs.aws.amazon.com/general/latest/gr/samples
@@ -734,7 +741,9 @@ class TestSwift3Middleware(Swift3TestCase):
             'HTTP_AUTHORIZATION': (
                 'AWS4-HMAC-SHA256 '
                 'Credential=AKIDEXAMPLE/20110909/us-east-1/host/aws4_request, '
-                'SignedHeaders=date;host, Signature=X'),
+                'SignedHeaders=date;host, '
+                'Signature=b27ccfbfa7df52a200ff74193ca6e32d'
+                '4b48b8856fab7ebf1c595d0670a7e470'),
             'HTTP_HOST': 'host.foo.com'}
         verify('366b91fb121d72a00f46bbe8d395f53a'
                '102b06dfb7e79636515208ed3fa606b1',
@@ -746,7 +755,9 @@ class TestSwift3Middleware(Swift3TestCase):
             'HTTP_AUTHORIZATION': (
                 'AWS4-HMAC-SHA256 '
                 'Credential=AKIDEXAMPLE/20110909/us-east-1/host/aws4_request, '
-                'SignedHeaders=date;host;p, Signature=X'),
+                'SignedHeaders=date;host;p, '
+                'Signature=debf546796015d6f6ded8626f5ce9859'
+                '7c33b47b9164cf6b17b4642036fcb592'),
             'HTTP_HOST': 'host.foo.com',
             'HTTP_P': 'phfft'}
         verify('dddd1902add08da1ac94782b05f9278c'
@@ -758,7 +769,9 @@ class TestSwift3Middleware(Swift3TestCase):
             'HTTP_AUTHORIZATION': (
                 'AWS4-HMAC-SHA256 '
                 'Credential=AKIDEXAMPLE/20110909/us-east-1/host/aws4_request, '
-                'SignedHeaders=date;host, Signature=X'),
+                'SignedHeaders=date;host, '
+                'Signature=8d6634c189aa8c75c2e51e106b6b5121'
+                'bed103fdb351f7d7d4381c738823af74'),
             'HTTP_HOST': 'host.foo.com',
             'RAW_PATH_INFO': '/%E1%88%B4'}
 
@@ -780,7 +793,9 @@ class TestSwift3Middleware(Swift3TestCase):
             'HTTP_AUTHORIZATION': (
                 'AWS4-HMAC-SHA256 '
                 'Credential=AKIDEXAMPLE/20110909/us-east-1/host/aws4_request, '
-                'SignedHeaders=date;host, Signature=X'),
+                'SignedHeaders=date;host, '
+                'Signature=0dc122f3b28b831ab48ba65cb47300de'
+                '53fbe91b577fe113edac383730254a3b'),
             'HTTP_HOST': 'host.foo.com'}
         verify('2f23d14fe13caebf6dfda346285c6d9c'
                '14f49eaca8f5ec55c627dd7404f7a727',
@@ -792,7 +807,9 @@ class TestSwift3Middleware(Swift3TestCase):
             'HTTP_AUTHORIZATION': (
                 'AWS4-HMAC-SHA256 '
                 'Credential=AKIDEXAMPLE/20110909/us-east-1/host/aws4_request, '
-                'SignedHeaders=date;host;zoo, Signature=X'),
+                'SignedHeaders=date;host;zoo, '
+                'Signature=273313af9d0c265c531e11db70bbd653'
+                'f3ba074c1009239e8559d3987039cad7'),
             'HTTP_HOST': 'host.foo.com',
             'HTTP_ZOO': 'ZOOBAR'}
         verify('3aae6d8274b8c03e2cc96fc7d6bda4b9'
@@ -805,7 +822,9 @@ class TestSwift3Middleware(Swift3TestCase):
             'HTTP_AUTHORIZATION': (
                 'AWS4-HMAC-SHA256 '
                 'Credential=AKIDEXAMPLE/20110909/us-east-1/host/aws4_request, '
-                'SignedHeaders=date;host;content-type, Signature=X'),
+                'SignedHeaders=date;host;content-type, '
+                'Signature=b105eb10c6d318d2294de9d49dd8b031'
+                'b55e3c3fe139f2e637da70511e9e7b71'),
             'HTTP_HOST': 'host.foo.com',
             'HTTP_X_AMZ_CONTENT_SHA256':
                 '3ba8907e7a252327488df390ed517c45'
@@ -822,7 +841,9 @@ class TestSwift3Middleware(Swift3TestCase):
             'HTTP_AUTHORIZATION': (
                 'AWS4-HMAC-SHA256 '
                 'Credential=AKIDEXAMPLE/20110909/us-east-1/host/aws4_request, '
-                'SignedHeaders=date;host;content-type, Signature=X'),
+                'SignedHeaders=date;host;content-type, '
+                'Signature=5a15b22cf462f047318703b92e6f4f38'
+                '884e4a7ab7b1d6426ca46a8bd1c26cbc'),
             'HTTP_HOST': 'host.foo.com',
             'HTTP_X_AMZ_CONTENT_SHA256':
                 '3ba8907e7a252327488df390ed517c45'
