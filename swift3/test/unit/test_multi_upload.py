@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import os
 import time
 import unittest
@@ -547,19 +548,29 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertTrue(query.get('delimiter') is None)
 
     @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
-    def test_object_multipart_upload_initiate(self):
+    def _test_object_multipart_upload_initiate(self, headers):
+        headers.update({
+            'Authorization': 'AWS test:tester:hmac',
+            'Date': self.get_date_header(),
+            'x-amz-meta-foo': 'bar',
+        })
         req = Request.blank('/bucket/object?uploads',
                             environ={'REQUEST_METHOD': 'POST'},
-                            headers={'Authorization':
-                                     'AWS test:tester:hmac',
-                                     'Date': self.get_date_header(),
-                                     'x-amz-meta-foo': 'bar'})
+                            headers=headers)
         status, headers, body = self.call_swift3(req)
         fromstring(body, 'InitiateMultipartUploadResult')
         self.assertEqual(status.split()[0], '200')
 
         _, _, req_headers = self.swift.calls_with_headers[-1]
         self.assertEqual(req_headers.get('X-Object-Meta-Foo'), 'bar')
+        self.assertNotIn('Etag', req_headers)
+        self.assertNotIn('Content-MD5', req_headers)
+
+    def test_object_multipart_upload_initiate(self):
+        self._test_object_multipart_upload_initiate({})
+        self._test_object_multipart_upload_initiate({'Etag': 'blahblahblah'})
+        self._test_object_multipart_upload_initiate({
+            'Content-MD5': base64.b64encode('blahblahblahblah').strip()})
 
     @s3acl(s3acl_only=True)
     @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
