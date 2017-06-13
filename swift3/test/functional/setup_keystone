@@ -93,8 +93,9 @@ _setup_keystone()
         > "${log_file}" 2>&1 &
     export keystone_pid=$!
     # make sure it's actually running
-    sleep 1
+    sleep 5
     ps -p $keystone_pid
+    curl -I $OS_AUTH_URL
 
     _create_swift_accounts
 }
