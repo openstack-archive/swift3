@@ -340,6 +340,9 @@ class UploadsController(Controller):
 
         obj = '%s/%s' % (req.object_name, upload_id)
 
+        req.headers.pop('Etag', None)
+        req.headers.pop('Content-Md5', None)
+
         req.get_response(self.app, 'PUT', container, obj, body='')
 
         result_elem = Element('InitiateMultipartUploadResult')

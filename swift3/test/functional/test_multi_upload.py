@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import unittest
 import os
 import boto
@@ -22,7 +23,7 @@ import boto
 from distutils.version import StrictVersion
 
 from hashlib import md5
-from itertools import izip
+from itertools import izip, izip_longest
 
 from swift3.cfg import CONF
 from swift3.test.functional.utils import get_error_code, get_error_msg
@@ -47,13 +48,16 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         return tostring(elem)
 
     def _initiate_multi_uploads_result_generator(self, bucket, keys,
-                                                 trials=1):
+                                                 headers=None, trials=1):
+        if headers is None:
+            headers = [None] * len(keys)
         self.conn.make_request('PUT', bucket)
         query = 'uploads'
-        for key in keys:
+        for key, key_headers in izip_longest(keys, headers):
             for i in xrange(trials):
                 status, resp_headers, body = \
-                    self.conn.make_request('POST', bucket, key, query=query)
+                    self.conn.make_request('POST', bucket, key,
+                                           headers=key_headers, query=query)
                 yield status, resp_headers, body
 
     def _upload_part(self, bucket, key, upload_id, content=None, part_num=1):
@@ -89,11 +93,14 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
 
     def test_object_multi_upload(self):
         bucket = 'bucket'
-        keys = ['obj1', 'obj2']
+        keys = ['obj1', 'obj2', 'obj3']
+        headers = [None,
+                   {'Content-MD5': base64.b64encode('a' * 16).strip()},
+                   {'Etag': 'nonsense'}]
         uploads = []
 
         results_generator = self._initiate_multi_uploads_result_generator(
-            bucket, keys)
+            bucket, keys, headers=headers)
 
         # Initiate Multipart Upload
         for expected_key, (status, headers, body) in \
@@ -134,7 +141,7 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         self.assertEqual(elem.find('MaxUploads').text, '1000')
         self.assertTrue(elem.find('EncodingType') is None)
         self.assertEqual(elem.find('IsTruncated').text, 'false')
-        self.assertEqual(len(elem.findall('Upload')), 2)
+        self.assertEqual(len(elem.findall('Upload')), 3)
         for (expected_key, expected_upload_id), u in \
                 izip(uploads, elem.findall('Upload')):
             key = u.find('Key').text
@@ -259,17 +266,19 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
             self.assertEqual(MIN_SEGMENT_SIZE, int(p.find('Size').text))
             etags.append(p.find('ETag').text)
 
-        # Abort Multipart Upload
-        key, upload_id = uploads[1]
-        query = 'uploadId=%s' % upload_id
-        status, headers, body = \
-            self.conn.make_request('DELETE', bucket, key, query=query)
-        self.assertEqual(status, 204)
-        self.assertCommonResponseHeaders(headers)
-        self.assertTrue('content-type' in headers)
-        self.assertEqual(headers['content-type'], 'text/html; charset=UTF-8')
-        self.assertTrue('content-length' in headers)
-        self.assertEqual(headers['content-length'], '0')
+        # Abort Multipart Uploads
+        # note that uploads[1] has part data while uploads[2] does not
+        for key, upload_id in uploads[1:]:
+            query = 'uploadId=%s' % upload_id
+            status, headers, body = \
+                self.conn.make_request('DELETE', bucket, key, query=query)
+            self.assertEqual(status, 204)
+            self.assertCommonResponseHeaders(headers)
+            self.assertTrue('content-type' in headers)
+            self.assertEqual(headers['content-type'],
+                             'text/html; charset=UTF-8')
+            self.assertTrue('content-length' in headers)
+            self.assertEqual(headers['content-length'], '0')
 
         # Complete Multipart Upload
         key, upload_id = uploads[0]
