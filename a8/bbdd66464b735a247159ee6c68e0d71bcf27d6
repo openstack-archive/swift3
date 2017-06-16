@@ -1,0 +1,10 @@
+Code-Review+2: Tim Burke <tim@swiftstack.com>
+Code-Review+1: Karen Chan <karen@karen-chan.com>
+Code-Review+2: Kota Tsuyuzaki <tsuyuzaki.kota@lab.ntt.co.jp>
+Workflow+1: Tim Burke <tim@swiftstack.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 16 Jun 2017 17:21:22 +0000
+Reviewed-on: https://review.openstack.org/473987
+Project: openstack/swift3
+Branch: refs/heads/master
