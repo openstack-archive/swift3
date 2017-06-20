@@ -61,6 +61,29 @@ Note:
  * Swift3 explicitly checks that keystoneauth is in the pipeline.  You must use this name
    in the pipeline statement and in [filter:keystoneauth] section header.
 
+
+If you use the shipped auth middleware from s3:
+
+    Was::
+
+        [pipeline:main]
+        pipeline = catch_errors cache what_ever_or_no_auth proxy-server
+
+    Change To::
+
+        [pipeline:main]
+        pipeline = catch_errors cache swift3 s3auth what_ever_or_no_auth proxy-server
+
+    To support Multipart Upload::
+
+        [pipeline:main]
+        pipeline = catch_errors cache swift3 s3auth what_ever_or_no_auth slo proxy-server
+
+Note: Account admins must set the `x-account-meta-s3-secret` account metadata to the respective s3 secret
+key, before s3auth can be used with their account. A user must use this secret together with
+the swift storage account name as the access key, in order to access the account.
+
+
 3) Add to your proxy-server.conf the section for the Swift3 WSGI filter::
 
     [filter:swift3]
@@ -72,6 +95,10 @@ You also need to add the following if you use keystone (adjust port, host, proto
     use = egg:swift3#s3token
     auth_uri = http://127.0.0.1:35357/
 
+Or, if you use s3auth:
+
+    [filter:s3auth]
+    use = egg:swift3#s3auth
 
 4) Swift3 config options:
 
