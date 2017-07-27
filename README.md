@@ -49,12 +49,12 @@ If you use keystone:
     Change To::
 
         [pipeline:main]
-        pipeline = catch_errors cache swift3 s3token authtoken keystoneauth proxy-server
+        pipeline = catch_errors cache authtoken swift3 s3token keystoneauth proxy-server
 
     To support Multipart Upload::
 
         [pipeline:main]
-        pipeline = catch_errors cache swift3 s3token authtoken keystoneauth slo proxy-server
+        pipeline = catch_errors cache authtoken swift3 s3token keystoneauth slo proxy-server
 
 Note:
  * The authtoken filter requires the keystonemiddleware package.
