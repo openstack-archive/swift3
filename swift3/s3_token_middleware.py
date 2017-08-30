@@ -33,7 +33,6 @@ This WSGI component:
 
 import base64
 import json
-import logging
 
 import requests
 import six
@@ -41,7 +40,7 @@ from six.moves import urllib
 
 from swift.common.swob import Request, HTTPBadRequest, HTTPUnauthorized, \
     HTTPException
-from swift.common.utils import config_true_value, split_path
+from swift.common.utils import config_true_value, split_path, get_logger
 from swift.common.wsgi import ConfigFileError
 
 from swift3.utils import is_valid_ipv6
@@ -119,7 +118,8 @@ class S3Token(object):
     def __init__(self, app, conf):
         """Common initialization code."""
         self._app = app
-        self._logger = logging.getLogger(conf.get('log_name', __name__))
+        self._logger = get_logger(
+            conf, log_route=conf.get('log_name', __name__))
         self._logger.debug('Starting the %s component', PROTOCOL_NAME)
         self._timeout = float(conf.get('http_timeout', '10.0'))
         if not (0 < self._timeout <= 60):
