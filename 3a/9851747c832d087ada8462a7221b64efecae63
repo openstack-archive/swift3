@@ -1,0 +1,9 @@
+Code-Review+1: Thiago da Silva <thiago@redhat.com>
+Code-Review+2: Tim Burke <tim@swiftstack.com>
+Workflow+1: Tim Burke <tim@swiftstack.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 30 Aug 2017 15:16:23 +0000
+Reviewed-on: https://review.openstack.org/499026
+Project: openstack/swift3
+Branch: refs/heads/master
