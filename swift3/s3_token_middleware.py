@@ -119,7 +119,7 @@ class S3Token(object):
         """Common initialization code."""
         self._app = app
         self._logger = get_logger(
-            conf, log_route=conf.get('log_name', __name__))
+            conf, log_route=conf.get('log_name', 's3token'))
         self._logger.debug('Starting the %s component', PROTOCOL_NAME)
         self._timeout = float(conf.get('http_timeout', '10.0'))
         if not (0 < self._timeout <= 60):

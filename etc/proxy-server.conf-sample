@@ -121,6 +121,8 @@ use = egg:swift3#swift3
 # upload, except the last part.
 min_segment_size = 5242880
 
+# log_name = swift3
+
 [filter:catch_errors]
 use = egg:swift#catch_errors
 
@@ -158,9 +160,11 @@ auth_uri = http://keystonehost:35357/
 http_timeout = 10.0
 
 # SSL-related options
-#insecure = False
-#certfile =
-#keyfile =
+# insecure = False
+# certfile =
+# keyfile =
+
+# log_name = s3token
 
 [filter:authtoken]
 # See swift manual for more details.
