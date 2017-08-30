@@ -181,7 +181,7 @@ def filter_factory(global_conf, **local_conf):
 
     # Reassign config to logger
     global LOGGER
-    LOGGER = get_logger(CONF, log_route='swift3')
+    LOGGER = get_logger(CONF, log_route=CONF.get('log_name', 'swift3'))
 
     register_swift_info(
         'swift3',
