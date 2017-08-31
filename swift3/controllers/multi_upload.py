@@ -612,7 +612,10 @@ class UploadController(Controller):
 
         # clean up the multipart-upload record
         obj = '%s/%s' % (req.object_name, upload_id)
-        req.get_response(self.app, 'DELETE', container, obj)
+        try:
+            req.get_response(self.app, 'DELETE', container, obj)
+        except NoSuchKey:
+            pass  # We know that this existed long enough for us to HEAD
 
         result_elem = Element('CompleteMultipartUploadResult')
 
