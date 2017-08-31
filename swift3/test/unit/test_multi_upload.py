@@ -100,32 +100,6 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.swift.register('DELETE', segment_bucket + '/object/X/2',
                             swob.HTTPNoContent, {}, None)
 
-        self.swift.register('HEAD', segment_bucket + '/object/Y',
-                            swob.HTTPOk, {}, None)
-        self.swift.register('PUT', segment_bucket + '/object/Y',
-                            swob.HTTPCreated, {}, None)
-        self.swift.register('DELETE', segment_bucket + '/object/Y',
-                            swob.HTTPNoContent, {}, None)
-        self.swift.register('PUT', segment_bucket + '/object/Y/1',
-                            swob.HTTPCreated, {}, None)
-        self.swift.register('DELETE', segment_bucket + '/object/Y/1',
-                            swob.HTTPNoContent, {}, None)
-        self.swift.register('DELETE', segment_bucket + '/object/Y/2',
-                            swob.HTTPNoContent, {}, None)
-
-        self.swift.register('HEAD', segment_bucket + '/object2/Z',
-                            swob.HTTPOk, {}, None)
-        self.swift.register('PUT', segment_bucket + '/object2/Z',
-                            swob.HTTPCreated, {}, None)
-        self.swift.register('DELETE', segment_bucket + '/object2/Z',
-                            swob.HTTPNoContent, {}, None)
-        self.swift.register('PUT', segment_bucket + '/object2/Z/1',
-                            swob.HTTPCreated, {}, None)
-        self.swift.register('DELETE', segment_bucket + '/object2/Z/1',
-                            swob.HTTPNoContent, {}, None)
-        self.swift.register('DELETE', segment_bucket + '/object2/Z/2',
-                            swob.HTTPNoContent, {}, None)
-
     @s3acl
     def test_bucket_upload_part(self):
         req = Request.blank('/bucket?partNumber=1&uploadId=x',
