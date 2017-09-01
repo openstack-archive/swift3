@@ -59,7 +59,8 @@ from swift3.response import InvalidArgument, ErrorResponse, MalformedXML, \
     InvalidRequest, HTTPOk, HTTPNoContent, NoSuchKey, NoSuchUpload, \
     NoSuchBucket
 from swift3.exception import BadSwiftRequest
-from swift3.utils import LOGGER, unique_id, MULTIUPLOAD_SUFFIX, S3Timestamp
+from swift3.utils import LOGGER, unique_id, MULTIUPLOAD_SUFFIX, S3Timestamp, \
+    sysmeta_header
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
 from swift3.cfg import CONF
@@ -333,6 +334,16 @@ class UploadsController(Controller):
         upload_id = unique_id()
 
         container = req.container_name + MULTIUPLOAD_SUFFIX
+
+        content_type = req.headers.get('Content-Type')
+        if content_type:
+            req.headers[sysmeta_header('object', 'has-content-type')] = 'yes'
+            req.headers[
+                sysmeta_header('object', 'content-type')] = content_type
+        else:
+            req.headers[sysmeta_header('object', 'has-content-type')] = 'no'
+        req.headers['Content-Type'] = 'application/directory'
+
         try:
             req.get_response(self.app, 'PUT', container, '')
         except BucketAlreadyExists:
@@ -511,8 +522,22 @@ class UploadController(Controller):
             _key = key.lower()
             if _key.startswith('x-amz-meta-'):
                 headers['x-object-meta-' + _key[11:]] = val
-            elif _key == 'content-type':
-                headers['Content-Type'] = val
+
+        hct_header = sysmeta_header('object', 'has-content-type')
+        if resp.sysmeta_headers.get(hct_header) == 'yes':
+            content_type = resp.sysmeta_headers.get(
+                sysmeta_header('object', 'content-type'))
+        elif hct_header in resp.sysmeta_headers:
+            # has-content-type is present but false, so no content type was
+            # set on initial upload. In that case, we won't set one on our
+            # PUT request. Swift will end up guessing one based on the
+            # object name.
+            content_type = None
+        else:
+            content_type = resp.headers.get('Content-Type')
+
+        if content_type:
+            headers['Content-Type'] = content_type
 
         # Query for the objects in the segments area to make sure it completed
         query = {

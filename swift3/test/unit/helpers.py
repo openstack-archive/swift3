@@ -151,5 +151,8 @@ class FakeSwift(object):
 
         self._responses[(method, path)] = (response_class, headers, body)
 
+    def register_harder(self, method, path, response_class, headers, body):
+        self._responses[(method, path)] = (response_class, headers, body)
+
     def clear_calls(self):
         del self._calls[:]
