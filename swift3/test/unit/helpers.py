@@ -151,5 +151,11 @@ class FakeSwift(object):
 
         self._responses[(method, path)] = (response_class, headers, body)
 
+    def register_unconditionally(self, method, path, response_class, headers,
+                                 body):
+        # register() keeps old sysmeta around, but
+        # register_unconditionally() keeps nothing.
+        self._responses[(method, path)] = (response_class, headers, body)
+
     def clear_calls(self):
         del self._calls[:]

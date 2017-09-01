@@ -85,8 +85,12 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.swift.register('GET', segment_bucket, swob.HTTPOk, {},
                             object_list)
         self.swift.register('HEAD', segment_bucket + '/object/X',
-                            swob.HTTPOk, {'x-object-meta-foo': 'bar',
-                                          'content-type': 'baz/quux'}, None)
+                            swob.HTTPOk,
+                            {'x-object-meta-foo': 'bar',
+                             'content-type': 'application/directory',
+                             'x-object-sysmeta-swift3-has-content-type': 'yes',
+                             'x-object-sysmeta-swift3-content-type':
+                             'baz/quux'}, None)
         self.swift.register('PUT', segment_bucket + '/object/X',
                             swob.HTTPCreated, {}, None)
         self.swift.register('DELETE', segment_bucket + '/object/X',
@@ -555,6 +559,35 @@ class TestSwift3MultiUpload(Swift3TestCase):
                                      'AWS test:tester:hmac',
                                      'Date': self.get_date_header(),
                                      'x-amz-acl': 'public-read',
+                                     'x-amz-meta-foo': 'bar',
+                                     'Content-Type': 'cat/picture'})
+        status, headers, body = self.call_swift3(req)
+        fromstring(body, 'InitiateMultipartUploadResult')
+        self.assertEqual(status.split()[0], '200')
+
+        _, _, req_headers = self.swift.calls_with_headers[-1]
+        self.assertEqual(req_headers.get('X-Object-Meta-Foo'), 'bar')
+        self.assertEqual(req_headers.get(
+            'X-Object-Sysmeta-Swift3-Has-Content-Type'), 'yes')
+        self.assertEqual(req_headers.get(
+            'X-Object-Sysmeta-Swift3-Content-Type'), 'cat/picture')
+        tmpacl_header = req_headers.get(sysmeta_header('object', 'tmpacl'))
+        self.assertTrue(tmpacl_header)
+        acl_header = encode_acl('object',
+                                ACLPublicRead(Owner('test:tester',
+                                                    'test:tester')))
+        self.assertEqual(acl_header.get(sysmeta_header('object', 'acl')),
+                         tmpacl_header)
+
+    @s3acl(s3acl_only=True)
+    @patch('swift3.controllers.multi_upload.unique_id', lambda: 'X')
+    def test_object_multipart_upload_initiate_no_content_type(self):
+        req = Request.blank('/bucket/object?uploads',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization':
+                                     'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(),
+                                     'x-amz-acl': 'public-read',
                                      'x-amz-meta-foo': 'bar'})
         status, headers, body = self.call_swift3(req)
         fromstring(body, 'InitiateMultipartUploadResult')
@@ -562,6 +595,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
 
         _, _, req_headers = self.swift.calls_with_headers[-1]
         self.assertEqual(req_headers.get('X-Object-Meta-Foo'), 'bar')
+        self.assertEqual(req_headers.get(
+            'X-Object-Sysmeta-Swift3-Has-Content-Type'), 'no')
         tmpacl_header = req_headers.get(sysmeta_header('object', 'tmpacl'))
         self.assertTrue(tmpacl_header)
         acl_header = encode_acl('object',
@@ -637,6 +672,41 @@ class TestSwift3MultiUpload(Swift3TestCase):
         _, _, headers = self.swift.calls_with_headers[-2]
         self.assertEqual(headers.get('X-Object-Meta-Foo'), 'bar')
         self.assertEqual(headers.get('Content-Type'), 'baz/quux')
+
+    def test_object_multipart_upload_complete_old_content_type(self):
+        self.swift.register_unconditionally(
+            'HEAD', '/v1/AUTH_test/bucket+segments/object/X',
+            swob.HTTPOk, {"Content-Type": "thingy/dingy"}, None)
+
+        req = Request.blank('/bucket/object?uploadId=X',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(), },
+                            body=xml)
+        status, headers, body = self.call_swift3(req)
+        fromstring(body, 'CompleteMultipartUploadResult')
+        self.assertEqual(status.split()[0], '200')
+
+        _, _, headers = self.swift.calls_with_headers[-2]
+        self.assertEqual(headers.get('Content-Type'), 'thingy/dingy')
+
+    def test_object_multipart_upload_complete_no_content_type(self):
+        self.swift.register_unconditionally(
+            'HEAD', '/v1/AUTH_test/bucket+segments/object/X',
+            swob.HTTPOk, {"X-Object-Sysmeta-Swift3-Has-Content-Type": "no"},
+            None)
+
+        req = Request.blank('/bucket/object?uploadId=X',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(), },
+                            body=xml)
+        status, headers, body = self.call_swift3(req)
+        fromstring(body, 'CompleteMultipartUploadResult')
+        self.assertEqual(status.split()[0], '200')
+
+        _, _, headers = self.swift.calls_with_headers[-2]
+        self.assertNotIn('Content-Type', headers)
 
     def test_object_multipart_upload_complete_weird_host_name(self):
         # This happens via boto signature v4
