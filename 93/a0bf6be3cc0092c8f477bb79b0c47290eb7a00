@@ -1,0 +1,9 @@
+Code-Review+2: Tim Burke <tim@swiftstack.com>
+Workflow+1: Tim Burke <tim@swiftstack.com>
+Code-Review+1: Debo Zhang <zhangdebo@inspur.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 12 Sep 2017 08:37:05 +0000
+Reviewed-on: https://review.openstack.org/500183
+Project: openstack/swift3
+Branch: refs/heads/master
