@@ -4,8 +4,17 @@ start =
   element ListBucketResult {
     element Name { xsd:string },
     element Prefix { xsd:string },
-    element Marker { xsd:string },
-    element NextMarker { xsd:string }?,
+    (
+      (
+        element Marker { xsd:string },
+        element NextMarker { xsd:string }?
+      ) | (
+        element NextContinuationToken { xsd:string }?,
+        element ContinuationToken { xsd:string }?,
+        element StartAfter { xsd:string }?,
+        element KeyCount { xsd:int }
+      )
+    ),
     element MaxKeys { xsd:int },
     element EncodingType { xsd:string }?,
     element Delimiter { xsd:string }?,

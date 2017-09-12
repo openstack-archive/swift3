@@ -14,9 +14,11 @@
 # limitations under the License.
 
 import sys
+from base64 import standard_b64encode as b64encode
+from base64 import standard_b64decode as b64decode
 
 from swift.common.http import HTTP_OK
-from swift.common.utils import json, public
+from swift.common.utils import json, public, config_true_value
 
 from swift3.controllers.base import Controller
 from swift3.etree import Element, SubElement, tostring, fromstring, \
@@ -115,6 +117,19 @@ class BucketController(Controller):
         if 'delimiter' in req.params:
             query.update({'delimiter': req.params['delimiter']})
 
+        # GET Bucket (List Objects) Version 2 parameters
+        is_v2 = int(req.params.get('list-type', '1')) == 2
+        fetch_owner = False
+        if is_v2:
+            if 'start-after' in req.params:
+                query.update({'marker': req.params['start-after']})
+            # continuation-token overrides start-after
+            if 'continuation-token' in req.params:
+                decoded = b64decode(req.params['continuation-token'])
+                query.update({'marker': decoded})
+            if 'fetch-owner' in req.params:
+                fetch_owner = config_true_value(req.params['fetch-owner'])
+
         resp = req.get_response(self.app, query=query)
 
         objects = json.loads(resp.body)
@@ -122,20 +137,36 @@ class BucketController(Controller):
         elem = Element('ListBucketResult')
         SubElement(elem, 'Name').text = req.container_name
         SubElement(elem, 'Prefix').text = req.params.get('prefix')
-        SubElement(elem, 'Marker').text = req.params.get('marker')
 
         # in order to judge that truncated is valid, check whether
         # max_keys + 1 th element exists in swift.
         is_truncated = max_keys > 0 and len(objects) > max_keys
         objects = objects[:max_keys]
 
-        if is_truncated and 'delimiter' in req.params:
-            if 'name' in objects[-1]:
-                SubElement(elem, 'NextMarker').text = \
-                    objects[-1]['name']
-            if 'subdir' in objects[-1]:
-                SubElement(elem, 'NextMarker').text = \
-                    objects[-1]['subdir']
+        if not is_v2:
+            SubElement(elem, 'Marker').text = req.params.get('marker')
+            if is_truncated and 'delimiter' in req.params:
+                if 'name' in objects[-1]:
+                    SubElement(elem, 'NextMarker').text = \
+                        objects[-1]['name']
+                if 'subdir' in objects[-1]:
+                    SubElement(elem, 'NextMarker').text = \
+                        objects[-1]['subdir']
+        else:
+            if is_truncated:
+                if 'name' in objects[-1]:
+                    SubElement(elem, 'NextContinuationToken').text = \
+                        b64encode(objects[-1]['name'])
+                if 'subdir' in objects[-1]:
+                    SubElement(elem, 'NextContinuationToken').text = \
+                        b64encode(objects[-1]['subdir'])
+            if 'continuation-token' in req.params:
+                SubElement(elem, 'ContinuationToken').text = \
+                    req.params['continuation-token']
+            if 'start-after' in req.params:
+                SubElement(elem, 'StartAfter').text = \
+                    req.params['start-after']
+            SubElement(elem, 'KeyCount').text = str(len(objects))
 
         SubElement(elem, 'MaxKeys').text = str(tag_max_keys)
 
@@ -156,9 +187,10 @@ class BucketController(Controller):
                     o['last_modified'][:-3] + 'Z'
                 SubElement(contents, 'ETag').text = '"%s"' % o['hash']
                 SubElement(contents, 'Size').text = str(o['bytes'])
-                owner = SubElement(contents, 'Owner')
-                SubElement(owner, 'ID').text = req.user_id
-                SubElement(owner, 'DisplayName').text = req.user_id
+                if fetch_owner or not is_v2:
+                    owner = SubElement(contents, 'Owner')
+                    SubElement(owner, 'ID').text = req.user_id
+                    SubElement(owner, 'DisplayName').text = req.user_id
                 SubElement(contents, 'StorageClass').text = 'STANDARD'
 
         for o in objects:

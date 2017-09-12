@@ -69,8 +69,20 @@ class TestSwift3Bucket(Swift3TestCase):
                             {}, None)
         self.swift.register('GET', '/v1/AUTH_test/junk', swob.HTTPOk, {},
                             object_list)
+        self.swift.register(
+            'GET',
+            '/v1/AUTH_test/junk?delimiter=a&format=json&limit=3&marker=viola',
+            swob.HTTPOk, {}, json.dumps(objects[2:]))
         self.swift.register('GET', '/v1/AUTH_test/junk-subdir', swob.HTTPOk,
                             {}, json.dumps(object_list_subdir))
+        self.swift.register(
+            'GET',
+            '/v1/AUTH_test/subdirs?delimiter=/&format=json&limit=3',
+            swob.HTTPOk, {}, json.dumps([
+                {'subdir': 'nothing/'},
+                {'subdir': 'but/'},
+                {'subdir': 'subdirs/'},
+            ]))
 
     def setUp(self):
         super(TestSwift3Bucket, self).setUp()
@@ -183,6 +195,47 @@ class TestSwift3Bucket(Swift3TestCase):
         elem = fromstring(body, 'ListBucketResult')
         self.assertEqual(elem.find('./IsTruncated').text, 'true')
 
+        req = Request.blank('/subdirs?delimiter=/&max-keys=2',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        elem = fromstring(body, 'ListBucketResult')
+        self.assertEqual(elem.find('./IsTruncated').text, 'true')
+        self.assertEqual(elem.find('./NextMarker').text, 'but/')
+
+    def test_bucket_GET_v2_is_truncated(self):
+        bucket_name = 'junk'
+
+        req = Request.blank('/%s?list-type=2&max-keys=5' % bucket_name,
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        elem = fromstring(body, 'ListBucketResult')
+        self.assertEqual(elem.find('./KeyCount').text, '5')
+        self.assertEqual(elem.find('./IsTruncated').text, 'false')
+
+        req = Request.blank('/%s?list-type=2&max-keys=4' % bucket_name,
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        elem = fromstring(body, 'ListBucketResult')
+        self.assertIsNotNone(elem.find('./NextContinuationToken'))
+        self.assertEqual(elem.find('./KeyCount').text, '4')
+        self.assertEqual(elem.find('./IsTruncated').text, 'true')
+
+        req = Request.blank('/subdirs?list-type=2&delimiter=/&max-keys=2',
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        elem = fromstring(body, 'ListBucketResult')
+        self.assertIsNotNone(elem.find('./NextContinuationToken'))
+        self.assertEqual(elem.find('./KeyCount').text, '2')
+        self.assertEqual(elem.find('./IsTruncated').text, 'true')
+
     def test_bucket_GET_max_keys(self):
         bucket_name = 'junk'
 
@@ -259,6 +312,26 @@ class TestSwift3Bucket(Swift3TestCase):
         self.assertEqual(args['marker'], 'b')
         self.assertEqual(args['prefix'], 'c')
 
+    def test_bucket_GET_v2_passthroughs(self):
+        bucket_name = 'junk'
+        req = Request.blank(
+            '/%s?list-type=2&delimiter=a&start-after=b&prefix=c' % bucket_name,
+            environ={'REQUEST_METHOD': 'GET'},
+            headers={'Authorization': 'AWS test:tester:hmac',
+                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        elem = fromstring(body, 'ListBucketResult')
+        self.assertEqual(elem.find('./Prefix').text, 'c')
+        self.assertEqual(elem.find('./StartAfter').text, 'b')
+        self.assertEqual(elem.find('./Delimiter').text, 'a')
+        _, path = self.swift.calls[-1]
+        _, query_string = path.split('?')
+        args = dict(cgi.parse_qsl(query_string))
+        self.assertEqual(args['delimiter'], 'a')
+        # "start-after" is converted to "marker"
+        self.assertEqual(args['marker'], 'b')
+        self.assertEqual(args['prefix'], 'c')
+
     def test_bucket_GET_with_nonascii_queries(self):
         bucket_name = 'junk'
         req = Request.blank(
@@ -271,6 +344,26 @@ class TestSwift3Bucket(Swift3TestCase):
         elem = fromstring(body, 'ListBucketResult')
         self.assertEqual(elem.find('./Prefix').text, '\xef\xbc\xa3')
         self.assertEqual(elem.find('./Marker').text, '\xef\xbc\xa2')
+        self.assertEqual(elem.find('./Delimiter').text, '\xef\xbc\xa1')
+        _, path = self.swift.calls[-1]
+        _, query_string = path.split('?')
+        args = dict(cgi.parse_qsl(query_string))
+        self.assertEqual(args['delimiter'], '\xef\xbc\xa1')
+        self.assertEqual(args['marker'], '\xef\xbc\xa2')
+        self.assertEqual(args['prefix'], '\xef\xbc\xa3')
+
+    def test_bucket_GET_v2_with_nonascii_queries(self):
+        bucket_name = 'junk'
+        req = Request.blank(
+            '/%s?list-type=2&delimiter=\xef\xbc\xa1&start-after=\xef\xbc\xa2&'
+            'prefix=\xef\xbc\xa3' % bucket_name,
+            environ={'REQUEST_METHOD': 'GET'},
+            headers={'Authorization': 'AWS test:tester:hmac',
+                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        elem = fromstring(body, 'ListBucketResult')
+        self.assertEqual(elem.find('./Prefix').text, '\xef\xbc\xa3')
+        self.assertEqual(elem.find('./StartAfter').text, '\xef\xbc\xa2')
         self.assertEqual(elem.find('./Delimiter').text, '\xef\xbc\xa1')
         _, path = self.swift.calls[-1]
         _, query_string = path.split('?')
@@ -292,6 +385,33 @@ class TestSwift3Bucket(Swift3TestCase):
         self.assertEqual(elem.find('./MaxKeys').text, '2')
         self.assertEqual(elem.find('./IsTruncated').text, 'true')
 
+    def test_bucket_GET_v2_with_delimiter_max_keys(self):
+        bucket_name = 'junk'
+        req = Request.blank(
+            '/%s?list-type=2&delimiter=a&max-keys=2' % bucket_name,
+            environ={'REQUEST_METHOD': 'GET'},
+            headers={'Authorization': 'AWS test:tester:hmac',
+                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '200')
+        elem = fromstring(body, 'ListBucketResult')
+        next_token = elem.find('./NextContinuationToken')
+        self.assertIsNotNone(next_token)
+        self.assertEqual(elem.find('./MaxKeys').text, '2')
+        self.assertEqual(elem.find('./IsTruncated').text, 'true')
+
+        req = Request.blank(
+            '/%s?list-type=2&delimiter=a&max-keys=2&continuation-token=%s' %
+            (bucket_name, next_token.text),
+            environ={'REQUEST_METHOD': 'GET'},
+            headers={'Authorization': 'AWS test:tester:hmac',
+                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '200')
+        elem = fromstring(body, 'ListBucketResult')
+        names = [o.find('./Key').text for o in elem.iterchildren('Contents')]
+        self.assertEqual(names[0], 'lily')
+
     def test_bucket_GET_subdir_with_delimiter_max_keys(self):
         bucket_name = 'junk-subdir'
         req = Request.blank('/%s?delimiter=a&max-keys=1' % bucket_name,
@@ -304,6 +424,38 @@ class TestSwift3Bucket(Swift3TestCase):
         self.assertEqual(elem.find('./NextMarker').text, 'rose')
         self.assertEqual(elem.find('./MaxKeys').text, '1')
         self.assertEqual(elem.find('./IsTruncated').text, 'true')
+
+    def test_bucket_GET_v2_fetch_owner(self):
+        bucket_name = 'junk'
+        req = Request.blank('/%s?list-type=2' % bucket_name,
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '200')
+
+        elem = fromstring(body, 'ListBucketResult')
+        name = elem.find('./Name').text
+        self.assertEqual(name, bucket_name)
+
+        objects = elem.iterchildren('Contents')
+        for o in objects:
+            self.assertIsNone(o.find('./Owner'))
+
+        req = Request.blank('/%s?list-type=2&fetch-owner=true' % bucket_name,
+                            environ={'REQUEST_METHOD': 'GET'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '200')
+
+        elem = fromstring(body, 'ListBucketResult')
+        name = elem.find('./Name').text
+        self.assertEqual(name, bucket_name)
+
+        objects = elem.iterchildren('Contents')
+        for o in objects:
+            self.assertIsNotNone(o.find('./Owner'))
 
     @s3acl
     def test_bucket_PUT_error(self):
