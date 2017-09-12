@@ -207,3 +207,47 @@ ceph_s3:
   s3tests.functional.test_s3.test_sse_kms_transfer_1b: {status: KNOWN}
   s3tests.functional.test_s3.test_sse_kms_transfer_1kb: {status: KNOWN}
   s3tests.functional.test_s3.test_versioned_object_acl_no_version_specified: {status: KNOWN}
+  s3tests.functional.test_headers.test_bucket_create_bad_authorization_invalid_aws4: {status: KNOWN}
+  s3tests.functional.test_headers.test_bucket_create_bad_date_unreadable_aws4: {status: KNOWN}
+  s3tests.functional.test_headers.test_bucket_create_bad_expect_unreadable: {status: KNOWN}
+  s3tests.functional.test_headers.test_bucket_create_bad_ua_unreadable_aws4: {status: KNOWN}
+  s3tests.functional.test_headers.test_object_create_bad_authorization_invalid_aws4: {status: KNOWN}
+  s3tests.functional.test_headers.test_object_create_bad_contentlength_mismatch_below_aws4: {status: KNOWN}
+  s3tests.functional.test_headers.test_object_create_bad_contenttype_unreadable: {status: KNOWN}
+  s3tests.functional.test_headers.test_object_create_bad_date_unreadable_aws4: {status: KNOWN}
+  s3tests.functional.test_headers.test_object_create_bad_expect_unreadable: {status: KNOWN}
+  s3tests.functional.test_headers.test_object_create_bad_md5_unreadable: {status: KNOWN}
+  s3tests.functional.test_headers.test_object_create_bad_ua_unreadable_aws4: {status: KNOWN}
+  s3tests.functional.test_s3.test_abort_multipart_upload: {status: KNOWN}
+  s3tests.functional.test_s3.test_bucket_concurrent_set_canned_acl: {status: KNOWN}
+  s3tests.functional.test_s3.test_bucket_get_location: {status: KNOWN}
+  s3tests.functional.test_s3.test_bucket_head: {status: KNOWN}
+  s3tests.functional.test_s3.test_bucket_head_extended: {status: KNOWN}
+  s3tests.functional.test_s3.test_encrypted_transfer_13b: {status: KNOWN}
+  s3tests.functional.test_s3.test_encrypted_transfer_1MB: {status: KNOWN}
+  s3tests.functional.test_s3.test_encrypted_transfer_1b: {status: KNOWN}
+  s3tests.functional.test_s3.test_encrypted_transfer_1kb: {status: KNOWN}
+  s3tests.functional.test_s3.test_encryption_key_no_sse_c: {status: KNOWN}
+  s3tests.functional.test_s3.test_encryption_sse_c_multipart_upload: {status: KNOWN}
+  s3tests.functional.test_s3.test_multipart_copy_multiple_sizes: {status: KNOWN}
+  s3tests.functional.test_s3.test_multipart_copy_small: {status: KNOWN}
+  s3tests.functional.test_s3.test_multipart_copy_special_names: {status: KNOWN}
+  s3tests.functional.test_s3.test_multipart_upload: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_raw_authenticated: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_raw_authenticated_bucket_acl: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_raw_authenticated_bucket_gone: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_raw_authenticated_object_acl: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_raw_authenticated_object_gone: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_raw_get_x_amz_expires_not_expired: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_raw_get_x_amz_expires_out_max_range: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_raw_get_x_amz_expires_out_positive_range: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_raw_put_authenticated: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_raw_put_authenticated_expired: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_raw_response_headers: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_set_get_metadata_empty_to_unreadable_prefix: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_set_get_metadata_empty_to_unreadable_suffix: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_set_get_metadata_overwrite_to_unreadable_prefix: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_set_get_metadata_overwrite_to_unreadable_suffix: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_set_get_non_utf8_metadata: {status: KNOWN}
+  s3tests.functional.test_s3.test_object_write_check_etag: {status: KNOWN}
+

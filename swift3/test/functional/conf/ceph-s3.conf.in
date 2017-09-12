@@ -1,5 +1,5 @@
 [DEFAULT]
-host = localhost
+host = s3-us-east-1.localhost
 port = 8080
 is_secure = no
 
