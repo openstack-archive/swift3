@@ -49,7 +49,7 @@ from swift3.response import AccessDenied, InvalidArgument, InvalidDigest, \
     BadDigest, AuthorizationHeaderMalformed, AuthorizationQueryParametersError
 from swift3.exception import NotS3Request, BadSwiftRequest
 from swift3.utils import utf8encode, LOGGER, check_path_header, S3Timestamp, \
-    mktime
+    mktime, MULTIUPLOAD_SUFFIX
 from swift3.cfg import CONF
 from swift3.subresource import decode_acl, encode_acl
 from swift3.utils import sysmeta_header, validate_bucket_name
@@ -987,7 +987,7 @@ class Request(swob.Request):
 
         return code_map[method]
 
-    def _swift_error_codes(self, method, container, obj):
+    def _swift_error_codes(self, method, container, obj, env, app):
         """
         Returns a dict from expected Swift error codes to the corresponding S3
         error responses.
@@ -1020,13 +1020,25 @@ class Request(swob.Request):
             }
         else:
             # Swift object access.
+
+            # 404s differ depending upon whether the bucket exists
+            # Note that base-container-existence checks happen elsewhere for
+            # multi-part uploads, and get_container_info should be pulling
+            # from the env cache
+            def not_found_handler():
+                if container.endswith(MULTIUPLOAD_SUFFIX) or \
+                        is_success(get_container_info(
+                            env, app, swift_source='S3').get('status')):
+                    return NoSuchKey(obj)
+                return NoSuchBucket(container)
+
             code_map = {
                 'HEAD': {
-                    HTTP_NOT_FOUND: (NoSuchKey, obj),
+                    HTTP_NOT_FOUND: not_found_handler,
                     HTTP_PRECONDITION_FAILED: PreconditionFailed,
                 },
                 'GET': {
-                    HTTP_NOT_FOUND: (NoSuchKey, obj),
+                    HTTP_NOT_FOUND: not_found_handler,
                     HTTP_PRECONDITION_FAILED: PreconditionFailed,
                     HTTP_REQUESTED_RANGE_NOT_SATISFIABLE: InvalidRange,
                 },
@@ -1038,7 +1050,7 @@ class Request(swob.Request):
                     HTTP_REQUEST_TIMEOUT: RequestTimeout,
                 },
                 'POST': {
-                    HTTP_NOT_FOUND: (NoSuchKey, obj),
+                    HTTP_NOT_FOUND: not_found_handler,
                     HTTP_PRECONDITION_FAILED: PreconditionFailed,
                 },
                 'DELETE': {
@@ -1087,7 +1099,8 @@ class Request(swob.Request):
                 self.user_id = self.access_key
 
         success_codes = self._swift_success_codes(method, container, obj)
-        error_codes = self._swift_error_codes(method, container, obj)
+        error_codes = self._swift_error_codes(method, container, obj,
+                                              sw_req.environ, app)
 
         if status in success_codes:
             return resp
