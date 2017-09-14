@@ -621,6 +621,23 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEqual(headers.get('X-Object-Meta-Foo'), 'bar')
         self.assertEqual(headers.get('Content-Type'), 'baz/quux')
 
+    def test_object_multipart_upload_complete_404_on_marker_delete(self):
+        segment_bucket = '/v1/AUTH_test/bucket+segments'
+        self.swift.register('DELETE', segment_bucket + '/object/X',
+                            swob.HTTPNotFound, {}, None)
+        req = Request.blank('/bucket/object?uploadId=X',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(), },
+                            body=xml)
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '200')
+        fromstring(body, 'CompleteMultipartUploadResult')
+
+        _, _, headers = self.swift.calls_with_headers[-2]
+        self.assertEqual(headers.get('X-Object-Meta-Foo'), 'bar')
+        self.assertEqual(headers.get('Content-Type'), 'baz/quux')
+
     def test_object_multipart_upload_complete_weird_host_name(self):
         # This happens via boto signature v4
         req = Request.blank('/bucket/object?uploadId=X',
