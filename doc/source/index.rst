@@ -15,6 +15,14 @@ Swift S3 Compatibility Middleware
     See the License for the specific language governing permissions and
     limitations under the License.
 
+S3 Compatibility Info
+=====================
+
+.. toctree::
+    :maxdepth: 1
+
+    s3_compat
+
 Code-Generated Documentation
 ============================
 
