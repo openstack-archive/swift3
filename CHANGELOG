@@ -1,3 +1,34 @@
+Swift3 (1.12)
+    * Stop using client accessible header for cross-middleware communication
+      - Older swift3 using common HTTP header to communicate with auth middleware for
+        Swift. Now, the auth information is in wsgi env variable to prevent the header
+        from being passed by clients. This change closes a significant bug. See
+        https://bugs.launchpad.net/swift3/+bug/1561199 in detail.
+      - Plus, improve the auth middleware pipeline communication to let the auth middleware
+        just call check_signature func with the user's secret.
+
+      UpgradeInpact:
+        - If you're using tempauth, you need to upgrade your swift to later than 2.14.0.
+        - If you're using custom authentication middleware, you have to modify your middleware
+          to use auth information from wsgi environ variable. The reference change is
+          https://github.com/openstack/swift/commit/f3ef616dc6a2c4987c952b31232fa3bbb5bc6801.
+
+    * Various improvement for auth mechanism in s3_token
+      - Following a pipeline change, only contact Keystone once per client request.
+      - If ONLY using the S3 API, kesytonemiddleware.auth_token is no longer required.
+      - IPv6 format for keystone host is supported
+      - http_timeout option and delay_auth_decision option are supported. Those options
+        allows other auth middlewares to continue serving requests even when either Keystone
+        is down or rejects the request.
+
+    * ceph/s3api testing is supported as tox environment
+
+    * Add minimum segment size option for multipart upload is supported in swift3 config
+
+    * Fix some error response codes and messages to fit actual S3 response
+
+    * Other minor bug fixes and various improvements
+
 Swift3 (1.11)
 
     * Amazon S3 Signature V4 support
