@@ -82,7 +82,7 @@ def fromstring(text, root_tag=None):
     return elem
 
 
-def tostring(tree, encoding_type=None, use_s3ns=True):
+def tostring(tree, encoding_type=None, use_s3ns=True, xml_declaration=True):
     if use_s3ns:
         nsmap = tree.nsmap.copy()
         nsmap[None] = XMLNS_S3
@@ -102,7 +102,8 @@ def tostring(tree, encoding_type=None, use_s3ns=True):
                 if isinstance(e.text, basestring):
                     e.text = quote(e.text)
 
-    return lxml.etree.tostring(tree, xml_declaration=True, encoding='UTF-8')
+    return lxml.etree.tostring(tree, xml_declaration=xml_declaration,
+                               encoding='UTF-8')
 
 
 class _Element(lxml.etree.ElementBase):

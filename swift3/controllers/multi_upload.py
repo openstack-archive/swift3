@@ -42,6 +42,7 @@ upload information:
    Static Large Object.
 """
 
+import itertools
 import os
 import re
 import sys
@@ -506,7 +507,7 @@ class UploadController(Controller):
         """
         upload_id = req.params['uploadId']
         resp = _get_upload_info(req, self.app, upload_id)
-        headers = {}
+        headers = {'Accept': 'application/json'}
         for key, val in resp.headers.iteritems():
             _key = key.lower()
             if _key.startswith('x-amz-meta-'):
@@ -581,62 +582,89 @@ class UploadController(Controller):
             if info['size_bytes'] < CONF.min_segment_size:
                 raise EntityTooSmall()
 
-        try:
-            # TODO: add support for versioning
-            if manifest:
-                resp = req.get_response(self.app, 'PUT',
-                                        body=json.dumps(manifest),
-                                        query={'multipart-manifest': 'put'},
-                                        headers=headers)
-            else:
-                # the upload must have consisted of a single zero-length part
-                # just write it directly
-                resp = req.get_response(self.app, 'PUT', body='',
-                                        headers=headers)
-        except BadSwiftRequest as e:
-            msg = str(e)
-            expected_msg = 'too small; each segment must be at least 1 byte'
-            if expected_msg in msg:
-                # FIXME: AWS S3 allows a smaller object than 5 MB if there is
-                # only one part.  Use a COPY request to copy the part object
-                # from the segments container instead.
-                raise EntityTooSmall(msg)
-            else:
-                raise
+        def response_iter():
+            # NB: XML requires that the XML declaration, if present, be at the
+            # very start of the document. Clients *will* call us out on not
+            # being valid XML if we pass through whitespace before it.
+            yield '<?xml version="1.0" encoding="UTF-8"?>\n'
 
-        if empty_seg:
-            # clean up the zero-byte segment
-            _, empty_seg_cont, empty_seg_name = empty_seg['path'].split('/', 2)
-            req.get_response(self.app, 'DELETE',
-                             container=empty_seg_cont, obj=empty_seg_name)
+            try:
+                try:
+                    # TODO: add support for versioning
+                    if manifest:
+                        resp = req.get_response(self.app, 'PUT',
+                                                body=json.dumps(manifest),
+                                                query={'multipart-manifest': 'put',
+                                                       'heartbeat': 'on'},
+                                                headers=headers)
+                        if resp.status_int == 202:
+                            body = []
+                            resp.fix_conditional_response()
+                            for chunk in resp.response_iter:
+                                if not chunk.strip():
+                                    yield chunk
+                                body.append(chunk)
+                            body = json.loads(''.join(body))
+                            if body['Response Status'] != '201 Created':
+                                raise BadSwiftRequest(body['Response Status'])
+                    else:
+                        # the upload must have consisted of a single zero-length part
+                        # just write it directly
+                        resp = req.get_response(self.app, 'PUT', body='',
+                                                headers=headers)
+                except BadSwiftRequest as e:
+                    msg = str(e)
+                    expected_msg = 'too small; each segment must be at least 1 byte'
+                    if expected_msg in msg:
+                        # FIXME: AWS S3 allows a smaller object than 5 MB if there is
+                        # only one part.  Use a COPY request to copy the part object
+                        # from the segments container instead.
+                        raise EntityTooSmall(msg)
+                    else:
+                        raise
 
-        # clean up the multipart-upload record
-        obj = '%s/%s' % (req.object_name, upload_id)
-        try:
-            req.get_response(self.app, 'DELETE', container, obj)
-        except NoSuchKey:
-            pass  # We know that this existed long enough for us to HEAD
+                if empty_seg:
+                    # clean up the zero-byte segment
+                    _, empty_seg_cont, empty_seg_name = empty_seg['path'].split('/', 2)
+                    try:
+                        req.get_response(self.app, 'DELETE',
+                                         container=empty_seg_cont, obj=empty_seg_name)
+                    except NoSuchKey:
+                        # We know that this existed long enough to appear
+                        # in container listings
+                        pass
 
-        result_elem = Element('CompleteMultipartUploadResult')
+                # clean up the multipart-upload record
+                obj = '%s/%s' % (req.object_name, upload_id)
+                try:
+                    req.get_response(self.app, 'DELETE', container, obj)
+                except NoSuchKey:
+                    pass  # We know that this existed long enough for us to HEAD
 
-        # NOTE: boto with sig v4 appends port to HTTP_HOST value at the
-        # request header when the port is non default value and it makes
-        # req.host_url like as http://localhost:8080:8080/path
-        # that obviously invalid. Probably it should be resolved at
-        # swift.common.swob though, tentatively we are parsing and
-        # reconstructing the correct host_url info here.
-        # in detail, https://github.com/boto/boto/pull/3513
-        parsed_url = urlparse(req.host_url)
-        host_url = '%s://%s' % (parsed_url.scheme, parsed_url.hostname)
-        if parsed_url.port:
-            host_url += ':%s' % parsed_url.port
+                result_elem = Element('CompleteMultipartUploadResult')
 
-        SubElement(result_elem, 'Location').text = host_url + req.path
-        SubElement(result_elem, 'Bucket').text = req.container_name
-        SubElement(result_elem, 'Key').text = req.object_name
-        SubElement(result_elem, 'ETag').text = resp.etag
+                # NOTE: boto with sig v4 appends port to HTTP_HOST value at the
+                # request header when the port is non default value and it makes
+                # req.host_url like as http://localhost:8080:8080/path
+                # that obviously invalid. Probably it should be resolved at
+                # swift.common.swob though, tentatively we are parsing and
+                # reconstructing the correct host_url info here.
+                # in detail, https://github.com/boto/boto/pull/3513
+                parsed_url = urlparse(req.host_url)
+                host_url = '%s://%s' % (parsed_url.scheme, parsed_url.hostname)
+                if parsed_url.port:
+                    host_url += ':%s' % parsed_url.port
 
-        resp.body = tostring(result_elem)
+                SubElement(result_elem, 'Location').text = host_url + req.path
+                SubElement(result_elem, 'Bucket').text = req.container_name
+                SubElement(result_elem, 'Key').text = req.object_name
+                SubElement(result_elem, 'ETag').text = resp.etag
+                yield tostring(result_elem, xml_declaration=False)
+            except ErrorResponse as err_resp:
+                for chunk in err_resp({}, lambda *a: None):
+                    yield chunk
+
+        resp.app_iter = response_iter()
         resp.status = 200
         resp.content_type = "application/xml"
 
