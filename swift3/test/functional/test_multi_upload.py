@@ -289,15 +289,21 @@ class TestSwift3MultiUpload(Swift3FunctionalTestCase):
         self.assertCommonResponseHeaders(headers)
         self.assertTrue('content-type' in headers)
         self.assertEqual(headers['content-type'], 'application/xml')
-        self.assertTrue('content-length' in headers)
-        self.assertEqual(headers['content-length'], str(len(body)))
+        if 'content-length' in headers:
+            self.assertEqual(headers['content-length'], str(len(body)))
+        else:
+            self.assertIn('transfer-encoding', headers)
+            self.assertEqual(headers['transfer-encoding'], 'chunked')
+        lines = body.split('\n')
+        self.assertTrue(lines[0].startswith('<?xml'), body)
+        self.assertTrue(lines[0].endswith('?>'), body)
         elem = fromstring(body, 'CompleteMultipartUploadResult')
         self.assertEqual('http://localhost:8080/bucket/obj1',
                          elem.find('Location').text)
         self.assertEqual(elem.find('Bucket').text, bucket)
         self.assertEqual(elem.find('Key').text, key)
         # TODO: confirm completed etag value
-        self.assertTrue(elem.find('ETag').text is not None)
+        self.assertIsNotNone(elem.find('ETag').text, body)
 
     def test_initiate_multi_upload_error(self):
         bucket = 'bucket'
