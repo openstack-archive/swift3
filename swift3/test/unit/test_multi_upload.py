@@ -153,6 +153,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
                                      'Date': self.get_date_header()})
         status, headers, body = self.call_swift3(req)
         self.assertEqual(self._get_error_code(body), 'InvalidRequest')
+        self.assertEqual(self._get_error_message(body),
+                         'A key must be specified')
 
     def _test_bucket_multipart_uploads_GET(self, query=None,
                                            multiparts=None):
@@ -621,6 +623,93 @@ class TestSwift3MultiUpload(Swift3TestCase):
         self.assertEqual(headers.get('X-Object-Meta-Foo'), 'bar')
         self.assertEqual(headers.get('Content-Type'), 'baz/quux')
 
+    def test_object_multipart_upload_complete_with_heartbeat(self):
+        self.swift.register(
+            'HEAD', '/v1/AUTH_test/bucket+segments/heartbeat-ok/X',
+            swob.HTTPOk, {}, None)
+        self.swift.register(
+            'GET', '/v1/AUTH_test/bucket+segments', swob.HTTPOk, {},
+            json.dumps([
+                {'name': item[0].replace('object', 'heartbeat-ok'),
+                 'last_modified': item[1], 'hash': item[2], 'bytes': item[3]}
+                for item in objects_template
+            ]))
+        self.swift.register(
+            'PUT', '/v1/AUTH_test/bucket/heartbeat-ok',
+            swob.HTTPAccepted, {}, [' ', ' ', ' ', json.dumps({
+                'Etag': '"slo-etag"',
+                'Response Status': '201 Created',
+                'Errors': [],
+            })])
+        self.swift.register(
+            'DELETE', '/v1/AUTH_test/bucket+segments/heartbeat-ok/X',
+            swob.HTTPNoContent, {}, None)
+
+        req = Request.blank('/bucket/heartbeat-ok?uploadId=X',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(), },
+                            body=xml)
+        status, headers, body = self.call_swift3(req)
+        lines = body.split('\n')
+        self.assertTrue(lines[0].startswith('<?xml '))
+        self.assertTrue(lines[1])
+        self.assertFalse(lines[1].strip())
+        fromstring(body, 'CompleteMultipartUploadResult')
+        self.assertEqual(status.split()[0], '200')
+        self.assertIn('<ETag>"slo-etag"</ETag>', body)
+        self.assertEqual(self.swift.calls, [
+            ('HEAD', '/v1/AUTH_test/bucket'),
+            ('HEAD', '/v1/AUTH_test/bucket+segments/heartbeat-ok/X'),
+            ('GET', '/v1/AUTH_test/bucket+segments?'
+                    'delimiter=/&format=json&prefix=heartbeat-ok/X/'),
+            ('PUT', '/v1/AUTH_test/bucket/heartbeat-ok?'
+                    'heartbeat=on&multipart-manifest=put'),
+            ('DELETE', '/v1/AUTH_test/bucket+segments/heartbeat-ok/X'),
+        ])
+
+    def test_object_multipart_upload_complete_failure_with_heartbeat(self):
+        self.swift.register(
+            'HEAD', '/v1/AUTH_test/bucket+segments/heartbeat-fail/X',
+            swob.HTTPOk, {}, None)
+        self.swift.register(
+            'GET', '/v1/AUTH_test/bucket+segments', swob.HTTPOk, {},
+            json.dumps([
+                {'name': item[0].replace('object', 'heartbeat-fail'),
+                 'last_modified': item[1], 'hash': item[2], 'bytes': item[3]}
+                for item in objects_template
+            ]))
+        self.swift.register(
+            'PUT', '/v1/AUTH_test/bucket/heartbeat-fail',
+            swob.HTTPAccepted, {}, [' ', ' ', ' ', json.dumps({
+                'Response Status': '400 Bad Request',
+                'Errors': [['some/object', '404 Not Found']],
+            })])
+
+        req = Request.blank('/bucket/heartbeat-fail?uploadId=X',
+                            environ={'REQUEST_METHOD': 'POST'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header(), },
+                            body=xml)
+        status, headers, body = self.call_swift3(req)
+        lines = body.split('\n')
+        self.assertTrue(lines[0].startswith('<?xml '))
+        self.assertTrue(lines[1])
+        self.assertFalse(lines[1].strip())
+        fromstring(body, 'Error')
+        self.assertEqual(status.split()[0], '200')
+        self.assertEqual(self._get_error_code(body), 'InvalidRequest')
+        self.assertEqual(self._get_error_message(body),
+                         'some/object: 404 Not Found')
+        self.assertEqual(self.swift.calls, [
+            ('HEAD', '/v1/AUTH_test/bucket'),
+            ('HEAD', '/v1/AUTH_test/bucket+segments/heartbeat-fail/X'),
+            ('GET', '/v1/AUTH_test/bucket+segments?'
+                    'delimiter=/&format=json&prefix=heartbeat-fail/X/'),
+            ('PUT', '/v1/AUTH_test/bucket/heartbeat-fail?'
+                    'heartbeat=on&multipart-manifest=put'),
+        ])
+
     def test_object_multipart_upload_complete_404_on_marker_delete(self):
         segment_bucket = '/v1/AUTH_test/bucket+segments'
         self.swift.register('DELETE', segment_bucket + '/object/X',
@@ -850,7 +939,8 @@ class TestSwift3MultiUpload(Swift3TestCase):
             ('HEAD', '/v1/AUTH_test/bucket+segments/object/X'),
             ('GET', '/v1/AUTH_test/bucket+segments?delimiter=/&'
                     'format=json&prefix=object/X/'),
-            ('PUT', '/v1/AUTH_test/bucket/object?multipart-manifest=put'),
+            ('PUT', '/v1/AUTH_test/bucket/object?'
+                    'heartbeat=on&multipart-manifest=put'),
             ('DELETE', '/v1/AUTH_test/bucket+segments/object/X/3'),
             ('DELETE', '/v1/AUTH_test/bucket+segments/object/X'),
         ])
