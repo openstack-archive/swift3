@@ -21,7 +21,8 @@ from swift3.controllers.base import Controller, bucket_operation
 from swift3.etree import Element, SubElement, fromstring, tostring, \
     XMLSyntaxError, DocumentInvalid
 from swift3.response import HTTPOk, S3NotImplemented, NoSuchKey, \
-    ErrorResponse, MalformedXML, UserKeyMustBeSpecified, AccessDenied
+    ErrorResponse, MalformedXML, UserKeyMustBeSpecified, AccessDenied, \
+    MissingRequestBodyError
 from swift3.cfg import CONF
 from swift3.utils import LOGGER
 
@@ -64,7 +65,11 @@ class MultiObjectDeleteController(Controller):
                 yield key, version
 
         try:
-            xml = req.xml(MAX_MULTI_DELETE_BODY_SIZE, check_md5=True)
+            xml = req.xml(MAX_MULTI_DELETE_BODY_SIZE)
+            if not xml:
+                raise MissingRequestBodyError()
+
+            req.check_md5(xml)
             elem = fromstring(xml, 'Delete')
 
             quiet = elem.find('./Quiet')
