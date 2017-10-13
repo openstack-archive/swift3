@@ -1,0 +1,9 @@
+Code-Review+1: Thiago da Silva <thiago@redhat.com>
+Code-Review+2: Kota Tsuyuzaki <tsuyuzaki.kota@lab.ntt.co.jp>
+Workflow+1: Kota Tsuyuzaki <tsuyuzaki.kota@lab.ntt.co.jp>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 13 Oct 2017 07:28:49 +0000
+Reviewed-on: https://review.openstack.org/345739
+Project: openstack/swift3
+Branch: refs/heads/master
