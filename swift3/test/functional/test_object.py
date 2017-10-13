@@ -318,7 +318,9 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.assertCommonResponseHeaders(headers)
         self._assertObjectEtag(self.bucket, obj, etag)
 
-    def _test_put_object_headers(self, req_headers):
+    def _test_put_object_headers(self, req_headers, expected_headers=None):
+        if expected_headers is None:
+            expected_headers = req_headers
         obj = 'object'
         content = 'abcdefghij'
         etag = md5(content).hexdigest()
@@ -328,7 +330,7 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.assertEqual(status, 200)
         status, headers, body = \
             self.conn.make_request('HEAD', self.bucket, obj)
-        for header, value in req_headers.items():
+        for header, value in expected_headers.items():
             self.assertIn(header.lower(), headers)
             self.assertEqual(headers[header.lower()], value)
         self.assertCommonResponseHeaders(headers)
@@ -338,6 +340,21 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self._test_put_object_headers({
             'X-Amz-Meta-Bar': 'foo',
             'X-Amz-Meta-Bar2': 'foo2'})
+
+    def test_put_object_weird_metadata(self):
+        req_headers = dict(
+            ('x-amz-meta-' + c, c)
+            for c in '!"#$%&\'()*+-./<=>?@[\\]^`{|}~')
+        exp_headers = dict(
+            ('x-amz-meta-' + c, c)
+            for c in '!#$%&\'(*+-.^`|~')
+        self._test_put_object_headers(req_headers, exp_headers)
+
+    def test_put_object_underscore_in_metadata(self):
+        # Break this out separately for ease of testing pre-0.19.0 eventlet
+        self._test_put_object_headers({
+            'X-Amz-Meta-Foo-Bar': 'baz',
+            'X-Amz-Meta-Foo_Bar': 'also baz'})
 
     def test_put_object_content_headers(self):
         self._test_put_object_headers({
