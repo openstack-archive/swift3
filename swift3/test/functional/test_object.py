@@ -21,11 +21,10 @@ import boto
 # pylint: disable-msg=E0611,F0401
 from distutils.version import StrictVersion
 
+import email.parser
 from email.utils import formatdate, parsedate
 from time import mktime
 
-from multifile import MultiFile
-from cStringIO import StringIO
 from hashlib import md5
 from urllib import quote
 
@@ -664,39 +663,35 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         self.assertTrue(boundary.startswith('boundary='))  # sanity
         boundary_str = boundary[len('boundary='):]
 
-        sio = StringIO(body)
-        mfile = MultiFile(sio)
-        mfile.push(boundary_str)
+        email.parser.FeedParser
+        parser = email.parser.FeedParser()
+        parser.feed(
+            "Content-Type: multipart/byterange; boundary=%s\r\n\r\n" %
+            boundary_str)
+        parser.feed(body)
+        message = parser.close()
 
-        def check_line_header(line, expected_key, expected_value):
-            key, value = line.split(':', 1)
-            self.assertEqual(expected_key, key.strip())
-            self.assertEqual(expected_value, value.strip())
+        self.assertTrue(message.is_multipart())  # sanity check
+        mime_parts = message.get_payload()
+        # sio = StringIO(body)
+        # mfile = MultiFile(sio)
+        # mfile.push(boundary_str)
+        self.assertEqual(len(mime_parts), len(ranges))  # sanity
 
-        for range_value in ranges:
+        for index, range_value in enumerate(ranges):
             start, end = map(int, range_value.split('-'))
             # go to next section and check sanity
-            self.assertTrue(mfile.next())
+            self.assertTrue(mime_parts[index])
 
-            lines = mfile.readlines()
-            # first line should be content-type which
-            # includes original content-type
-            # e.g. Content-Type: application/octet-stream
-            check_line_header(
-                lines[0].strip(), 'Content-Type', 'application/octet-stream')
-
-            # second line should be byte range information
-            # e.g. Content-Range: bytes 1-2/11
+            part = mime_parts[index]
+            self.assertEqual(
+                'application/octet-stream', part.get_content_type())
             expected_range = 'bytes %s/%s' % (range_value, len(content))
-            check_line_header(
-                lines[1].strip(), 'Content-Range', expected_range)
+            self.assertEqual(
+                expected_range, part.get('Content-Range'))
             # rest
-            rest = [line for line in lines[2:] if line.strip()]
-            self.assertEqual(1, len(rest))  # sanity
-            self.assertTrue(content[start:end], rest[0])
-
-        # no next section
-        self.assertFalse(mfile.next())  # sanity
+            payload = part.get_payload().strip()
+            self.assertEqual(content[start:end + 1], payload)
 
     def test_get_object_if_modified_since(self):
         obj = 'object'
