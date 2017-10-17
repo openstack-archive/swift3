@@ -24,11 +24,11 @@ from distutils.version import StrictVersion
 from email.utils import formatdate, parsedate
 from time import mktime
 
-from multifile import MultiFile
 from cStringIO import StringIO
 from hashlib import md5
 from urllib import quote
 
+from swift.common.utils import multipart_byteranges_to_document_iters
 from swift3.test.functional.s3_test_client import Connection
 from swift3.test.functional.utils import get_error_code,\
     calculate_md5
@@ -665,38 +665,25 @@ class TestSwift3Object(Swift3FunctionalTestCase):
         boundary_str = boundary[len('boundary='):]
 
         sio = StringIO(body)
-        mfile = MultiFile(sio)
-        mfile.push(boundary_str)
+        mime_parts = [
+            {'start': part[0], 'end': part[1], 'length': part[2],
+             'headers': dict(part[3]), 'body': part[4]}
+            for part in
+            multipart_byteranges_to_document_iters(sio, boundary_str)]
+        self.assertEqual(len(mime_parts), len(ranges))  # sanity
 
-        def check_line_header(line, expected_key, expected_value):
-            key, value = line.split(':', 1)
-            self.assertEqual(expected_key, key.strip())
-            self.assertEqual(expected_value, value.strip())
-
-        for range_value in ranges:
+        for index, range_value in enumerate(ranges):
             start, end = map(int, range_value.split('-'))
             # go to next section and check sanity
-            self.assertTrue(mfile.next())
-
-            lines = mfile.readlines()
-            # first line should be content-type which
-            # includes original content-type
-            # e.g. Content-Type: application/octet-stream
-            check_line_header(
-                lines[0].strip(), 'Content-Type', 'application/octet-stream')
-
-            # second line should be byte range information
-            # e.g. Content-Range: bytes 1-2/11
-            expected_range = 'bytes %s/%s' % (range_value, len(content))
-            check_line_header(
-                lines[1].strip(), 'Content-Range', expected_range)
+            part_dict = mime_parts[index]
+            self.assertEqual(part_dict['start'], start)
+            self.assertEqual(part_dict['end'], end)
+            self.assertEqual(
+                'application/octet-stream',
+                part_dict['headers'].get('content-type'))
+            self.assertEqual(part_dict['length'], 2)
             # rest
-            rest = [line for line in lines[2:] if line.strip()]
-            self.assertEqual(1, len(rest))  # sanity
-            self.assertTrue(content[start:end], rest[0])
-
-        # no next section
-        self.assertFalse(mfile.next())  # sanity
+            self.assertEqual(content[start:end + 1], part_dict['body'])
 
     def test_get_object_if_modified_since(self):
         obj = 'object'
