@@ -101,7 +101,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         for o in resp_objects:
             self.assertTrue(o.find('Key').text in req_objects)
             self.assertTrue(o.find('LastModified').text is not None)
-            self.assertRegexpMatches(
+            self.assertRegex(
                 o.find('LastModified').text,
                 r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$')
             self.assertTrue(o.find('ETag').text is not None)
@@ -188,7 +188,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         for i, o in enumerate(resp_objects):
             self.assertEqual(o.find('Key').text, expect_objects[i])
             self.assertTrue(o.find('LastModified').text is not None)
-            self.assertRegexpMatches(
+            self.assertRegex(
                 o.find('LastModified').text,
                 r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$')
             self.assertTrue(o.find('ETag').text is not None)
@@ -234,7 +234,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         for i, o in enumerate(resp_objects):
             self.assertEqual(o.find('Key').text, expect_objects[i])
             self.assertTrue(o.find('LastModified').text is not None)
-            self.assertRegexpMatches(
+            self.assertRegex(
                 o.find('LastModified').text,
                 r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$')
             self.assertTrue(o.find('ETag').text is not None)
@@ -263,7 +263,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         for i, o in enumerate(resp_objects):
             self.assertEqual(o.find('Key').text, expect_objects[i])
             self.assertTrue(o.find('LastModified').text is not None)
-            self.assertRegexpMatches(
+            self.assertRegex(
                 o.find('LastModified').text,
                 r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$')
             self.assertTrue(o.find('ETag').text is not None)
@@ -292,7 +292,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         for i, o in enumerate(resp_objects):
             self.assertEqual(o.find('Key').text, expect_objects[i])
             self.assertTrue(o.find('LastModified').text is not None)
-            self.assertRegexpMatches(
+            self.assertRegex(
                 o.find('LastModified').text,
                 r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$')
             self.assertTrue(o.find('ETag').text is not None)
@@ -321,7 +321,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         for i, o in enumerate(resp_objects):
             self.assertEqual(o.find('Key').text, expect_objects[i])
             self.assertTrue(o.find('LastModified').text is not None)
-            self.assertRegexpMatches(
+            self.assertRegex(
                 o.find('LastModified').text,
                 r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$')
             self.assertTrue(o.find('ETag').text is not None)
@@ -349,7 +349,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         for i, o in enumerate(resp_objects):
             self.assertEqual(o.find('Key').text, expect_objects[i])
             self.assertTrue(o.find('LastModified').text is not None)
-            self.assertRegexpMatches(
+            self.assertRegex(
                 o.find('LastModified').text,
                 r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$')
             self.assertTrue(o.find('ETag').text is not None)
@@ -381,7 +381,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         for i, o in enumerate(resp_objects):
             self.assertEqual(o.find('Key').text, expect_objects[i])
             self.assertTrue(o.find('LastModified').text is not None)
-            self.assertRegexpMatches(
+            self.assertRegex(
                 o.find('LastModified').text,
                 r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$')
             self.assertTrue(o.find('ETag').text is not None)
@@ -408,7 +408,7 @@ class TestSwift3Bucket(Swift3FunctionalTestCase):
         for i, o in enumerate(resp_objects):
             self.assertEqual(o.find('Key').text, expect_objects[i])
             self.assertTrue(o.find('LastModified').text is not None)
-            self.assertRegexpMatches(
+            self.assertRegex(
                 o.find('LastModified').text,
                 r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$')
             self.assertTrue(o.find('ETag').text is not None)
