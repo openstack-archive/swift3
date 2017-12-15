@@ -15,7 +15,7 @@ Swift3 (1.12)
 
     * Various improvement for auth mechanism in s3_token
       - Following a pipeline change, only contact Keystone once per client request.
-      - If ONLY using the S3 API, kesytonemiddleware.auth_token is no longer required.
+      - If ONLY using the S3 API, keystonemiddleware.auth_token is no longer required.
       - IPv6 format for keystone host is supported
       - http_timeout option and delay_auth_decision option are supported. Those options
         allows other auth middlewares to continue serving requests even when either Keystone
