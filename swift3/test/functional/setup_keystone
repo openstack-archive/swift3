@@ -83,7 +83,6 @@ _setup_keystone()
 
     keystone-manage --config-file conf/keystone.conf --debug fernet_setup
     keystone-manage --config-file conf/keystone.conf --debug db_sync
-    keystone-manage --config-file conf/keystone.conf --debug pki_setup
     keystone-manage --config-file conf/keystone.conf --debug bootstrap \
         --bootstrap-password=$OS_PASSWORD \
         --bootstrap-admin-url=$OS_AUTH_URL \
