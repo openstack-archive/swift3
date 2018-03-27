@@ -118,14 +118,16 @@ class Swift3TestCase(unittest.TestCase):
 
         req.headers.setdefault("User-Agent", "Mozzarella Foxfire")
 
-        status = [None]
-        headers = [None]
+        class StartResponseContext(object):
+            status = headers = None
 
-        def start_response(s, h, ei=None):
-            status[0] = s
-            headers[0] = swob.HeaderKeyDict(h)
+            def __call__(self, s, h, ei=None):
+                self.status = s
+                self.headers = swob.HeaderKeyDict(h)
 
-        body_iter = app(req.environ, start_response)
+        sr = StartResponseContext()
+
+        body_iter = app(req.environ, sr)
         body = ''
         caught_exc = None
         try:
@@ -138,9 +140,9 @@ class Swift3TestCase(unittest.TestCase):
                 raise
 
         if expect_exception:
-            return status[0], headers[0], body, caught_exc
+            return sr.status, sr.headers, body, caught_exc
         else:
-            return status[0], headers[0], body
+            return sr.status, sr.headers, body
 
     def call_swift3(self, req, **kwargs):
         return self.call_app(req, app=self.swift3, **kwargs)
