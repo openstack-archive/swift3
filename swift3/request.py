@@ -769,7 +769,7 @@ class Request(swob.Request):
 
         src_resp = self.get_response(app, 'HEAD', src_bucket, src_obj,
                                      headers=headers)
-        if src_resp.status_int == 304:  # pylint: disable-msg=E1101
+        if src_resp.status_int == HTTP_NOT_MODIFIED:# pylint: disable-msg=E1101
             raise PreconditionFailed()
 
         self.headers['X-Amz-Copy-Source'] = \
@@ -1254,7 +1254,7 @@ class Request(swob.Request):
             info = get_container_info(sw_req.environ, app)
             if is_success(info['status']):
                 return info
-            elif info['status'] == 404:
+            elif info['status'] == HTTP_NOT_FOUND:
                 raise NoSuchBucket(self.container_name)
             else:
                 raise InternalError(
