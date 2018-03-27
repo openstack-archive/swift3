@@ -766,12 +766,6 @@ class TestSwift3Obj(Swift3TestCase):
         self.assertEqual(code, 'InternalError')
 
         with patch('swift3.request.get_container_info',
-                   return_value={'status': 204}):
-            code = self._test_method_error('DELETE', '/bucket/object',
-                                           swob.HTTPNotFound)
-            self.assertEqual(code, 'NoSuchKey')
-
-        with patch('swift3.request.get_container_info',
                    return_value={'status': 404}):
             code = self._test_method_error('DELETE', '/bucket/object',
                                            swob.HTTPNotFound)
@@ -805,10 +799,26 @@ class TestSwift3Obj(Swift3TestCase):
 
         self.assertIn(('HEAD', '/v1/AUTH_test/bucket/object'),
                       self.swift.calls)
-        self.assertIn(('DELETE', '/v1/AUTH_test/bucket/object'),
-                      self.swift.calls)
+        self.assertEqual(('DELETE', '/v1/AUTH_test/bucket/object'),
+                         self.swift.calls[-1])
         _, path = self.swift.calls[-1]
         self.assertEqual(path.count('?'), 0)
+
+    @s3acl
+    def test_object_DELETE_missing(self):
+        self.swift.register('HEAD', '/v1/AUTH_test/bucket/object',
+                            swob.HTTPNotFound, {}, None)
+        req = Request.blank('/bucket/object',
+                            environ={'REQUEST_METHOD': 'DELETE'},
+                            headers={'Authorization': 'AWS test:tester:hmac',
+                                     'Date': self.get_date_header()})
+        status, headers, body = self.call_swift3(req)
+        self.assertEqual(status.split()[0], '204')
+
+        self.assertIn(('HEAD', '/v1/AUTH_test/bucket/object'),
+                      self.swift.calls)
+        self.assertNotIn(('DELETE', '/v1/AUTH_test/bucket/object'),
+                         self.swift.calls)
 
     @s3acl
     def test_slo_object_DELETE(self):

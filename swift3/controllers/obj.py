@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-
 from swift.common.http import HTTP_OK, HTTP_PARTIAL_CONTENT, HTTP_NO_CONTENT
 from swift.common.swob import Range, content_range_header_value
 from swift.common.utils import public
@@ -22,7 +20,7 @@ from swift.common.utils import public
 from swift3.utils import S3Timestamp
 from swift3.controllers.base import Controller
 from swift3.response import S3NotImplemented, InvalidRange, NoSuchKey, \
-    InvalidArgument
+    InvalidArgument, HTTPNoContent
 
 
 class ObjectController(Controller):
@@ -144,7 +142,7 @@ class ObjectController(Controller):
                 resp.body = ''
         except NoSuchKey:
             # expect to raise NoSuchBucket when the bucket doesn't exist
-            exc_type, exc_value, exc_traceback = sys.exc_info()
             req.get_container_info(self.app)
-            raise exc_type, exc_value, exc_traceback
+            # else -- it's gone! Success.
+            return HTTPNoContent()
         return resp
