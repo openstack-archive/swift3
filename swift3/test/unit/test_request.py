@@ -295,9 +295,14 @@ class TestRequest(Swift3TestCase):
             self.assertTrue(sw_req.environ['swift.proxy_access_log_made'])
 
     def test_get_container_info(self):
+        swift3_acl = '{"Owner":"owner","Grant":'\
+            '[{"Grantee":"owner","Permission":"FULL_CONTROL"}]}'
         self.swift.register('HEAD', '/v1/AUTH_test/bucket', HTTPNoContent,
                             {'x-container-read': 'foo',
                              'X-container-object-count': 5,
+                             'x-container-sysmeta-versions-location':
+                                'bucket2',
+                             'x-container-sysmeta-swift3-acl': swift3_acl,
                              'X-container-meta-foo': 'bar'}, None)
         req = Request.blank('/bucket', environ={'REQUEST_METHOD': 'GET'},
                             headers={'Authorization': 'AWS test:tester:hmac',
@@ -309,6 +314,9 @@ class TestRequest(Swift3TestCase):
         self.assertEqual(204, info['status'])  # sanity
         self.assertEqual('foo', info['read_acl'])  # sanity
         self.assertEqual('5', info['object_count'])  # sanity
+        self.assertEqual(
+            'bucket2', info['sysmeta']['versions-location'])  # sanity
+        self.assertEqual(swift3_acl, info['sysmeta']['swift3-acl'])  # sanity
         self.assertEqual({'foo': 'bar'}, info['meta'])  # sanity
         with patch('swift3.request.get_container_info',
                    return_value={'status': 204}) as mock_info:
@@ -751,6 +759,7 @@ class TestRequest(Swift3TestCase):
         self.assertEqual(expected_sts, sigv2_req._string_to_sign())
         self.assertTrue(sigv2_req.check_signature(
             'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'))
+
 
 if __name__ == '__main__':
     unittest.main()
