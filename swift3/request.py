@@ -1262,8 +1262,10 @@ class Request(swob.Request):
         else:
             # otherwise we do naive HEAD request with the authentication
             resp = self.get_response(app, 'HEAD', self.container_name, '')
+            headers = resp.sw_headers.copy()
+            headers.update(resp.sysmeta_headers)
             return headers_to_container_info(
-                resp.sw_headers, resp.status_int)  # pylint: disable-msg=E1101
+                headers, resp.status_int)  # pylint: disable-msg=E1101
 
     def gen_multipart_manifest_delete_query(self, app):
         if not CONF.allow_multipart_uploads:
