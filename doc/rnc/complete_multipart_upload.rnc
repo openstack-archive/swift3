@@ -1,7 +1,0 @@
-start =
-  element CompleteMultipartUpload {
-    element Part {
-      element PartNumber { xsd:int } &
-      element ETag { xsd:string }
-    }+
-  }

@@ -1,5 +1,0 @@
-start =
-  element VersioningConfiguration {
-    element Status { "Enabled" | "Suspended" }? &
-    element MfaDelete { "Enabled" | "Disabled" }?
-  }

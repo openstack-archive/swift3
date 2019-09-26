@@ -1,7 +1,0 @@
-start =
-  element CompleteMultipartUploadResult {
-    element Location { xsd:anyURI },
-    element Bucket { xsd:string },
-    element Key { xsd:string },
-    element ETag { xsd:string }
-  }

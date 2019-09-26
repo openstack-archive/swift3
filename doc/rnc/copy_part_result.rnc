@@ -1,5 +1,0 @@
-start =
-  element CopyPartResult {
-    element LastModified { xsd:dateTime },
-    element ETag { xsd:string }
-  }
